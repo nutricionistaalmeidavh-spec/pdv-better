@@ -103,7 +103,7 @@ async function start() {
   ipcMain.handle(apiChannels.lanStatus,()=>runtime.status());
   ipcMain.handle(apiChannels.lanHost,(_evt,options)=>{runtime.authorize('lanHost');return runtime.host(options);});
   ipcMain.handle(apiChannels.lanJoin,(_evt,input)=>{if(runtime.currentUser())runtime.authorize('lanJoin');return runtime.join(input);});
-  ipcMain.handle(apiChannels.lanLocal,()=>{runtime.authorize('lanLocal');return runtime.local();});
+  ipcMain.handle(apiChannels.lanLocal,()=>{if(runtime.currentUser())runtime.authorize('lanLocal');else if(!runtime.isRemote())throw new Error('Acesso restrito ao administrador.');return runtime.local();});
   ipcMain.handle(apiChannels.deviceGet,()=>{runtime.authorize('deviceGet');return readDevice();});
   ipcMain.handle(apiChannels.deviceSet,(_evt,input)=>{
     runtime.authorize('deviceSet');
