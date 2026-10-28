@@ -60,6 +60,10 @@ export function openCatalog(filename) {
   function archive(kind, id) {
     assertEntity(kind);
     if (typeof id !== 'string') throw new Error('Identificador inválido.');
+    if (kind === 'categories') {
+      const linked = db.prepare('SELECT COUNT(*) AS n FROM products WHERE category_id=? AND active=1').get(id).n;
+      if (linked > 0) throw new Error('Categoria possui produtos ativos. Altere a categoria desses produtos antes de desativá-la.');
+    }
     const result = db.prepare('UPDATE "' + kind + '" SET active=0, updated_at=? WHERE id=? AND active=1').run(new Date().toISOString(), id);
     if (!result.changes) throw new Error('Cadastro não encontrado ou já desativado.');
     return { id, archived: true };
