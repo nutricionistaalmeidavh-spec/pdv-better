@@ -1,0 +1,65 @@
+// Executado pelo GitHub Actions com binário Electron real (fonte e instalador NSIS).
+// Exerce cadastro, venda e persistência sem mock do IPC nem capturas de referência.
+import { _electron as electron } from 'playwright';
+import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const ownDir=!process.env.PDV_TEST_USER_DATA;
+const userData=process.env.PDV_TEST_USER_DATA || mkdtempSync(join(tmpdir(),'pdv-better-e2e-'));
+const executable=process.env.PDV_TEST_APP_EXECUTABLE;
+const args=executable?[]:['.'];
+let app;
+async function launch(){
+  return electron.launch({
+    ...(executable?{executablePath:executable}:{}),
+    args,
+    env:{...process.env,PDV_TEST_USER_DATA:userData,PDV_TEST_SMOKE:'1'},
+    timeout:45000
+  });
+}
+const wait=async(page)=>page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+try{
+  app=await launch();
+  let page=await app.firstWindow();
+  await wait(page);
+  await page.getByRole('button',{name:'Categorias'}).click();
+  await page.getByRole('button',{name:/Adicionar categoria/i}).click();
+  await page.getByRole('textbox',{name:'Nome da categoria'}).fill('Bebidas');
+  await page.getByRole('button',{name:'Salvar cadastro'}).click();
+  await page.getByRole('cell',{name:'Bebidas'}).waitFor();
+  await page.getByRole('button',{name:'Produtos'}).click();
+  await page.getByRole('button',{name:/Adicionar produto/i}).click();
+  await page.getByRole('textbox',{name:'Nome do produto'}).fill('Café Smoke');
+  await page.getByRole('textbox',{name:/Código de barras/i}).fill('SMOKE1001');
+  await page.getByRole('textbox',{name:/Preço de venda/i}).fill('12,50');
+  await page.getByRole('textbox',{name:/Saldo em estoque/i}).fill('10,000');
+  await page.getByRole('combobox',{name:'Categoria'}).selectOption({label:'Bebidas'});
+  await page.getByRole('button',{name:'Salvar cadastro'}).click();
+  await page.getByRole('cell',{name:'Café Smoke'}).waitFor();
+  await page.getByRole('button',{name:'Frente de caixa'}).click();
+  await page.getByRole('button',{name:'Ir para abertura de caixa'}).click();
+  await page.getByRole('button',{name:'Abrir caixa'}).click();
+  await page.getByRole('status').filter({hasText:'Caixa aberto para vendas.'}).waitFor();
+  await page.getByRole('button',{name:'Frente de caixa'}).click();
+  await page.getByRole('button',{name:/Café Smoke/}).click();
+  await page.getByRole('button',{name:'Receber e concluir venda'}).click();
+  await page.getByRole('textbox',{name:'Valor de pagamento 1'}).fill('12,50');
+  await page.getByRole('button',{name:'Confirmar e concluir venda'}).click();
+  await page.getByRole('status').filter({hasText:'concluída'}).waitFor({timeout:30000});
+  await page.getByRole('button',{name:'Vendas'}).click();
+  await page.getByText('Concluída').first().waitFor();
+  await app.close();app=null;
+  if(!existsSync(join(userData,'pdv-better.sqlite')))throw Error('SQLite não foi criado no disco');
+  app=await launch();
+  page=await app.firstWindow();
+  await wait(page);
+  await page.getByRole('button',{name:'Produtos'}).click();
+  await page.getByRole('cell',{name:'Café Smoke'}).waitFor();
+  await page.getByRole('button',{name:'Vendas'}).click();
+  await page.getByText('Concluída').first().waitFor();
+  console.log('SMOKE OK: Electron, IPC, cadastros, caixa, venda e dados persistidos após reinício');
+}finally{
+  if(app)await app.close();
+  if(ownDir)rmSync(userData,{recursive:true,force:true});
+}
