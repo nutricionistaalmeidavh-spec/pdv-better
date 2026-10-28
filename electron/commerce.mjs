@@ -90,15 +90,16 @@ function createTables(db){
     db.exec('PRAGMA user_version = 3');
   });
 }
-export function createCommerce(db){
+export function createCommerce(db,{defaultTerminalId='legacy'}={}){
   createTables(db);
   const row=(sql,...args)=>db.prepare(sql).get(...args);
   const all=(sql,...args)=>db.prepare(sql).all(...args);
   const run=(sql,...args)=>db.prepare(sql).run(...args);
-  const openRow=()=>row("SELECT * FROM cash_sessions WHERE status='open'");
-  const requireOpen=()=>{
-    const session=openRow();
-    if(!session)throw new Error('É necessário um caixa aberto para continuar.');
+  const terminal=ctx=>typeof ctx?.terminalId==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(ctx.terminalId)?ctx.terminalId:defaultTerminalId;
+  const openRow=ctx=>row("SELECT * FROM cash_sessions WHERE status='open' AND terminal_id=?",terminal(ctx));
+  const requireOpen=ctx=>{
+    const session=openRow(ctx);
+    if(!session)throw new Error('É necessário um caixa aberto neste terminal para continuar.');
     return session;
   };
   const cashExpected=session=>session.opening_cash_cents+(row('SELECT COALESCE(SUM(delta_cents),0) AS total FROM cash_movements WHERE session_id=?',session.id)?.total||0);
@@ -125,31 +126,32 @@ export function createCommerce(db){
       items:all('SELECT * FROM sale_items WHERE sale_id=? ORDER BY rowid',id),
       payments:all('SELECT * FROM sale_payments WHERE sale_id=? ORDER BY rowid',id)};
   }
-  function getCurrentSession(){
-    const session=openRow();
+  function getCurrentSession(ctx){
+    const session=openRow(ctx);
     if(!session)return null;
     return {...session,expected_cash_cents:cashExpected(session),
       movements:all('SELECT * FROM cash_movements WHERE session_id=? ORDER BY created_at DESC,rowid DESC',session.id)};
   }
-  function openSession(input){
+  function openSession(input,ctx){
     return atomic(db,()=>{
-      if(openRow())throw new Error('Já existe um caixa aberto. Feche o turno anterior.');
+      if(openRow(ctx))throw new Error('Já existe um caixa aberto neste terminal. Feche o turno anterior.');
       const opening=assertCents(input?.openingCashCents??0,'Saldo inicial');
-      run("INSERT INTO cash_sessions(id,opened_at,opening_cash_cents,status) VALUES(?,?,?,'open')",randomUUID(),now(),opening);
-      return getCurrentSession();
+      run("INSERT INTO cash_sessions(id,opened_at,opening_cash_cents,terminal_id,operator_id,status) VALUES(?,?,?,?,?,'open')",
+        randomUUID(),now(),opening,terminal(ctx),ctx?.operatorId||null);
+      return getCurrentSession(ctx);
     });
   }
-  function moveCash(input){
+  function moveCash(input,ctx){
     return atomic(db,()=>{
-      const session=requireOpen();
+      const session=requireOpen(ctx);
       const delta=cashDelta(input?.kind,input?.amountCents);
       recordCash(session,input.kind,delta,assertLabel(input?.note,'Motivo'));
-      return getCurrentSession();
+      return getCurrentSession(ctx);
     });
   }
-  function closeSession(input){
+  function closeSession(input,ctx){
     return atomic(db,()=>{
-      const session=requireOpen();
+      const session=requireOpen(ctx);
       const counted=assertCents(input?.countedCashCents,'Dinheiro contado');
       const expected=cashExpected(session);
       run("UPDATE cash_sessions SET status='closed',closed_at=?,counted_cash_cents=?,expected_cash_cents=?,difference_cents=? WHERE id=?",
@@ -157,18 +159,19 @@ export function createCommerce(db){
       return row('SELECT * FROM cash_sessions WHERE id=?',session.id);
     });
   }
-  function checkout(input){
+  function checkout(input,ctx){
     const draft=validateSaleInput(input);
     const hash=createHash('sha256').update(JSON.stringify({
       items:draft.items,customerId:draft.customerId,discountCents:draft.discountCents,payments:draft.payments
     })).digest('hex');
     return atomic(db,()=>{
-      const previous=row('SELECT id,request_hash FROM sales WHERE idempotency_key=?',draft.key);
+      const previous=row('SELECT s.id,s.request_hash,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id WHERE s.idempotency_key=?',draft.key);
       if(previous){
+        if(previous.terminal_id!==terminal(ctx))throw new Error('Operação pertence a outro terminal.');
         if(previous.request_hash!==hash)throw new Error('Identificador de venda reutilizado com conteúdo diferente.');
         return getSale(previous.id);
       }
-      const session=requireOpen();
+      const session=requireOpen(ctx);
       let subtotal=0;
       const snapshots=draft.items.map(item=>{
         const product=row('SELECT * FROM products WHERE id=? AND active=1',item.id);
@@ -211,9 +214,9 @@ export function createCommerce(db){
       return getSale(saleId);
     });
   }
-  function cancelSale(id){
+  function cancelSale(id,ctx){
     return atomic(db,()=>{
-      const session=requireOpen();
+      const session=requireOpen(ctx);
       const sale=getSale(id);
       if(sale.status==='cancelled')throw new Error('Venda já cancelada.');
       if(sale.session_id!==session.id)throw new Error('Somente vendas do turno aberto podem ser canceladas. Para outro turno, utilize procedimento de reembolso.');
@@ -227,7 +230,13 @@ export function createCommerce(db){
       return getSale(id);
     });
   }
-  function listSales(){return all('SELECT * FROM sales ORDER BY created_at DESC,id DESC');}
+  function listSales(ctx){
+    if(ctx?.role==='Caixa')return all("SELECT s.* FROM sales s JOIN cash_sessions c ON c.id=s.session_id WHERE c.terminal_id=? ORDER BY s.created_at DESC,s.id DESC",terminal(ctx));
+    return all('SELECT * FROM sales ORDER BY created_at DESC,id DESC');
+  }
+  function listOpenSessions(){
+    return all("SELECT id,terminal_id,operator_id,opened_at,opening_cash_cents FROM cash_sessions WHERE status='open' ORDER BY opened_at");
+  }
   function moveStock(input){
     return atomic(db,()=>{
       const delta=inventoryDelta(input?.kind,input?.quantityMilli);
@@ -252,7 +261,7 @@ export function createCommerce(db){
       return row('SELECT * FROM financial_entries WHERE id=?',id);
     });
   }
-  function settleFinance(input){
+  function settleFinance(input,ctx){
     return atomic(db,()=>{
       const id=assertLabel(input?.id,'Lançamento',64);
       const method=assertChoice(input?.method,methodIds.filter(x=>x!=='credit'),'Forma de quitação');
@@ -260,7 +269,7 @@ export function createCommerce(db){
       if(!entry)throw new Error('Lançamento não encontrado.');
       if(entry.status!=='open')throw new Error('Conta já liquidada ou cancelada.');
       if(method==='cash'){
-        const session=requireOpen();
+        const session=requireOpen(ctx);
         recordCash(session,entry.type==='receivable'?'receivable_paid':'payable_paid',
           entry.type==='receivable'?entry.amount_cents:-entry.amount_cents,entry.description,null,id);
       }
@@ -289,7 +298,7 @@ export function createCommerce(db){
       randomUUID(),productId,quantityMilli,'opening','Saldo inicial do cadastro',now());
   }
   return {
-    openSession,getCurrentSession,closeSession,moveCash,checkout,getSale,cancelSale,listSales,
+    openSession,getCurrentSession,closeSession,moveCash,checkout,getSale,cancelSale,listSales,listOpenSessions,
     moveStock,listStockMovements,createFinance,settleFinance,listFinance,report,recordInitialStock
   };
 }
