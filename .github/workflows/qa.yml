@@ -32,6 +32,8 @@ jobs:
         run: npm run test:flows:f41-f50
       - name: Testar F51–F54 com servidor LAN, terminal remoto e restauração SQLite
         run: npm run test:flows:f51-f54
+      - name: Testar E01–E12 com falhas de autenticação, pagamento, periféricos, rede e concorrência
+        run: npm run test:flows:e01-e12
   windows-tests:
     strategy:
       fail-fast: false
