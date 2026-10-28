@@ -1,5 +1,5 @@
 // Modelo canônico de entidades: formulário, validação, SQLite e lista usam este arquivo.
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;
 export const entityOrder = ['products', 'categories', 'customers', 'suppliers', 'operators'];
 export const entities = {
   products: {
@@ -11,7 +11,7 @@ export const entities = {
       { key: 'unit', label: 'Unidade', type: 'select', values: ['UN', 'KG'], required: true, default: 'UN' },
       { key: 'sale_price_cents', label: 'Preço de venda (R$)', type: 'money', required: true, default: 0 },
       { key: 'cost_price_cents', label: 'Preço de custo (R$)', type: 'money', default: 0 },
-      { key: 'stock_milli', label: 'Saldo inicial', type: 'quantity', default: 0 }
+      { key: 'stock_milli', label: 'Saldo em estoque', type: 'quantity', default: 0, readOnlyOnEdit: true }
     ]
   },
   categories: {
@@ -48,7 +48,36 @@ export function assertEntity(kind) {
   if (!Object.prototype.hasOwnProperty.call(entities, kind)) throw new Error('Entidade não reconhecida.');
   return entities[kind];
 }
+export const paymentMethods = Object.freeze([{id:'cash',label:'Dinheiro'}, {id:'pix',label:'Pix (confirmação manual)'}, {id:'card',label:'Cartão (maquininha externa)'}, {id:'credit',label:'Fiado / a receber'}]);
+export const inventoryKinds = Object.freeze(['receipt','adjustment']);
+export const cashMovementKinds = Object.freeze(['reinforcement','withdrawal']);
+export const financeTypes = Object.freeze(['payable','receivable']);
+export const commerceLabels = Object.freeze({
+  cash: {withdrawal:'Sangria (retirar)',reinforcement:'Reforço (adicionar)'},
+  inventory: {receipt:'Entrada',adjustment:'Ajuste'},
+  finance: {payable:'Conta a pagar',receivable:'Conta a receber'},
+  status: {completed:'Concluída',cancelled:'Cancelada',open:'Em aberto',closed:'Fechado',settled:'Liquidada'}
+});
+export const reportFields = Object.freeze([
+  {key:'sales_count',label:'Vendas concluídas',type:'count'},
+  {key:'sales_total_cents',label:'Faturamento de vendas',type:'money'},
+  {key:'discounts_cents',label:'Descontos concedidos',type:'money'},
+  {key:'cash_cents',label:'Dinheiro em vendas',type:'money'},
+  {key:'pix_cents',label:'Pix informado',type:'money'},
+  {key:'card_cents',label:'Cartão informado',type:'money'},
+  {key:'credit_cents',label:'Fiado registrado',type:'money'},
+  {key:'receivables_open_cents',label:'Contas a receber em aberto',type:'money'},
+  {key:'payables_open_cents',label:'Contas a pagar em aberto',type:'money'},
+  {key:'payables_paid_cents',label:'Contas pagas',type:'money'},
+  {key:'inventory_value_cents',label:'Valor de custo do estoque',type:'money'},
+  {key:'cancelled_count',label:'Vendas canceladas',type:'count'}
+]);
 export const apiChannels = Object.freeze({
   list: 'pdv:catalog:list', save: 'pdv:catalog:save', archive: 'pdv:catalog:archive',
-  overview: 'pdv:overview', saleComplete: 'pdv:sale:complete', salesList: 'pdv:sale:list', saleDetail: 'pdv:sale:detail'
+  overview: 'pdv:overview',
+  sessionCurrent: 'pdv:session:current', sessionOpen: 'pdv:session:open', sessionClose: 'pdv:session:close', cashMove: 'pdv:cash:move',
+  checkout: 'pdv:checkout:commit', salesList: 'pdv:sales:list', saleGet: 'pdv:sales:get', salesCancel: 'pdv:sales:cancel',
+  stockMove: 'pdv:stock:move', stockHistory: 'pdv:stock:history',
+  financeCreate: 'pdv:finance:create', financeList: 'pdv:finance:list', financeSettle: 'pdv:finance:settle',
+  report: 'pdv:report:summary', reportExport: 'pdv:report:export'
 });

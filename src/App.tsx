@@ -2,24 +2,29 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LayoutDashboard, ShoppingCart, Package, Tags, Users, Truck, UserRoundCog,
   Search, Plus, Pencil, Archive, X, Check, AlertTriangle, Database, RotateCcw,
-  ChevronRight, Minus, Settings, ShieldCheck, ArrowRight, Trash2, Keyboard
+  ChevronRight, Minus, Settings, ShieldCheck, ArrowRight, Trash2, Keyboard,
+  Wallet, ClipboardList, BarChart3, Boxes, ReceiptText
 } from 'lucide-react';
 import { entities, entityOrder } from '../shared/contract.mjs';
-import { filterCheckoutProducts } from '../shared/catalog.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
+import { filterCheckoutProducts } from '../shared/catalog.mjs';
+import { CommerceView, PaymentModal } from './Commerce';
+import { SaleReceipt } from './Receipt';
 
 type Row = Record<string, any>;
 type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number};
 const definitions: Record<string, any> = entities;
 const icons: Record<string, any> = {
-  dashboard: LayoutDashboard, checkout: ShoppingCart, history: Database, products: Package, categories: Tags,
-  customers: Users, suppliers: Truck, operators: UserRoundCog
+  dashboard: LayoutDashboard, checkout: ShoppingCart, products: Package, categories: Tags,
+  customers: Users, suppliers: Truck, operators: UserRoundCog,
+  cash: Wallet, sales: ReceiptText, inventory: Boxes, finance: ClipboardList, reports: BarChart3
 };
 const menus = [
-  {title:'OPERAÇÃO', ids:['dashboard','checkout','history']},
+  {title:'OPERAÇÃO', ids:['dashboard','checkout','cash','sales']},
+  {title:'GESTÃO', ids:['inventory','finance','reports']},
   {title:'CADASTROS', ids:entityOrder}
 ];
-const titles: Record<string,string> = {dashboard:'Visão geral',checkout:'Frente de caixa',history:'Histórico de vendas'};
+const titles: Record<string,string> = {dashboard:'Visão geral',checkout:'Frente de caixa',cash:'Controle de caixa',sales:'Vendas',inventory:'Estoque',finance:'Financeiro',reports:'Relatórios'};
 const formatValue = (field:any, value:any):string => {
   if (value === null || value === undefined) return '';
   if (field.type === 'money') return (Number(value)/100).toFixed(2);
@@ -47,22 +52,16 @@ export function App() {
   const [saving,setSaving] = useState(false);
   const [cart,setCart] = useState<CartItem[]>(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('pdv-better:draft-v1') || '[]');
-      return Array.isArray(saved) ? saved.filter(item => typeof item.id === 'string' && Number.isSafeInteger(item.quantityMilli) && item.quantityMilli > 0 && Number.isSafeInteger(item.priceCents) && item.priceCents >= 0) : [];
-    } catch { return []; }
+      const saved=JSON.parse(localStorage.getItem('pdv-better:draft-v1')||'[]');
+      return Array.isArray(saved)?saved.filter(x=>typeof x.id==='string'&&Number.isSafeInteger(x.quantityMilli)&&x.quantityMilli>0&&Number.isSafeInteger(x.priceCents)&&x.priceCents>=0):[];
+    } catch{return [];}
   });
   const [cartSearch,setCartSearch] = useState('');
   const [categoryFilter,setCategoryFilter] = useState('all');
   const [cartError,setCartError] = useState('');
+  const [session,setSession] = useState<Row|null>(null);
   const [paymentOpen,setPaymentOpen] = useState(false);
-  const [paymentMethod,setPaymentMethod] = useState<'cash'|'credit_manual'|'debit_manual'>('cash');
-  const [received,setReceived] = useState('');
-  const [paymentBusy,setPaymentBusy] = useState(false);
-  const [saleId,setSaleId] = useState('');
-  const [lastSale,setLastSale] = useState<Row|null>(null);
-  const [saleHistory,setSaleHistory] = useState<Row[]>([]);
-  const [historyError,setHistoryError] = useState('');
-  const [historyLoading,setHistoryLoading] = useState(false);
+  const [receipt,setReceipt] = useState<Row|null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const activeSchema = definitions[view];
   const bridge = window.pdv;
@@ -81,11 +80,12 @@ export function App() {
     setRecords(prev => ({...prev,[kind]:current}));
   }
   useEffect(() => { void reloadAll(); }, []);
-  useEffect(() => {
-    try { if(cart.length) localStorage.setItem('pdv-better:draft-v1',JSON.stringify(cart)); else localStorage.removeItem('pdv-better:draft-v1'); }
-    catch { /* armazenamento local indisponível: não impedir vendas */ }
-  }, [cart]);
-  useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); if(view === 'history') void openHistory(); }, [view]);
+  useEffect(()=>{
+    try{if(cart.length)localStorage.setItem('pdv-better:draft-v1',JSON.stringify(cart));else localStorage.removeItem('pdv-better:draft-v1');}
+    catch{/* A ausência de armazenamento temporário não impede uma venda */ }
+  },[cart]);
+  useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
+  useEffect(() => { if(view==='checkout' && bridge) void bridge.sessionCurrent().then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
   useEffect(() => {
     if (view === 'checkout') searchInput.current?.focus();
   }, [view]);
@@ -106,34 +106,8 @@ export function App() {
   const pageRows = filteredRows.slice(page*pageSize,(page+1)*pageSize);
   const products:Row[] = records.products || [];
   const categories:Row[] = records.categories || [];
-  const matchingProducts = useMemo(() => filterCheckoutProducts(products, categoryFilter, cartSearch),[products,cartSearch,categoryFilter]);
+  const matchingProducts = useMemo(()=>filterCheckoutProducts(products,categoryFilter,cartSearch),[products,categoryFilter,cartSearch]);
   const total = cartTotalCents(cart);
-  async function finalizeSale() {
-    if (!bridge || paymentBusy || !cart.length) return;
-    setPaymentBusy(true);setCartError('');
-    try {
-      const tenderedCents = paymentMethod === 'cash' ? parseFixed(received,2,'Valor recebido') : total;
-      const id = saleId || crypto.randomUUID();
-      if (!saleId) setSaleId(id);
-      const sale = await bridge.completeSale({id,items:cart.map(item=>({id:item.id,quantityMilli:item.quantityMilli})),method:paymentMethod,tenderedCents});
-      const detail = await bridge.saleDetail(sale.id);
-      setLastSale(detail);setCart([]);setPaymentOpen(false);setSaleId('');setReceived('');
-      await reload('products');
-    } catch (err) { setCartError(friendlyError(err)); }
-    finally { setPaymentBusy(false); }
-  }
-  async function openHistory() {
-    if (!bridge) return;
-    setHistoryLoading(true);setHistoryError('');
-    try { setSaleHistory(await bridge.salesList()); }
-    catch (err) { setHistoryError(friendlyError(err)); }
-    finally { setHistoryLoading(false); }
-  }
-  async function openReceipt(id:string) {
-    if (!bridge) return;
-    try { setLastSale(await bridge.saleDetail(id)); }
-    catch (err) { setHistoryError(friendlyError(err)); }
-  }
   function startForm(row?:Row) {
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
     setForm({...base,...(row ? {id:row.id} : {})});
@@ -159,11 +133,10 @@ export function App() {
     catch(err) { setError('Não foi possível desativar. ' + friendlyError(err)); }
   }
   function addProduct(row:Row) {
-    try { setCart(addToCart(cart,row,1000));setSaleId(''); setCartError(''); setCartSearch(''); searchInput.current?.focus(); }
+    try { setCart(addToCart(cart,row,1000)); setCartError(''); setCartSearch(''); searchInput.current?.focus(); }
     catch(err) { setCartError(friendlyError(err)); }
   }
   function changeQuantity(item:CartItem,delta:number) {
-    setSaleId('');
     const quantity = item.quantityMilli + delta;
     if (quantity <= 0) { setCart(prev => prev.filter(line => line.id !== item.id)); return; }
     try {
@@ -180,12 +153,17 @@ export function App() {
     if (found) addProduct(found);
     else setCartError('Selecione um produto na lista ou confira o código.');
   }
-  function selectView(next:string) { setView(next); setEditing(null); setCartError(''); }
+  function selectView(next:string) { setView(next); setEditing(null); setPaymentOpen(false); setCartError(''); }
+  async function completeSale(sale:Row) {
+    setPaymentOpen(false);setCart([]);setReceipt(sale);
+    try {await reload('products');if(bridge)setSession(await bridge.sessionCurrent());}catch(err){setCartError(friendlyError(err));}
+    setNotice('Venda '+sale.id.slice(0,8)+' concluída, total '+money(sale.total_cents)+'. Troco: '+money(sale.change_cents)+'. Comprovante não fiscal.');
+  }
 
   return <div className="shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Package size={21}/></div><div><strong>PDV Better</strong><span>by ArtiSys</span></div></div>
-      <div className="workspace"><div className="workspace-avatar">PB</div><div><strong>Estabelecimento local</strong><span>Modo offline • vendas locais</span></div></div>
+      <div className="workspace"><div className="workspace-avatar">PB</div><div><strong>Estabelecimento local</strong><span>Funcionamento offline • Marco B</span></div></div>
       <nav aria-label="Navegação principal">
         {menus.map(section => <div className="menu-section" key={section.title}>
           <div className="menu-title">{section.title}</div>
@@ -201,7 +179,7 @@ export function App() {
     </aside>
     <main className="main">
       <header className="topbar"><div className="breadcrumbs"><span>PDV Better</span><ChevronRight size={16}/><strong>{titles[view] || definitions[view]?.label}</strong></div>
-        <div className="top-actions"><span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Modo local'}</span><span className="version">Versão 0.1.0</span></div>
+        <div className="top-actions"><span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Modo local'}</span><span className="version">Versão 0.2.0</span></div>
       </header>
       <section className="content">
         {notice && <div className="notice success" role="status"><Check size={17}/>{notice}<button aria-label="Fechar aviso" onClick={() => setNotice('')}><X size={15}/></button></div>}
@@ -221,28 +199,18 @@ export function App() {
               <button className="quick" onClick={() => selectView('products')}><span className="quick-icon"><Package size={21}/></span><strong>Gerenciar produtos</strong><span>Preços, estoque inicial e códigos</span><ArrowRight size={17}/></button>
               <button className="quick" onClick={() => selectView('customers')}><span className="quick-icon"><Users size={21}/></span><strong>Clientes</strong><span>Consultar ou incluir um cadastro</span><ArrowRight size={17}/></button>
             </div>
-            <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros e vendas concluídas são persistidos localmente. Recebimentos por cartão são registrados manualmente; não há emissão fiscal integrada.</p></div></div>
-          </>}
-          {view === 'history' && <>
-            <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO</div><h1>Histórico de vendas</h1><p>Últimas 100 vendas registradas neste dispositivo.</p></div><button className="secondary" onClick={()=>void openHistory()}><RotateCcw size={17}/> Atualizar</button></div>
-            <div className="panel data-panel">
-              {historyLoading && <p>Carregando vendas…</p>}
-              {historyError && <div role="alert" className="form-error">{historyError}</div>}
-              {!historyLoading && <div className="table-wrap"><table><thead><tr><th>Data</th><th>Identificador</th><th>Pagamento</th><th>Total</th><th>Comprovante</th></tr></thead><tbody>
-                {saleHistory.map(sale=><tr key={sale.id}><td>{new Date(sale.created_at).toLocaleString('pt-BR')}</td><td>{sale.id.slice(0,8)}</td><td>{sale.payment_method === 'cash'?'Dinheiro':sale.payment_method==='credit_manual'?'Crédito manual':'Débito manual'}</td><td>{money(sale.total_cents)}</td><td><button className="secondary" onClick={()=>void openReceipt(sale.id)}>Visualizar</button></td></tr>)}
-              </tbody></table>{!saleHistory.length && <p className="empty-state">Nenhuma venda registrada.</p>}</div>}
-            </div>
+            <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros, vendas, saldos de estoque e financeiro são registrados no SQLite local. Pix e cartão devem ser confirmados externamente antes da conclusão da venda.</p></div></div>
           </>}
           {view === 'checkout' && <>
-            <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO / F2</div><h1>Frente de caixa</h1><p>Selecione os produtos, revise o carrinho e registre o recebimento.</p></div><span className="draft-label">Venda registrada após pagamento</span></div>
+            <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO / F2</div><h1>Frente de caixa</h1><p>Busque produtos, revise quantidades e registre o pagamento no caixa aberto.</p></div><span className="draft-label">{session ? 'Caixa aberto' : 'Caixa fechado'}</span></div>
             <div className="checkout-grid">
               <div className="panel products-panel glass-panel">
                 <div className="panel-header"><div><h2>Selecionar produtos</h2><p>Busque por nome, SKU ou código de barras</p></div><span className="count-chip">{matchingProducts.length} exibidos</span></div>
                 <label className="search-field"><Search size={19}/><input ref={searchInput} autoComplete="off" aria-label="Pesquisar ou ler código de barras" placeholder="Digite ou leia o código do produto…" value={cartSearch} onChange={ev => {setCartSearch(ev.target.value);setCartError('');}} onKeyDown={scanKey}/><span className="kbd">Enter</span></label>
-                <div className="category-filter" aria-label="Filtrar produtos por categoria"><button type="button" className={categoryFilter === 'all' ? 'active' : ''} aria-pressed={categoryFilter === 'all'} onClick={() => setCategoryFilter('all')}>Todos</button>{categories.map(category => <button type="button" key={category.id} className={categoryFilter === category.id ? 'active' : ''} aria-pressed={categoryFilter === category.id} onClick={() => setCategoryFilter(category.id)}>{category.name}</button>)}</div>
+                <div className="category-filter" aria-label="Filtrar produtos por categoria"><button type="button" className={categoryFilter==='all'?'active':''} aria-pressed={categoryFilter==='all'} onClick={()=>setCategoryFilter('all')}>Todos</button>{categories.map(c=><button type="button" key={c.id} className={categoryFilter===c.id?'active':''} aria-pressed={categoryFilter===c.id} onClick={()=>setCategoryFilter(c.id)}>{c.name}</button>)}</div>
                 <div className="product-list glass-product-grid">
                   {matchingProducts.map(row => <button className="product-option" key={row.id} onClick={() => addProduct(row)}>
-                    <div className="product-icon"><Package size={24}/></div><div className="product-info"><strong>{row.name}</strong><span>{row.code || 'Sem código'} · {row.unit} · Saldo {Number(row.stock_milli || 0)/1000}</span></div><strong className="product-price">{money(row.sale_price_cents)}</strong><Plus size={19} className="add-icon"/>
+                    <div className="product-icon"><Package size={19}/></div><div className="product-info"><strong>{row.name}</strong><span>{row.code || 'Sem código'} · {row.unit} · Saldo {Number(row.stock_milli || 0)/1000}</span></div><strong className="product-price">{money(row.sale_price_cents)}</strong><Plus size={19} className="add-icon"/>
                   </button>)}
                   {!matchingProducts.length && <div className="empty-state"><Search size={25}/><strong>Nenhum produto encontrado</strong><p>Cadastre produtos ou tente outra pesquisa.</p><button className="secondary" onClick={() => selectView('products')}>Ir para produtos</button></div>}
                 </div>
@@ -258,13 +226,15 @@ export function App() {
                 </div>
                 <div className="cart-footer">
                   <div className="total-line"><span>Total estimado</span><strong>{money(total)}</strong></div>
-                  <div className="muted-hint"><AlertTriangle size={15}/> Rascunho recuperável neste dispositivo. Após o pagamento, a venda é registrada no SQLite local.</div>
-                  <button className="primary full" disabled={!cart.length} onClick={() => {setCartError('');setPaymentOpen(true);}}>Finalizar venda <ArrowRight size={17}/></button>
+                  <div className="muted-hint"><AlertTriangle size={15}/> O carrinho é temporário até concluir a venda. O pagamento só será registrado após a confirmação.</div>
+                  <button className="primary full" disabled={!cart.length || !session} onClick={() => setPaymentOpen(true)}>{session ? 'Receber e concluir venda' : 'Abra o caixa para vender'}</button>
+                  {!session && <button className="secondary full" onClick={() => selectView('cash')}>Ir para abertura de caixa</button>}
                   <button className="plain full" disabled={!cart.length} onClick={() => { if(window.confirm('Limpar o rascunho da venda?')) setCart([]); }}><Trash2 size={16}/> Limpar rascunho</button>
                 </div>
               </div>
             </div>
           </>}
+          {['cash','sales','inventory','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll}/>}
           {activeSchema && <>
             <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div><button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button></div>
             <div className="panel data-panel">
@@ -280,31 +250,8 @@ export function App() {
         </>}
       </section>
     </main>
-    {lastSale && <div className="modal-backdrop receipt-overlay"><section className="dialog glass-payment receipt-dialog" role="dialog" aria-modal="true" aria-label="Comprovante não fiscal">
-      <header className="dialog-head no-print"><div><div className="eyebrow">VENDA CONCLUÍDA</div><h2>Pagamento registrado</h2></div><button className="icon-btn" onClick={()=>setLastSale(null)} aria-label="Fechar"><X size={20}/></button></header>
-      <div className="receipt-paper" id="receipt-print">
-        <h2>PDV Better</h2><p>COMPROVANTE NÃO FISCAL</p><p>Não substitui NFC-e, SAT ou documento fiscal.</p>
-        <hr/><p>Venda: {lastSale.id}</p><p>Data: {new Date(lastSale.created_at).toLocaleString('pt-BR')}</p>
-        <hr/>{(lastSale.items||[]).map((item:Row)=><div className="receipt-line" key={item.product_id}><span>{item.name} — {(item.quantity_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {item.unit}</span><strong>{money(item.line_total_cents)}</strong></div>)}
-        <hr/><div className="receipt-line"><strong>Total</strong><strong>{money(lastSale.total_cents)}</strong></div>
-        <div className="receipt-line"><span>Recebido</span><span>{money(lastSale.tendered_cents)}</span></div>
-        <div className="receipt-line"><span>Troco</span><span>{money(lastSale.change_cents)}</span></div>
-        <p>Pagamento: {lastSale.payment_method === 'cash'?'Dinheiro':lastSale.payment_method === 'credit_manual'?'Crédito manual':'Débito manual'}</p>
-      </div>
-      <footer className="receipt-actions no-print"><button className="secondary" onClick={()=>window.print()}>Imprimir comprovante</button><button className="primary" onClick={()=>{setLastSale(null);setView('checkout');searchInput.current?.focus();}}>Nova venda</button><button className="plain" onClick={()=>{setLastSale(null);setView('history');}}>Histórico</button></footer>
-    </section></div>}
-    {paymentOpen && <div className="modal-backdrop" role="presentation">
-      <section className="dialog glass-payment" role="dialog" aria-modal="true" aria-label="Pagamento da venda">
-        <header className="dialog-head"><div><div className="eyebrow">FINALIZAÇÃO</div><h2>Pagamento</h2></div><button className="icon-btn" disabled={paymentBusy} onClick={()=>setPaymentOpen(false)} aria-label="Voltar ao carrinho"><X size={20}/></button></header>
-        <div className="payment-body"><p>Total da compra</p><strong className="payment-total">{money(total)}</strong>
-          <div className="payment-methods">{([['cash','Dinheiro'],['credit_manual','Crédito manual'],['debit_manual','Débito manual']] as const).map(([method,label])=><button type="button" key={method} aria-pressed={paymentMethod===method} className={paymentMethod===method?'active':''} onClick={()=>{setPaymentMethod(method);setSaleId('');}}>{label}</button>)}</div>
-          {paymentMethod === 'cash' ? <label className="payment-received">Valor recebido (R$)<input value={received} onChange={ev=>{setReceived(ev.target.value);setSaleId('');}} inputMode="decimal" placeholder="0,00"/></label> : <p className="payment-note">Registro manual: confirme o recebimento na maquininha antes de concluir. Nenhuma cobrança é processada pelo aplicativo.</p>}
-          {cartError && <div className="cart-error" role="alert">{cartError}</div>}
-          <button className="primary full" disabled={paymentBusy} onClick={()=>void finalizeSale()}>{paymentBusy?'Registrando…':'Confirmar recebimento'}</button>
-          <button className="plain full" disabled={paymentBusy} onClick={()=>setPaymentOpen(false)}>Voltar à venda</button>
-        </div>
-      </section>
-    </div>}
+    {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} onClose={()=>setPaymentOpen(false)} onDone={completeSale}/>}
+    {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
     {editing && activeSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
       <section className="dialog" role="dialog" aria-modal="true" aria-label={(editing.id ? 'Editar ' : 'Adicionar ') + activeSchema.singular}>
         <header className="dialog-head"><div><div className="eyebrow">{editing.id ? 'EDIÇÃO' : 'NOVO CADASTRO'}</div><h2>{editing.id ? 'Editar ' : 'Adicionar '}{activeSchema.singular.toLowerCase()}</h2></div><button aria-label="Fechar formulário" className="icon-btn" disabled={saving} onClick={() => setEditing(null)}><X size={20}/></button></header>
@@ -314,7 +261,7 @@ export function App() {
              field.type === 'reference' ? <select value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}><option value="">Sem categoria</option>{(records[field.entity] || []).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select> :
              <input required={field.required} type={field.type === 'money' || field.type === 'quantity' ? 'text' : 'text'} autoComplete="off"
              inputMode={field.type === 'money' || field.type === 'quantity' ? 'decimal' : 'text'}
-             value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}
+             value={form[field.key]??''} readOnly={Boolean(field.readOnlyOnEdit && editing.id)} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}
              placeholder={field.type === 'money' ? '0,00' : field.type === 'quantity' ? '0,000' : field.label}/>}
           </label>)}</div>
           {error && <div className="form-error" role="alert"><AlertTriangle size={16}/>{error}</div>}
