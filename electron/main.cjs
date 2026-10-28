@@ -25,6 +25,7 @@ async function start() {
   ipcMain.handle(apiChannels.cashMove, (_event, input) => store.moveCash(input));
   ipcMain.handle(apiChannels.checkout, (_event, input) => store.checkout(input));
   ipcMain.handle(apiChannels.salesList, (_event) => store.listSales());
+  ipcMain.handle(apiChannels.saleGet, (_event, id) => store.getSale(id));
   ipcMain.handle(apiChannels.salesCancel, (_event, id) => store.cancelSale(id));
   ipcMain.handle(apiChannels.stockMove, (_event, input) => store.moveStock(input));
   ipcMain.handle(apiChannels.stockHistory, (_event, id) => store.listStockMovements(id));
