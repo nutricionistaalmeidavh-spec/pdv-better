@@ -17,8 +17,8 @@ async function start() {
     width: 1440, height: 900, minWidth: 1024, minHeight: 660,
     backgroundColor: '#f5f6fb', show: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
-      contextIsolation: true, nodeIntegration: false, sandbox: false,
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true, nodeIntegration: false, sandbox: true,
       webSecurity: true
     }
   });
