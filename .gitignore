@@ -6,3 +6,4 @@ release/
 *.sqlite-shm
 *.log
 .env
+electron/preload.cjs
