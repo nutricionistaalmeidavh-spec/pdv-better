@@ -47,3 +47,8 @@
 Experiência proposta de atendente: identificar caixa -> adicionar produtos -> ver total -> receber -> confirmar venda -> reencontrar no histórico.
 Experiência proposta de gerente: abrir turno -> movimentar dinheiro/estoque -> registrar despesa -> conferir diferença no fechamento.
 A usabilidade humana não é inferida de testes de código: devem ser acompanhadas tarefas sem orientar onde clicar quando existir acesso a operadores reais.
+
+## Compatibilização com a main Glass (#7)
+- Schema SQLite v3 detecta a v2 Glass e migra vendas, itens e pagamentos com o mesmo ID.
+- Histórico anterior vinculado a turno fechado e estoque reconciliado pelos movimentos; rollback se houver falha.
+- Mantidos glassmorphism, filtro por categoria e recuperação do rascunho.

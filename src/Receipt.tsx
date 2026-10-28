@@ -5,7 +5,7 @@ import { paymentMethods } from '../shared/contract.mjs';
 const method=(id:string)=>paymentMethods.find(x=>x.id===id)?.label||id;
 export function SaleReceipt({sale,onClose}:{sale:any;onClose:()=>void}){
   return <div className="modal-backdrop" role="presentation">
-    <section className="dialog receipt-dialog" role="dialog" aria-modal="true" aria-label="Comprovante não fiscal da venda">
+    <section className="dialog receipt-dialog glass-payment" role="dialog" aria-modal="true" aria-label="Comprovante não fiscal da venda">
       <header className="dialog-head receipt-actions"><div><div className="eyebrow">VENDA CONCLUÍDA</div><h2>Comprovante</h2></div><button className="secondary" onClick={onClose} aria-label="Fechar comprovante"><X size={16}/>Fechar</button></header>
       <div className="receipt-content">
         <div className="receipt-brand"><ReceiptText size={23}/><h3>PDV Better</h3><p>Comprovante de venda não fiscal</p></div>

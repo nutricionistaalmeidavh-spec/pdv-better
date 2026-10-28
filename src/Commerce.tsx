@@ -40,7 +40,7 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
     finally{setPending(false);}
   };
   return <div className="modal-backdrop" role="presentation">
-    <section className="dialog commerce-dialog" role="dialog" aria-modal="true" aria-label="Receber venda">
+    <section className="dialog commerce-dialog glass-payment" role="dialog" aria-modal="true" aria-label="Receber venda">
       <header className="dialog-head"><div><div className="eyebrow">FECHAMENTO DA VENDA</div><h2>Receber pagamento</h2></div><button className="secondary" disabled={pending} onClick={onClose}>Voltar ao carrinho</button></header>
       <form onSubmit={send} className="dialog-form">
         <div className="form-grid">
