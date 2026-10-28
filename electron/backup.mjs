@@ -11,7 +11,7 @@ export function verifyDatabase(filename){
     const integrity=db.prepare('PRAGMA quick_check').get();
     if(!integrity||integrity.quick_check!=='ok')throw new Error('Integridade do SQLite inválida.');
     const version=db.prepare('PRAGMA user_version').get().user_version;
-    if(!Number.isInteger(version)||version<1||version>3)throw new Error('Versão do banco inválida ou incompatível.');
+    if(!Number.isInteger(version)||version<1||version>4)throw new Error('Versão do banco inválida ou incompatível.');
     const tables=db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(x=>x.name);
     for(const table of ['products','categories','customers','suppliers','operators'])
       if(!tables.includes(table))throw new Error('Banco inválido: tabela '+table+' ausente.');
