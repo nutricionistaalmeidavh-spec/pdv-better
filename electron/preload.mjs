@@ -20,5 +20,17 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   financeList: () => ipcRenderer.invoke(apiChannels.financeList),
   financeSettle: (input) => ipcRenderer.invoke(apiChannels.financeSettle, input),
   report: () => ipcRenderer.invoke(apiChannels.report),
-  reportExport: format => ipcRenderer.invoke(apiChannels.reportExport,format)
+  reportExport: format => ipcRenderer.invoke(apiChannels.reportExport,format),
+  lanStatus: () => ipcRenderer.invoke(apiChannels.lanStatus),
+  lanHost: options => ipcRenderer.invoke(apiChannels.lanHost,options),
+  lanJoin: input => ipcRenderer.invoke(apiChannels.lanJoin,input),
+  lanLocal: () => ipcRenderer.invoke(apiChannels.lanLocal),
+  deviceGet: () => ipcRenderer.invoke(apiChannels.deviceGet),
+  deviceSet: input => ipcRenderer.invoke(apiChannels.deviceSet,input),
+  devicePrinters: () => ipcRenderer.invoke(apiChannels.devicePrinters),
+  devicePrint: input => ipcRenderer.invoke(apiChannels.devicePrint,input),
+  drawerOpen: () => ipcRenderer.invoke(apiChannels.drawerOpen),
+  scaleRead: () => ipcRenderer.invoke(apiChannels.scaleRead),
+  backupCreate: () => ipcRenderer.invoke(apiChannels.backupCreate),
+  backupRestore: () => ipcRenderer.invoke(apiChannels.backupRestore)
 }));
