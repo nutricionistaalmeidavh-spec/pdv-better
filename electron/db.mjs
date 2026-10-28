@@ -21,7 +21,7 @@ export function openCatalog(filename) {
         db.exec('CREATE TABLE IF NOT EXISTS "' + kind + '" (id TEXT PRIMARY KEY, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' + fields.join(', ') + ')');
       }
       db.exec("CREATE UNIQUE INDEX IF NOT EXISTS products_code_unique ON products(code) WHERE code IS NOT NULL AND code <> ''");
-      db.exec('PRAGMA user_version = ' + CONTRACT_VERSION);
+      db.exec('PRAGMA user_version = 1');
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
