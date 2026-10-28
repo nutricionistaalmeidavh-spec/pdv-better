@@ -163,7 +163,7 @@ export function createCommerce(db){
       if(sale.status==='cancelled')throw new Error('Venda já cancelada.');
       if(sale.session_id!==session.id)throw new Error('Somente vendas do turno aberto podem ser canceladas. Para outro turno, utilize procedimento de reembolso.');
       if(row("SELECT COUNT(*) AS n FROM financial_entries WHERE sale_id=? AND status='settled'",id).n)
-        throw new Error('Venda fiado já recebida/liquidada. Resolva o recebimento antes de cancelar.');
+        throw new Error('Recebimento do fiado já liquidado. Resolva o recebimento antes de cancelar.');
       for(const item of sale.items)recordStock(item.product_id,item.quantity_milli,'sale_cancel','Cancelamento da venda '+id,id);
       const cash=sale.payments.filter(p=>p.method==='cash').reduce((sum,p)=>sum+p.amount_cents,0);
       if(cash)recordCash(session,'sale_cancel',-cash,'Estorno local da venda '+id,id);
