@@ -23,3 +23,11 @@ jobs:
           if (!(Test-Path "dist/index.html")) { throw "Falta dist/index.html" }
           if (!(Test-Path "electron/main.cjs")) { throw "Falta Electron main" }
           if (!(Test-Path "electron/preload.mjs")) { throw "Falta preload" }
+
+      - name: Gerar instalador de teste Windows 10/11
+        run: npm run dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PDV-Better-Marco-A-Win10-11
+          path: release/*.exe
+          if-no-files-found: error
