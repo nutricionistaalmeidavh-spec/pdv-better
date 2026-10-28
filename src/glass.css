@@ -45,3 +45,18 @@ button:focus-visible,input:focus-visible { outline:3px solid #b8b3ff;outline-off
 @media(max-width:1170px) { .glass-product-grid { grid-template-columns:repeat(auto-fill,minmax(125px,1fr)); } }
 @media(prefers-reduced-transparency:reduce) { .glass-panel,.panel,.stat,.quick,.info-bar,.loading,.sidebar,.topbar { backdrop-filter:none;-webkit-backdrop-filter:none;background:#222b46; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important;transition-duration:.01ms!important; } }
+
+.glass-payment { background:rgba(31,39,66,.96);color:#f8f9ff;border:1px solid var(--glass-border);backdrop-filter:blur(24px); }
+.glass-payment .dialog-head { border-color:var(--glass-border); }
+.glass-payment .dialog-head h2 { color:#fff; }
+.payment-body { padding:26px;display:flex;flex-direction:column;gap:18px; }
+.payment-body>p { margin:0;color:#d5d9eb; }
+.payment-total { font-size:38px;color:white;text-align:center; }
+.payment-methods { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px; }
+.payment-methods button { padding:15px 8px;border:1px solid var(--glass-border);background:var(--glass-raised);color:white;border-radius:12px; }
+.payment-methods button.active { background:#6157cb;border-color:#b6b1ff; }
+.payment-received { display:flex;flex-direction:column;gap:8px;font-size:13px; }
+.payment-received input { height:46px;border:1px solid var(--glass-border);border-radius:9px;padding:0 12px;color:white;background:rgba(255,255,255,.12); }
+.payment-body .payment-note { line-height:1.5;font-size:12px;color:#ffe5a8; }
+.sale-success { position:fixed;right:22px;bottom:20px;z-index:12;background:#273c48;color:white;border:1px solid #9acbbd;border-radius:12px;display:flex;align-items:center;gap:12px;padding:15px 18px;box-shadow:0 12px 30px #0005; }
+.sale-success button { background:none;border:0;color:white; }
