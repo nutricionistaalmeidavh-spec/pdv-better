@@ -1,9 +1,9 @@
 {
   "name": "pdv-better",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
-  "description": "PDV Better Marco C — periféricos, LAN central, backup e QA Windows 10/11",
+  "description": "PDV Better — caixas simultâneos por terminal e perfis com login Windows 10/11",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env PDV_DEV_URL=http://127.0.0.1:5173 electron .\"",
