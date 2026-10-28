@@ -5,4 +5,5 @@ import './styles.css';
 import './glass.css';
 import './system.css';
 import './auth.css';
+import './graphite.css';
 createRoot(document.getElementById('root')!).render(<AuthGate />);
