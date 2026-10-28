@@ -97,3 +97,27 @@ test('contas a pagar e receber têm liquidação auditável e resumo reconciliad
     assert.throws(()=>t.store.settleFinance({id:payable.id,method:'cash'}),/liquidada/i);
   }finally{t.cleanup();}
 });
+
+test('migração de dados v1 registra saldo de abertura uma única vez',async()=>{
+  const { DatabaseSync }=await import('node:sqlite');
+  const { createCommerce }=await import('../electron/commerce.mjs');
+  const db=new DatabaseSync(':memory:');
+  try{
+    db.exec("CREATE TABLE products(id TEXT PRIMARY KEY,stock_milli INTEGER NOT NULL); PRAGMA user_version=1;");
+    db.prepare('INSERT INTO products(id,stock_milli) VALUES(?,?)').run('legacy',7000);
+    createCommerce(db);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version,2);
+    assert.equal(db.prepare('SELECT SUM(delta_milli) AS quantity FROM stock_movements').get().quantity,7000);
+    createCommerce(db);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM stock_movements').get().n,1);
+  } finally {db.close();}
+});
+test('idempotência rejeita reaproveitar a chave para outra venda',()=>{
+  const t=fixture();try{
+    t.store.openSession({openingCashCents:0});
+    const input={key:'same',items:[{id:t.product.id,quantityMilli:1000}],payments:[{method:'cash',amountCents:1250}]};
+    t.store.checkout(input);
+    assert.throws(()=>t.store.checkout({...input,payments:[{method:'cash',amountCents:1300}]}),/reutilizado/i);
+    assert.equal(t.store.listSales().length,1);
+  } finally {t.cleanup();}
+});
