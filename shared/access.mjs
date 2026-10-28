@@ -1,5 +1,5 @@
 // Única fonte de verdade das permissões (UI, IPC, LAN e testes).
-export const roleNames=Object.freeze(['Caixa','Gerente','Administrador']);
+import {roleNames} from './contract.mjs';
 const cashActions=['list','overview','getCurrentSession','openSession','closeSession','checkout','listSales','getSale','devicePrint','devicePrinters','scaleRead','drawerOpen'];
 const managerActions=['save','archive','moveCash','cancelSale','moveStock','listStockMovements','createFinance','listFinance','settleFinance','report','reportExport','listOpenSessions','deviceGet','deviceSet','backupCreate'];
 const adminActions=['setPassword','lanStatus','lanHost','lanJoin','lanLocal','backupRestore'];
