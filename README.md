@@ -6,7 +6,7 @@ Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato c
 - Aplicativo desktop Electron + React.
 - Cadastro e edição de produtos, categorias, clientes, fornecedores e operadores.
 - Pesquisa por nome e código de produto; leitura de código de barras no campo de pesquisa (teclado HID).
-- Frente de caixa com confirmação de pagamento manual, troco, desconto, fiado, histórico e idempotência de vendas.
+- Frente de caixa com confirmação de pagamento manual, troco, desconto, fiado, histórico, comprovante não fiscal para impressão e idempotência de vendas.
 - Abertura, movimentações e fechamento de caixa com diferenças auditáveis.
 - Estoque com entradas, ajustes, lotes futuros e reversões vinculadas à venda.
 - Financeiro com contas a pagar/receber, liquidação, relatórios acumulados e exportação local em PDF, CSV e XLSX.
@@ -30,7 +30,7 @@ Windows 10/11 x64, Node.js 22 para desenvolvimento e npm.
 ## Instalador NSIS Windows x64
     npm run dist:win
 
-GitHub Actions: QA Marco A para validação de pull requests; instalador por execução manual (workflow_dispatch). Não há integração obrigatória com Cloudflare ou outro serviço de terceiros.
+GitHub Actions: valida o Marco B em Windows Server 2022/2025, testa Electron real, gera instalador NSIS e executa teste automatizado no programa instalado. O workflow também pode ser iniciado manualmente. Não há integração obrigatória com Cloudflare ou serviços pagos.
 
 ## Arquitetura
 - shared/contract.mjs: fonte de verdade do modelo, campos, formas de pagamento e canais IPC.
