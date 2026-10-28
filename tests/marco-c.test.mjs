@@ -7,7 +7,7 @@ import { openCatalog } from '../electron/db.mjs';
 import { makeReceipt,drawerPulse,parseScaleWeight,assertDeviceAddress } from '../shared/peripherals.mjs';
 import { sendTcp,readScale } from '../electron/peripherals.mjs';
 import { startLanServer, requestLan, ALLOWED_RPC } from '../electron/lan.mjs';
-import { verifyDatabase,stageRestore } from '../electron/backup.mjs';
+import { verifyDatabase,stageRestore,scheduleRestore,applyPendingRestore } from '../electron/backup.mjs';
 import { createServer } from 'node:net';
 
 test('cupom ESC/POS contém dados e corte; pulso de gaveta não dispara com impressão',()=>{
@@ -86,4 +86,28 @@ test('backup usa snapshot SQLite consistente e restauração rejeita arquivo cor
    assert.ok(existsSync(staged.stagedPath));assert.equal(staged.version,3);
    assert.equal(store.list('products').length,1);
  }finally{store.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test('restauração agendada troca banco íntegro e preserva cópia de segurança para rollback',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'pdv-c-restore-'));
+  const active=join(dir,'active.sqlite'),source=join(dir,'source.sqlite');
+  try{
+    let store=openCatalog(active);
+    store.save('products',{name:'Antigo',unit:'UN',sale_price_cents:'2,00'});
+    store.close();
+    store=openCatalog(source);
+    store.save('products',{name:'Restaurado',unit:'UN',sale_price_cents:'9,00'});
+    store.close();
+    assert.equal(scheduleRestore(source,active).pending,true);
+    const result=applyPendingRestore(active);
+    assert.equal(result.restored,true);
+    assert.equal(verifyDatabase(result.previous).version,3);
+    store=openCatalog(active);
+    assert.equal(store.list('products')[0].name,'Restaurado');
+    store.close();
+    const retained=openCatalog(result.previous);
+    assert.equal(retained.list('products')[0].name,'Antigo');
+    retained.close();
+    assert.equal(applyPendingRestore(active).restored,false);
+  } finally {rmSync(dir,{recursive:true,force:true});}
 });
