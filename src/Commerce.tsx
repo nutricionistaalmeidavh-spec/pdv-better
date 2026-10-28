@@ -115,7 +115,7 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
     {view==='cash' && <div className="commerce-columns">
       <div className="panel commerce-section"><h2>{session?'Turno aberto':'Abrir novo caixa'}</h2>
         {session?<><p>Aberto em {pretty(session.opened_at)}</p><div className="total-line"><span>Dinheiro previsto em caixa</span><strong>{money(session.expected_cash_cents)}</strong></div>
-          <form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.closeSession({countedCashCents:counted}), 'Caixa fechado. Consulte a conferência nos relatórios.');}}>
+          <form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.sessionClose({countedCashCents:counted}), 'Caixa fechado. Consulte a conferência nos relatórios.');}}>
             <label>Dinheiro contado (R$)<input inputMode="decimal" value={counted} onChange={e=>setCounted(e.target.value)}/></label>
             <button disabled={busy} className="primary" type="submit">Conferir e fechar caixa</button>
           </form>
