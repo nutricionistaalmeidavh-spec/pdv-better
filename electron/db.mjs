@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { assertEntity, entities, entityOrder, CONTRACT_VERSION } from '../shared/contract.mjs';
 import { normalizeRecord } from '../shared/domain.mjs';
+import { createCommerce } from './commerce.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
 export function openCatalog(filename) {
   const db = new DatabaseSync(filename);
@@ -24,6 +25,7 @@ export function openCatalog(filename) {
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
+  const commerce = createCommerce(db);
   function list(kind, search = '') {
     const schema = assertEntity(kind);
     const term = String(search || '').trim().slice(0, 120);
@@ -44,14 +46,21 @@ export function openCatalog(filename) {
     const id = typeof input.id === 'string' && /^[0-9a-f-]{36}$/i.test(input.id) ? input.id : randomUUID();
     const now = new Date().toISOString();
     const columns = schema.fields.map(f => f.key);
-    const existing = db.prepare('SELECT id, created_at FROM "' + kind + '" WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT * FROM "' + kind + '" WHERE id = ?').get(id);
+    if(kind==='products' && existing && values.stock_milli!==existing.stock_milli)
+      throw new Error('Estoque só pode ser alterado pelo módulo de movimentações; o saldo do cadastro é somente leitura.');
     const insertColumns = ['id', 'created_at', 'updated_at', 'active', ...columns];
     const args = [id, existing?.created_at || now, now, 1, ...columns.map(key => values[key] === '' && key === 'code' ? null : values[key])];
     const query = 'INSERT INTO "' + kind + '" (' + insertColumns.map(k => '"' + k + '"').join(',') + ') VALUES (' +
       insertColumns.map(() => '?').join(',') + ') ON CONFLICT(id) DO UPDATE SET ' +
       [...columns, 'updated_at', 'active'].map(k => '"' + k + '"=excluded."' + k + '"').join(',');
-    try { db.prepare(query).run(...args); }
-    catch (error) {
+    if (kind==='products') db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare(query).run(...args);
+      if(kind==='products' && !existing && values.stock_milli>0) commerce.recordInitialStock(id,values.stock_milli);
+      if(kind==='products') db.exec('COMMIT');
+    } catch (error) {
+      if(kind==='products') db.exec('ROLLBACK');
       if (String(error).includes('UNIQUE')) throw new Error('Código já cadastrado em outro produto.');
       throw error;
     }
@@ -71,5 +80,5 @@ export function openCatalog(filename) {
   function overview() {
     return Object.fromEntries(entityOrder.map(kind => [kind, db.prepare('SELECT COUNT(*) AS n FROM "' + kind + '" WHERE active=1').get().n]));
   }
-  return { list, save, archive, overview, close: () => db.close() };
+  return { list, save, archive, overview, ...commerce, close: () => db.close() };
 }
