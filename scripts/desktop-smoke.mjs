@@ -33,6 +33,18 @@ try{
   app=await launch();
   let page=await app.firstWindow();
   await wait(page);
+  await navigation(page,'Dispositivos e rede').click();
+  await page.getByRole('heading',{name:'Dispositivos, rede e backups'}).waitFor();
+  const state=await page.evaluate(async()=>({
+    lan:await window.pdv.lanStatus(),
+    printers:await window.pdv.devicePrinters(),
+    config:await window.pdv.deviceGet()
+  }));
+  if(state.lan.mode!=='local'||!Array.isArray(state.printers)||state.config.printerPort!==9100)
+    throw new Error('Marco C: painel LAN/dispositivos não retornou estado local canônico.');
+  await page.getByRole('tab',{name:/Backups/}).click();
+  await page.getByRole('button',{name:'Salvar backup SQLite'}).waitFor();
+  await navigation(page,'Categorias').click();
   await page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:'Categorias',exact:true}).click();
   await page.getByRole('button',{name:/Adicionar categoria/i}).click();
   await page.getByRole('textbox',{name:'Nome da categoria'}).fill('Bebidas');
