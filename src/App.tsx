@@ -49,6 +49,12 @@ export function App() {
   const [cartSearch,setCartSearch] = useState('');
   const [categoryFilter,setCategoryFilter] = useState('all');
   const [cartError,setCartError] = useState('');
+  const [paymentOpen,setPaymentOpen] = useState(false);
+  const [paymentMethod,setPaymentMethod] = useState<'cash'|'credit_manual'|'debit_manual'>('cash');
+  const [received,setReceived] = useState('');
+  const [paymentBusy,setPaymentBusy] = useState(false);
+  const [saleId,setSaleId] = useState('');
+  const [lastSale,setLastSale] = useState<Row|null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const activeSchema = definitions[view];
   const bridge = window.pdv;
@@ -90,6 +96,19 @@ export function App() {
   const categories:Row[] = records.categories || [];
   const matchingProducts = useMemo(() => filterCheckoutProducts(products, categoryFilter, cartSearch),[products,cartSearch,categoryFilter]);
   const total = cartTotalCents(cart);
+  async function finalizeSale() {
+    if (!bridge || paymentBusy || !cart.length) return;
+    setPaymentBusy(true);setCartError('');
+    try {
+      const tenderedCents = paymentMethod === 'cash' ? parseFixed(received,2,'Valor recebido') : total;
+      const id = saleId || crypto.randomUUID();
+      if (!saleId) setSaleId(id);
+      const sale = await bridge.completeSale({id,items:cart.map(item=>({id:item.id,quantityMilli:item.quantityMilli})),method:paymentMethod,tenderedCents});
+      setLastSale(sale);setCart([]);setPaymentOpen(false);setSaleId('');setReceived('');
+      await reload('products');
+    } catch (err) { setCartError(friendlyError(err)); }
+    finally { setPaymentBusy(false); }
+  }
   function startForm(row?:Row) {
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
     setForm({...base,...(row ? {id:row.id} : {})});
@@ -115,10 +134,11 @@ export function App() {
     catch(err) { setError('Não foi possível desativar. ' + friendlyError(err)); }
   }
   function addProduct(row:Row) {
-    try { setCart(addToCart(cart,row,1000)); setCartError(''); setCartSearch(''); searchInput.current?.focus(); }
+    try { setCart(addToCart(cart,row,1000));setSaleId(''); setCartError(''); setCartSearch(''); searchInput.current?.focus(); }
     catch(err) { setCartError(friendlyError(err)); }
   }
   function changeQuantity(item:CartItem,delta:number) {
+    setSaleId('');
     const quantity = item.quantityMilli + delta;
     if (quantity <= 0) { setCart(prev => prev.filter(line => line.id !== item.id)); return; }
     try {
@@ -204,7 +224,7 @@ export function App() {
                 <div className="cart-footer">
                   <div className="total-line"><span>Total estimado</span><strong>{money(total)}</strong></div>
                   <div className="muted-hint"><AlertTriangle size={15}/> Rascunho temporário: ao fechar o aplicativo, esta seleção será perdida.</div>
-                  <button className="primary full disabled-action" disabled title="Pagamento e conclusão da venda serão implementados no Marco B">Finalizar venda — disponível no Marco B</button>
+                  <button className="primary full" disabled={!cart.length} onClick={() => {setCartError('');setPaymentOpen(true);}}>Finalizar venda <ArrowRight size={17}/></button>
                   <button className="plain full" disabled={!cart.length} onClick={() => { if(window.confirm('Limpar o rascunho da venda?')) setCart([]); }}><Trash2 size={16}/> Limpar rascunho</button>
                 </div>
               </div>
@@ -225,6 +245,19 @@ export function App() {
         </>}
       </section>
     </main>
+    {lastSale && <div className="sale-success" role="status"><Check size={18}/> Venda registrada: {money(lastSale.total_cents)} <button onClick={()=>setLastSale(null)} aria-label="Fechar confirmação"><X size={16}/></button></div>}
+    {paymentOpen && <div className="modal-backdrop" role="presentation">
+      <section className="dialog glass-payment" role="dialog" aria-modal="true" aria-label="Pagamento da venda">
+        <header className="dialog-head"><div><div className="eyebrow">FINALIZAÇÃO</div><h2>Pagamento</h2></div><button className="icon-btn" disabled={paymentBusy} onClick={()=>setPaymentOpen(false)} aria-label="Voltar ao carrinho"><X size={20}/></button></header>
+        <div className="payment-body"><p>Total da compra</p><strong className="payment-total">{money(total)}</strong>
+          <div className="payment-methods">{([['cash','Dinheiro'],['credit_manual','Crédito manual'],['debit_manual','Débito manual']] as const).map(([method,label])=><button type="button" key={method} aria-pressed={paymentMethod===method} className={paymentMethod===method?'active':''} onClick={()=>{setPaymentMethod(method);setSaleId('');}}>{label}</button>)}</div>
+          {paymentMethod === 'cash' ? <label className="payment-received">Valor recebido (R$)<input value={received} onChange={ev=>{setReceived(ev.target.value);setSaleId('');}} inputMode="decimal" placeholder="0,00"/></label> : <p className="payment-note">Registro manual: confirme o recebimento na maquininha antes de concluir. Nenhuma cobrança é processada pelo aplicativo.</p>}
+          {cartError && <div className="cart-error" role="alert">{cartError}</div>}
+          <button className="primary full" disabled={paymentBusy} onClick={()=>void finalizeSale()}>{paymentBusy?'Registrando…':'Confirmar recebimento'}</button>
+          <button className="plain full" disabled={paymentBusy} onClick={()=>setPaymentOpen(false)}>Voltar à venda</button>
+        </div>
+      </section>
+    </div>}
     {editing && activeSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
       <section className="dialog" role="dialog" aria-modal="true" aria-label={(editing.id ? 'Editar ' : 'Adicionar ') + activeSchema.singular}>
         <header className="dialog-head"><div><div className="eyebrow">{editing.id ? 'EDIÇÃO' : 'NOVO CADASTRO'}</div><h2>{editing.id ? 'Editar ' : 'Adicionar '}{activeSchema.singular.toLowerCase()}</h2></div><button aria-label="Fechar formulário" className="icon-btn" disabled={saving} onClick={() => setEditing(null)}><X size={20}/></button></header>
