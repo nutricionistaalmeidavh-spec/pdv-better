@@ -36,11 +36,14 @@ test('endereços de periféricos não permitem destino público, DNS ou zero',()
 });
 test('escrita TCP e leitura simulada de balança pela rede local',async()=>{
  let received=Buffer.alloc(0);
- const printer=createServer(socket=>socket.on('data',data=>{received=Buffer.concat([received,data]);socket.end();}));
+ let receivedSignal;
+ const receivedReady=new Promise(resolve=>{receivedSignal=resolve;});
+ const printer=createServer(socket=>socket.on('data',data=>{received=Buffer.concat([received,data]);receivedSignal();socket.end();}));
  await new Promise(resolve=>printer.listen(0,'127.0.0.1',resolve));
  try{
    const port=printer.address().port;
    await sendTcp({host:'127.0.0.1',port},Buffer.from([0x1b,0x40]));
+   await receivedReady;
    assert.deepEqual([...received],[0x1b,0x40]);
  }finally{await new Promise(resolve=>printer.close(resolve));}
  const scale=createServer(socket=>{socket.end('ST,GS,0.825kg\\r\\n');});
