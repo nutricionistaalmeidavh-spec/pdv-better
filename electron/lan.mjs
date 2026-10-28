@@ -57,7 +57,7 @@ export async function startLanServer({host='127.0.0.1',port=48791,token,store}={
     server.once('error',reject);
     server.listen(port,host,()=>{server.off('error',reject);resolve();});
   });
-  return {host,port:server.address().port,close:()=>new Promise((resolve,reject)=>server.close(err=>err?reject(err):resolve()))};
+  return {host,port:server.address().port,close:()=>new Promise((resolve,reject)=>{server.close(err=>err?reject(err):resolve());server.closeAllConnections?.();})};
 }
 export async function requestLan(url,token,method,args=[]){
   validateToken(token);
