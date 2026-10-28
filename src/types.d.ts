@@ -17,6 +17,19 @@ interface PdvBridge {
   financeList(): Promise<any[]>;
   financeSettle(input: any): Promise<any>;
   report(): Promise<any>;
+  lanStatus(): Promise<any>;
+  lanHost(input: {port?:number}): Promise<any>;
+  lanJoin(input: {address:string;secret:string}): Promise<any>;
+  lanLocal(): Promise<any>;
+  deviceGet(): Promise<any>;
+  deviceSet(input: any): Promise<any>;
+  devicePrinters(): Promise<Array<{name:string;displayName:string;isDefault:boolean}>>;
+  devicePrint(input: any): Promise<any>;
+  drawerOpen(): Promise<any>;
+  scaleRead(): Promise<number>;
+  backupCreate(): Promise<any>;
+  backupRestore(): Promise<any>;
+
   reportExport(format:'csv'|'pdf'|'xlsx'): Promise<{cancelled:boolean;format?:string}>;
 
 }
