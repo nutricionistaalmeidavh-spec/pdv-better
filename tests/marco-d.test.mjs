@@ -67,3 +67,23 @@ test('LAN não permite ler ou movimentar outros caixas por injetar terminalId',a
    assert.equal(t.store.listOpenSessions().length,2);
  }finally{await server.close();t.done();}
 });
+
+test('migração v3 preserva turno aberto de loja já em uso, sem duplicar valores',async()=>{
+ const {DatabaseSync}=await import('node:sqlite');
+ const {createCommerce}=await import('../electron/commerce.mjs');
+ const {migrateAccess}=await import('../electron/access.mjs');
+ const db=new DatabaseSync(':memory:');
+ try{
+   db.exec("CREATE TABLE products(id TEXT PRIMARY KEY,stock_milli INTEGER NOT NULL); CREATE TABLE operators(id TEXT PRIMARY KEY,name TEXT,role TEXT,active INTEGER NOT NULL); PRAGMA user_version=1;");
+   createCommerce(db);
+   db.prepare("INSERT INTO cash_sessions(id,opened_at,opening_cash_cents,status) VALUES(?,?,?,'open')").run('session-antiga','2026-10-25T12:00:00Z',12345);
+   migrateAccess(db,'terminal-loja-existente');
+   assert.equal(db.prepare('PRAGMA user_version').get().user_version,4);
+   const current=db.prepare("SELECT id,terminal_id,opening_cash_cents,status FROM cash_sessions WHERE status='open'").get();
+   assert.equal(current.id,'session-antiga');
+   assert.equal(current.terminal_id,'terminal-loja-existente');
+   assert.equal(current.opening_cash_cents,12345);
+   migrateAccess(db,'terminal-loja-existente');
+   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cash_sessions').get().n,1);
+ }finally{db.close();}
+});
