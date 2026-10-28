@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 let store;
@@ -6,6 +6,7 @@ async function start() {
   if (process.platform !== 'win32' && app.isPackaged) throw new Error('Distribuição homologada somente para Windows 10/11.');
   const { openCatalog } = await import('./db.mjs');
   const { apiChannels } = await import('../shared/contract.mjs');
+  const { reportRows, reportCsv, reportHtml } = await import('../shared/report.mjs');
   if(process.env.PDV_TEST_SMOKE==='1' && process.env.PDV_TEST_USER_DATA) {
     const smokeDir=path.resolve(process.env.PDV_TEST_USER_DATA);
     fs.mkdirSync(smokeDir,{recursive:true});
@@ -39,6 +40,38 @@ async function start() {
       contextIsolation: true, nodeIntegration: false, sandbox: true,
       webSecurity: true
     }
+  });
+  ipcMain.handle(apiChannels.reportExport, async (_evt,format) => {
+    if(!['pdf','csv','xlsx'].includes(format)) throw new Error('Formato não suportado.');
+    const selected=await dialog.showSaveDialog(window,{
+      title:'Exportar relatório gerencial',
+      defaultPath:'PDV-Better-Relatorio.'+format,
+      filters:[{name:format.toUpperCase(),extensions:[format]}]
+    });
+    if(selected.canceled || !selected.filePath)return {cancelled:true};
+    const data=store.report();
+    if(format==='csv')fs.writeFileSync(selected.filePath,reportCsv(data),'utf8');
+    if(format==='xlsx'){
+      const ExcelJS=require('exceljs');
+      const book=new ExcelJS.Workbook();
+      const sheet=book.addWorksheet('Resumo');
+      sheet.columns=[{header:'Indicador',key:'label',width:44},{header:'Valor',key:'value',width:24}];
+      sheet.getRow(1).font={bold:true};
+      for(const row of reportRows(data)){
+        const inserted=sheet.addRow({label:row.label,value:row.type==='money'?row.raw/100:row.raw});
+        if(row.type==='money')inserted.getCell(2).numFmt='#,##0.00';
+      }
+      await book.xlsx.writeFile(selected.filePath);
+    }
+    if(format==='pdf'){
+      const printWindow=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true}});
+      try {
+        await printWindow.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(reportHtml(data)));
+        const buffer=await printWindow.webContents.printToPDF({pageSize:'A4',printBackground:true});
+        fs.writeFileSync(selected.filePath,buffer);
+      } finally {printWindow.destroy();}
+    }
+    return {cancelled:false,format};
   });
   window.once('ready-to-show', () => window.show());
   const builtPage=path.join(__dirname,'../dist/index.html');
