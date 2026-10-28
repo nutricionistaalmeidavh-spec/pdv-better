@@ -18,6 +18,7 @@ async function launch(){
     timeout:45000
   });
 }
+const navigation=(page,label)=>page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:label,exact:true});
 const wait=async(page)=>page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
 try{
   app=await launch();
