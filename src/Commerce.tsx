@@ -128,7 +128,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     <Message error={error} success={success}/>
     {view==='cash' && <div className="commerce-columns">
       {role!=='Caixa'&&<div className="panel commerce-section commerce-wide"><h2>Caixas abertos por terminal</h2><p>Cada caixa tem abertura, movimentações, saldo e fechamento independentes. O gerente visualiza os terminais, mas não fecha outro caixa remotamente.</p>
-        <div className="commerce-table"><table><thead><tr><th>Terminal</th><th>Operador de abertura</th><th>Aberto em</th><th>Troco inicial</th></tr></thead><tbody>
+        <div className="commerce-table"><table><thead><tr><th>Terminal</th><th>Operador de abertura</th><th>Aberto em</th><th>Troco inicial</th><th>Saldo previsto</th></tr></thead><tbody>
           {otherSessions.map(x=><tr key={x.id}><td>{x.terminal_id}</td><td>{(x.operator_id||'Legado')}</td><td>{pretty(x.opened_at)}</td><td>{money(x.opening_cash_cents)}</td></tr>)}
         </tbody></table>{otherSessions.length===0&&<p className="commerce-empty">Nenhum caixa aberto.</p>}</div>
       </div>}
