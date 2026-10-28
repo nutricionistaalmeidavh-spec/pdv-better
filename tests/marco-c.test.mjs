@@ -68,7 +68,7 @@ test('LAN rejeita ausência de chave e chamadas não autorizadas; opera na fonte
    assert.equal(rows[0].id,p.id);
    await requestLan(address,token,'openSession',[{openingCashCents:0}],auth);
    const payload={key:'lan-one',items:[{id:p.id,quantityMilli:1000}],payments:[{method:'cash',amountCents:350}]};
-   const [x,y]=await Promise.all([requestLan(address,token,'checkout',[payload],auth),requestLan(address,token,'checkout',[payload])]);
+   const [x,y]=await Promise.all([requestLan(address,token,'checkout',[payload],auth),requestLan(address,token,'checkout',[payload],auth)]);
    assert.equal(x.id,y.id);
    assert.equal(store.listSales().length,1);
    assert.equal(store.list('products')[0].stock_milli,2000);
