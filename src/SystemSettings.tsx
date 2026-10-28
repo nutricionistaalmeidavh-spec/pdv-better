@@ -29,7 +29,7 @@ export function SystemSettings(){
       const value=await job();
       if(value?.cancelled){setNotice('Operação cancelada. Nenhum dado foi alterado.');return;}
       if(refresh)await reload();
-      setNotice(message);
+      setNotice(typeof value==='number' && !message ? 'Peso estável: '+(value/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})+' kg.' : message);
     }catch(e){setError(errText(e));}
     finally{setPending(false);}
   }
@@ -73,7 +73,7 @@ export function SystemSettings(){
         <p>Leitura TCP de peso estável em quilogramas. O PDV rejeita leituras negativas ou instáveis.</p>
         <label className="settings-label">IP da balança<input value={device.scaleHost||''} placeholder="192.168.1.110" onChange={e=>setDevice((p:Any)=>({...p,scaleHost:e.target.value}))}/></label>
         <label className="settings-label">Porta TCP<input type="number" min="1" max="65535" value={device.scalePort||4001} onChange={e=>setDevice((p:Any)=>({...p,scalePort:Number(e.target.value)}))}/></label>
-        <button className="secondary" disabled={pending||!device.scaleHost} onClick={()=>void run(async()=>{const v=await api!.scaleRead();setNotice('Peso estável: '+(v/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})+' kg.');},'',false)}>Ler peso agora</button>
+        <button className="secondary" disabled={pending||!device.scaleHost} onClick={()=>void run(async()=>{return api!.scaleRead();},'',false)}>Ler peso agora</button>
         <p className="settings-tip">Leitor de código de barras USB tipo teclado funciona na pesquisa da frente de caixa; etiquetas podem ser impressas pelo cadastro de produtos.</p>
       </div>
       <div className="settings-wide"><button className="primary" disabled={pending} onClick={()=>void run(()=>api!.deviceSet(device),'Configuração de periféricos salva neste computador.')}><Check size={16}/> Salvar periféricos</button></div>
