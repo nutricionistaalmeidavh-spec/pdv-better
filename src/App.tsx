@@ -8,6 +8,7 @@ import {
 import { entities, entityOrder } from '../shared/contract.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
+import { SaleReceipt } from './Receipt';
 
 type Row = Record<string, any>;
 type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number};
@@ -53,6 +54,7 @@ export function App() {
   const [cartError,setCartError] = useState('');
   const [session,setSession] = useState<Row|null>(null);
   const [paymentOpen,setPaymentOpen] = useState(false);
+  const [receipt,setReceipt] = useState<Row|null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const activeSchema = definitions[view];
   const bridge = window.pdv;
@@ -143,7 +145,7 @@ export function App() {
   }
   function selectView(next:string) { setView(next); setEditing(null); setPaymentOpen(false); setCartError(''); }
   async function completeSale(sale:Row) {
-    setPaymentOpen(false);setCart([]);
+    setPaymentOpen(false);setCart([]);setReceipt(sale);
     try {await reload('products');if(bridge)setSession(await bridge.sessionCurrent());}catch(err){setCartError(friendlyError(err));}
     setNotice('Venda '+sale.id.slice(0,8)+' concluída, total '+money(sale.total_cents)+'. Troco: '+money(sale.change_cents)+'. Comprovante não fiscal.');
   }
@@ -238,6 +240,7 @@ export function App() {
       </section>
     </main>
     {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} onClose={()=>setPaymentOpen(false)} onDone={completeSale}/>}
+    {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
     {editing && activeSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
       <section className="dialog" role="dialog" aria-modal="true" aria-label={(editing.id ? 'Editar ' : 'Adicionar ') + activeSchema.singular}>
         <header className="dialog-head"><div><div className="eyebrow">{editing.id ? 'EDIÇÃO' : 'NOVO CADASTRO'}</div><h2>{editing.id ? 'Editar ' : 'Adicionar '}{activeSchema.singular.toLowerCase()}</h2></div><button aria-label="Fechar formulário" className="icon-btn" disabled={saving} onClick={() => setEditing(null)}><X size={20}/></button></header>
