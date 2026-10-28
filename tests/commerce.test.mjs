@@ -39,7 +39,7 @@ test('estoque insuficiente e pagamento incorreto revertem a transação inteira'
     assert.equal(t.store.listSales().length,0);
   }finally{t.cleanup();}
 });
-test('fiado cria conta a receber, recebimento em dinheiro concilia caixa e cancelamento restaura estoque',()=>{
+test('fiado recebido concilia caixa e bloqueia cancelamento sem estorno prévio',()=>{
   const t=fixture();try{
     t.store.openSession({openingCashCents:'10,00'});
     const sale=t.store.checkout({key:'credit',items:[{id:t.product.id,quantityMilli:1000}],customerId:t.customer.id,payments:[{method:'credit',amountCents:1250}]});
@@ -48,7 +48,7 @@ test('fiado cria conta a receber, recebimento em dinheiro concilia caixa e cance
     assert.equal(t.store.getCurrentSession().expected_cash_cents,1000);
     t.store.settleFinance({id:receive.id,method:'cash'});
     assert.equal(t.store.getCurrentSession().expected_cash_cents,2250);
-    assert.throws(()=>t.store.cancelSale(sale.id),/recebido|liquidado/i);
+    assert.throws(()=>t.store.cancelSale(sale.id),/recebid[oa]|liquidad[oa]/i);
     assert.equal(t.store.list('products')[0].stock_milli,9000);
   }finally{t.cleanup();}
 });
