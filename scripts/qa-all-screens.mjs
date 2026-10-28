@@ -38,6 +38,8 @@ async function go(label){
   await nav(page,label).click();
   await page.locator('.page-heading h1').first().waitFor({timeout:20000});
   await page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:label,exact:true}).waitFor();
+  // Always show the page title in visual evidence after switching modules.
+  await page.evaluate(() => window.scrollTo({top:0,left:0,behavior:'instant'}));
   await page.waitForTimeout(260);
 }
 async function seed(){
@@ -250,7 +252,7 @@ async function main(){
   for(const [,label] of names)if(!seen.has('Menu - '+label))throw new Error('Print ausente: '+label);
   for(const tab of ['Rede local','Periféricos','Backups'])if(!seen.has('Configuracoes - '+tab))throw new Error('Print de aba ausente: '+tab);
   writeFileSync(join(output,'manifest.json'),JSON.stringify({
-    generatedAt:now(),repository:'nutricionistaalmeidavh-spec/pdv-better',branch:'qa/evidencias-visuais-pdf-20261028',
+    generatedAt:now(),repository:'nutricionistaalmeidavh-spec/pdv-better',branch:'feat/glassmorphism-grafite-ux-20261028',
     source:'Electron real + SQLite temporario',fictitiousData:seeds,menuCoverage:names.map(x=>x[1]),
     screenshots:captures,rendererErrors:pageErrors,failures
   },null,2));
