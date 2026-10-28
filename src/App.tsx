@@ -45,7 +45,12 @@ export function App() {
   const [editing,setEditing] = useState<Row|null>(null);
   const [form,setForm] = useState<Row>({});
   const [saving,setSaving] = useState(false);
-  const [cart,setCart] = useState<CartItem[]>([]);
+  const [cart,setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('pdv-better:draft-v1') || '[]');
+      return Array.isArray(saved) ? saved.filter(item => typeof item.id === 'string' && Number.isSafeInteger(item.quantityMilli) && item.quantityMilli > 0 && Number.isSafeInteger(item.priceCents) && item.priceCents >= 0) : [];
+    } catch { return []; }
+  });
   const [cartSearch,setCartSearch] = useState('');
   const [categoryFilter,setCategoryFilter] = useState('all');
   const [cartError,setCartError] = useState('');
@@ -76,6 +81,10 @@ export function App() {
     setRecords(prev => ({...prev,[kind]:current}));
   }
   useEffect(() => { void reloadAll(); }, []);
+  useEffect(() => {
+    try { if(cart.length) localStorage.setItem('pdv-better:draft-v1',JSON.stringify(cart)); else localStorage.removeItem('pdv-better:draft-v1'); }
+    catch { /* armazenamento local indisponível: não impedir vendas */ }
+  }, [cart]);
   useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); if(view === 'history') void openHistory(); }, [view]);
   useEffect(() => {
     if (view === 'checkout') searchInput.current?.focus();
@@ -249,7 +258,7 @@ export function App() {
                 </div>
                 <div className="cart-footer">
                   <div className="total-line"><span>Total estimado</span><strong>{money(total)}</strong></div>
-                  <div className="muted-hint"><AlertTriangle size={15}/> O carrinho não concluído é temporário. Após o pagamento, a venda é registrada no SQLite local.</div>
+                  <div className="muted-hint"><AlertTriangle size={15}/> Rascunho recuperável neste dispositivo. Após o pagamento, a venda é registrada no SQLite local.</div>
                   <button className="primary full" disabled={!cart.length} onClick={() => {setCartError('');setPaymentOpen(true);}}>Finalizar venda <ArrowRight size={17}/></button>
                   <button className="plain full" disabled={!cart.length} onClick={() => { if(window.confirm('Limpar o rascunho da venda?')) setCart([]); }}><Trash2 size={16}/> Limpar rascunho</button>
                 </div>
