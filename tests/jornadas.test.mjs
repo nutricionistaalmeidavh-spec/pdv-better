@@ -11,10 +11,10 @@ test('matriz canônica possui 22 módulos e todas as jornadas completas', () => 
   assert.equal(new Set(flows.map(flow => flow.id)).size, flows.length);
   assert.equal(new Set(flows.map(flow => flow.qa.id)).size, flows.length);
   for (const m of data.modules) {
-    assert.match(m.id, /^MOD-\\d{2}$/);
+    assert.match(m.id, /^MOD-\d{2}$/);
     assert.ok(m.name && m.screen && m.flows.length);
     for (const f of m.flows) {
-      assert.match(f.id, /^FL-\\d{2}-\\d{2}$/);
+      assert.match(f.id, /^FL-\d{2}-\d{2}$/);
       assert.equal(f.qa.id, f.id.replace('FL-', 'QA-'));
       for (const key of ['title','screen','action','validations','result','recovery','implementation']) {
         assert.ok(typeof f[key] === 'string' && f[key].trim(), f.id + ' sem ' + key);
@@ -39,8 +39,12 @@ test('fluxos de mesas, comandas e garçom permanecem no escopo', () => {
 test('jornadas de integração não são declaradas cobertas sem teste real', () => {
   assert.ok(flows.some(f => f.implementation === 'em-desenvolvimento-pr-2'));
   assert.ok(flows.some(f => f.implementation === 'planejado'));
-  assert.ok(flows.every(f => f.qa.coverage === 'pendente-jornada'));
-  assert.ok(flows.every(f => !existsSync(new URL('../' + f.qa.plannedTest, import.meta.url))));
+  assert.ok(flows.some(f => f.qa.coverage === 'pendente-jornada'));
+  for (const flow of flows) {
+    const exists = existsSync(new URL('../' + flow.qa.plannedTest, import.meta.url));
+    assert.ok(['pendente-jornada','coberto-jornada'].includes(flow.qa.coverage));
+    assert.equal(flow.qa.coverage === 'coberto-jornada', exists, flow.id + ': divergência entre teste e cobertura');
+  }
 });
 test('Markdown publicado corresponde integralmente à fonte de verdade', () => {
   const doc = readFileSync(new URL('../docs/qa/jornadas.md', import.meta.url), 'utf8');
