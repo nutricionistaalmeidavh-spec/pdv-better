@@ -1,4 +1,4 @@
-# PDV Better — Marco C (Windows 10/11)
+# PDV Better — Marco D (Windows 10/11)
 
 Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato canônico compartilhado e armazenamento SQLite.
 
@@ -22,6 +22,13 @@ Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato c
 - QA no Electron e no NSIS instalado, com hash SHA256 no artefato GitHub Actions.
 
 **Limites:** balança serial COM, TEF, múltiplos turnos de caixa separados por terminal e homologação de hardware físico não foram implementados. HTTP na LAN não cifra o tráfego: use rede privada confiável. Pix e cartão continuam manuais.
+
+## Marco D — caixas simultâneos e perfis
+- Cada terminal pode abrir e fechar seu próprio caixa em paralelo, com saldos, sangrias, divergências e operador de abertura separados.
+- Credenciais locais por operador e perfis Caixa, Gerente e Administrador. Primeiro acesso exige criar administrador e senha, sem conta padrão.
+- Senhas derivadas com scrypt, autenticação por terminal e permissões verificadas no backend SQLite e na API LAN.
+- Administração de operadores, funções e senhas pela interface e histórico de autoria das vendas.
+- SQLite v4 migra os turnos existentes sem apagar dados. Detalhes em docs/03-caixas-perfis.md.
 
 ## Requisitos
 Windows 10/11 x64, Node.js 22 para desenvolvimento e npm.
