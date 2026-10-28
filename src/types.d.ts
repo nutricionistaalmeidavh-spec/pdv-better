@@ -16,6 +16,7 @@ interface PdvBridge {
   financeList(): Promise<any[]>;
   financeSettle(input: any): Promise<any>;
   report(): Promise<any>;
+  reportExport(format:'csv'|'pdf'|'xlsx'): Promise<{cancelled:boolean;format?:string}>;
 
 }
 interface Window { pdv?: PdvBridge }
