@@ -235,7 +235,7 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     return all('SELECT * FROM sales ORDER BY created_at DESC,id DESC');
   }
   function listOpenSessions(){
-    return all("SELECT id,terminal_id,operator_id,opened_at,opening_cash_cents FROM cash_sessions WHERE status='open' ORDER BY opened_at")
+    return all("SELECT s.id,s.terminal_id,s.operator_id,o.name AS operator_name,s.opened_at,s.opening_cash_cents FROM cash_sessions s LEFT JOIN operators o ON o.id=s.operator_id WHERE s.status='open' ORDER BY s.opened_at")
       .map(session=>({...session,expected_cash_cents:cashExpected(session)}));
   }
   function moveStock(input){
