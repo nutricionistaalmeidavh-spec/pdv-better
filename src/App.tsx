@@ -10,6 +10,7 @@ import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '..
 import { filterCheckoutProducts } from '../shared/catalog.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
 import { SaleReceipt } from './Receipt';
+import { SystemSettings } from './SystemSettings';
 
 type Row = Record<string, any>;
 type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number};
@@ -17,14 +18,15 @@ const definitions: Record<string, any> = entities;
 const icons: Record<string, any> = {
   dashboard: LayoutDashboard, checkout: ShoppingCart, products: Package, categories: Tags,
   customers: Users, suppliers: Truck, operators: UserRoundCog,
-  cash: Wallet, sales: ReceiptText, inventory: Boxes, finance: ClipboardList, reports: BarChart3
+  cash: Wallet, sales: ReceiptText, inventory: Boxes, finance: ClipboardList, reports: BarChart3, settings: Settings
 };
 const menus = [
   {title:'OPERAÇÃO', ids:['dashboard','checkout','cash','sales']},
   {title:'GESTÃO', ids:['inventory','finance','reports']},
-  {title:'CADASTROS', ids:entityOrder}
+  {title:'CADASTROS', ids:entityOrder},
+  {title:'SISTEMA', ids:['settings']}
 ];
-const titles: Record<string,string> = {dashboard:'Visão geral',checkout:'Frente de caixa',cash:'Controle de caixa',sales:'Vendas',inventory:'Estoque',finance:'Financeiro',reports:'Relatórios'};
+const titles: Record<string,string> = {dashboard:'Visão geral',checkout:'Frente de caixa',cash:'Controle de caixa',sales:'Vendas',inventory:'Estoque',finance:'Financeiro',reports:'Relatórios',settings:'Dispositivos e rede'};
 const formatValue = (field:any, value:any):string => {
   if (value === null || value === undefined) return '';
   if (field.type === 'money') return (Number(value)/100).toFixed(2);
@@ -62,6 +64,7 @@ export function App() {
   const [session,setSession] = useState<Row|null>(null);
   const [paymentOpen,setPaymentOpen] = useState(false);
   const [receipt,setReceipt] = useState<Row|null>(null);
+  const [readingScale,setReadingScale] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
   const activeSchema = definitions[view];
   const bridge = window.pdv;
@@ -153,7 +156,18 @@ export function App() {
     if (found) addProduct(found);
     else setCartError('Selecione um produto na lista ou confira o código.');
   }
-  function selectView(next:string) { setView(next); setEditing(null); setPaymentOpen(false); setCartError(''); }
+  function selectView(next:string) { if(view==='settings')void reloadAll(); setView(next); setEditing(null); setPaymentOpen(false); setCartError(''); }
+  async function weighItem(item:CartItem) {
+    if(!bridge || readingScale)return;
+    setReadingScale(true);setCartError('');
+    try {
+      const milli=await bridge.scaleRead();
+      if(!Number.isSafeInteger(milli)||milli<=0)throw new Error('Peso inválido da balança.');
+      lineTotalCents(item.priceCents,milli);
+      setCart(old=>old.map(line=>line.id===item.id?{...line,quantityMilli:milli}:line));
+    }catch(err){setCartError(friendlyError(err));}
+    finally{setReadingScale(false);}
+  }
   async function completeSale(sale:Row) {
     setPaymentOpen(false);setCart([]);setReceipt(sale);
     try {await reload('products');if(bridge)setSession(await bridge.sessionCurrent());}catch(err){setCartError(friendlyError(err));}
@@ -222,6 +236,7 @@ export function App() {
                   {cart.length === 0 ? <div className="empty-cart"><ShoppingCart size={32}/><strong>Seu carrinho está vazio</strong><p>Selecione um produto para começar.</p></div> :
                     cart.map(line => <div className="cart-line" key={line.id}><div className="cart-line-top"><div><strong>{line.name}</strong><span>{money(line.priceCents)} / {line.unit}</span></div><button className="icon-btn" title="Remover do carrinho" aria-label={'Remover '+line.name} onClick={() => setCart(old => old.filter(item => item.id !== line.id))}><X size={17}/></button></div>
                       <div className="cart-line-bottom"><div className="stepper"><button aria-label={'Diminuir '+line.name} onClick={() => changeQuantity(line,-(line.unit === 'KG' ? 100 : 1000))}><Minus size={15}/></button><span>{(line.quantityMilli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {line.unit}</span><button aria-label={'Aumentar '+line.name} onClick={() => changeQuantity(line,line.unit === 'KG' ? 100 : 1000)}><Plus size={15}/></button></div><strong>{money(lineTotalCents(line.priceCents,line.quantityMilli))}</strong></div>
+                      {line.unit==='KG'&&<button className="plain" disabled={readingScale} onClick={()=>void weighItem(line)}>Ler balança para {line.name}</button>}
                     </div>)}
                 </div>
                 <div className="cart-footer">
@@ -235,12 +250,13 @@ export function App() {
             </div>
           </>}
           {['cash','sales','inventory','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll}/>}
+          {view==='settings' && <SystemSettings/>}
           {activeSchema && <>
             <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div><button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button></div>
             <div className="panel data-panel">
               <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{filteredRows.length} cadastros</span></div>
               <div className="table-wrap"><table><thead><tr>{activeSchema.fields.slice(0,4).map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
-              <tbody>{pageRows.map(row => <tr key={row.id}>{activeSchema.fields.slice(0,4).map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col"><button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button><button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button></td></tr>)}</tbody></table>
+              <tbody>{pageRows.map(row => <tr key={row.id}>{activeSchema.fields.slice(0,4).map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col">{view==='products'&&<button title="Imprimir etiqueta" className="icon-btn" onClick={()=>void bridge?.devicePrint({kind:'label',productId:row.id}).catch(err=>setError(friendlyError(err)))}><Tags size={16}/></button>}<button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button><button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button></td></tr>)}</tbody></table>
                 {!filteredRows.length && <div className="empty-state"><Package size={26}/><strong>{search ? 'Nenhum resultado para a pesquisa' : 'Ainda não há cadastros'}</strong><p>{search ? 'Experimente outro termo.' : 'Use o botão Adicionar para começar.'}</p></div>}
               </div>
               {filteredRows.length > pageSize && <div className="pagination"><span>Página {page+1} de {pageCount} · {filteredRows.length} registros</span><div><button className="secondary" disabled={page===0} onClick={() => setPage(p => Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={page>=pageCount-1} onClick={() => setPage(p => Math.min(pageCount-1,p+1))}>Próxima</button></div></div>}
