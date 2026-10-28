@@ -5,11 +5,24 @@ import { normalizeRecord } from '../shared/domain.mjs';
 import { createCommerce } from './commerce.mjs';
 import {migrateAccess,createAccess} from './access.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
-export function openCatalog(filename,{terminalId='legacy'}={}) {
-  const db = new DatabaseSync(filename);
+export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}) {
+  const timeout=Number.isSafeInteger(busyTimeoutMs)&&busyTimeoutMs>=0&&busyTimeoutMs<=30000?busyTimeoutMs:5000;
+  const storageError=(error)=>{
+    const message=String(error?.message||error);
+    if(/SQLITE_BUSY|SQLITE_LOCKED|database is locked|database is busy/i.test(message))
+      return new Error('O banco SQLite está ocupado ou bloqueado. Aguarde e tente novamente.');
+    if(/file is not a database|database disk image is malformed|SQLITE_CORRUPT|malformed database schema|integridade/i.test(message))
+      return new Error('Integridade do banco SQLite inválida ou dados corrompidos. Banco original preservado.');
+    return error;
+  };
+  let db;
+  try {
+  db = new DatabaseSync(filename);
   db.exec('PRAGMA foreign_keys = ON');
-  db.exec('PRAGMA busy_timeout = 5000');
+  db.exec('PRAGMA busy_timeout = '+timeout);
   if (filename !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
+  const check=db.prepare('PRAGMA quick_check').get();
+  if(!check||check.quick_check!=='ok')throw new Error('Integridade do SQLite inválida: falha no quick_check.');
   const version = db.prepare('PRAGMA user_version').get().user_version;
   if (version > CONTRACT_VERSION) throw new Error('Banco de versão mais recente. Atualize o aplicativo.');
   if (version === 0) {
@@ -57,15 +70,16 @@ export function openCatalog(filename,{terminalId='legacy'}={}) {
     const query = 'INSERT INTO "' + kind + '" (' + insertColumns.map(k => '"' + k + '"').join(',') + ') VALUES (' +
       insertColumns.map(() => '?').join(',') + ') ON CONFLICT(id) DO UPDATE SET ' +
       [...columns, 'updated_at', 'active'].map(k => '"' + k + '"=excluded."' + k + '"').join(',');
-    if (kind==='products') db.exec('BEGIN IMMEDIATE');
+    let started=false;
     try {
+      if(kind==='products'){db.exec('BEGIN IMMEDIATE');started=true;}
       db.prepare(query).run(...args);
       if(kind==='products' && !existing && values.stock_milli>0) commerce.recordInitialStock(id,values.stock_milli);
-      if(kind==='products') db.exec('COMMIT');
+      if(started){db.exec('COMMIT');started=false;}
     } catch (error) {
-      if(kind==='products') db.exec('ROLLBACK');
+      if(started){try{db.exec('ROLLBACK');}catch{}}
       if (String(error).includes('UNIQUE')) throw new Error('Código já cadastrado em outro produto.');
-      throw error;
+      throw storageError(error);
     }
     return db.prepare('SELECT * FROM "' + kind + '" WHERE id = ?').get(id);
   }
@@ -111,4 +125,8 @@ export function openCatalog(filename,{terminalId='legacy'}={}) {
     authStatus:access.status,authBootstrap:access.bootstrap,authLogin:access.login,
     authLogout:access.logout,authCurrent:access.current,
     backupTo: (destination) => backup(db,destination), close: () => db.close() };
+  }catch(error){
+    try{db?.close();}catch{}
+    throw storageError(error);
+  }
 }
