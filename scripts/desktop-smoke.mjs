@@ -57,6 +57,7 @@ try{
   await page.getByRole('textbox',{name:'Valor de pagamento 1'}).fill('12,50');
   await page.getByRole('button',{name:'Confirmar e concluir venda'}).click();
   await page.getByRole('status').filter({hasText:'concluída'}).waitFor({timeout:30000});
+  await page.getByRole('dialog',{name:'Comprovante não fiscal da venda'}).getByRole('button',{name:'Concluir'}).click();
   await page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:'Vendas',exact:true}).click();
   await page.getByText('Concluída').first().waitFor();
   await app.close();app=null;
