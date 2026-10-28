@@ -57,3 +57,29 @@ test('categoria vinculada a produto não pode ser desativada', () => {
     assert.equal(store.list('categories').length,1);
   } finally { store.close(); }
 });
+
+test('cadastros sobrevivem ao fechamento e reabertura do SQLite real', async () => {
+  const {mkdtempSync,rmSync} = await import('node:fs');
+  const {tmpdir} = await import('node:os');
+  const {join} = await import('node:path');
+  const {DatabaseSync} = await import('node:sqlite');
+  const {entities,entityOrder} = await import('../shared/contract.mjs');
+  const dir = mkdtempSync(join(tmpdir(),'pdv-better-'));
+  const filename = join(dir,'pdv.sqlite');
+  try {
+    let store = openCatalog(filename);
+    const customer = store.save('customers',{name:'Cliente de teste',phone:'16999999999'});
+    store.close();
+    store = openCatalog(filename);
+    assert.equal(store.list('customers')[0].id,customer.id);
+    assert.equal(store.list('customers')[0].phone,'16999999999');
+    store.close();
+    const db = new DatabaseSync(filename);
+    try {
+      for(const kind of entityOrder){
+        const existing = new Set(db.prepare('PRAGMA table_info("' + kind + '")').all().map(x=>x.name));
+        for(const field of entities[kind].fields) assert.equal(existing.has(field.key),true,kind + ': coluna ' + field.key);
+      }
+    } finally { db.close(); }
+  } finally {rmSync(dir,{recursive:true,force:true});}
+});
