@@ -155,9 +155,9 @@ try{
   await cart().getByText('Biscoito Integral QA').waitFor();
   pass('F18','seleção de produto atualiza rascunho e total');
   await cart().getByRole('button',{name:'Aumentar Biscoito Integral QA'}).click();
-  await cart().getByText('2 UN').waitFor();
+  await cart().locator('.cart-line').filter({hasText:'Biscoito Integral QA'}).getByText('2 UN').waitFor();
   await cart().getByRole('button',{name:'Diminuir Biscoito Integral QA'}).click();
-  await cart().getByText('1 UN').waitFor();
+  await cart().locator('.cart-line').filter({hasText:'Biscoito Integral QA'}).getByText('1 UN').waitFor();
   await cart().getByRole('button',{name:'Remover Biscoito Integral QA'}).click();
   assert.equal(await cart().getByText('Biscoito Integral QA').count(),0);
   pass('F19','aumento, redução e remoção sem perder os demais itens');
