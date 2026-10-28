@@ -47,3 +47,13 @@ test('carrinho calcula centavos exatos e não salva vendas', () => {
   assert.throws(() => addToCart([], {...product, unit:'UN'}, 500), /inteira/);
   assert.equal(parseFixed('1,05', 2, 'Preço'), 105);
 });
+
+test('categoria vinculada a produto não pode ser desativada', () => {
+  const store = openCatalog(':memory:');
+  try {
+    const category = store.save('categories', {name:'Padaria'});
+    store.save('products', {name:'Pão',unit:'UN',category_id:category.id,sale_price_cents:'1,00'});
+    assert.throws(() => store.archive('categories',category.id), /possui produtos ativos/);
+    assert.equal(store.list('categories').length,1);
+  } finally { store.close(); }
+});
