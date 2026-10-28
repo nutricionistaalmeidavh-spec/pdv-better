@@ -62,6 +62,12 @@ export function openCatalog(filename) {
       return db.prepare('SELECT * FROM sales WHERE id=?').get(sale.id);
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
+  function saleDetail(id) {
+    if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Venda inválida.');
+    const sale = db.prepare('SELECT * FROM sales WHERE id=?').get(id);
+    if (!sale) throw new Error('Venda não encontrada.');
+    return {...sale,items:db.prepare('SELECT product_id,name,unit,price_cents,quantity_milli,line_total_cents FROM sale_items WHERE sale_id=? ORDER BY rowid').all(id)};
+  }
   function salesList() { return db.prepare('SELECT * FROM sales ORDER BY created_at DESC LIMIT 100').all(); }
   function list(kind, search = '') {
     const schema = assertEntity(kind);
@@ -110,5 +116,5 @@ export function openCatalog(filename) {
   function overview() {
     return Object.fromEntries(entityOrder.map(kind => [kind, db.prepare('SELECT COUNT(*) AS n FROM "' + kind + '" WHERE active=1').get().n]));
   }
-  return { list, save, archive, overview, completeSale, salesList, close: () => db.close() };
+  return { list, save, archive, overview, completeSale, salesList, saleDetail, close: () => db.close() };
 }
