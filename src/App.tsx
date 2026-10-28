@@ -2,23 +2,27 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LayoutDashboard, ShoppingCart, Package, Tags, Users, Truck, UserRoundCog,
   Search, Plus, Pencil, Archive, X, Check, AlertTriangle, Database, RotateCcw,
-  ChevronRight, Minus, Settings, ShieldCheck, ArrowRight, Trash2, Keyboard
+  ChevronRight, Minus, Settings, ShieldCheck, ArrowRight, Trash2, Keyboard,
+  Wallet, ClipboardList, BarChart3, Boxes, ReceiptText
 } from 'lucide-react';
 import { entities, entityOrder } from '../shared/contract.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
+import { CommerceView, PaymentModal } from './Commerce';
 
 type Row = Record<string, any>;
 type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number};
 const definitions: Record<string, any> = entities;
 const icons: Record<string, any> = {
   dashboard: LayoutDashboard, checkout: ShoppingCart, products: Package, categories: Tags,
-  customers: Users, suppliers: Truck, operators: UserRoundCog
+  customers: Users, suppliers: Truck, operators: UserRoundCog,
+  cash: Wallet, sales: ReceiptText, inventory: Boxes, finance: ClipboardList, reports: BarChart3
 };
 const menus = [
-  {title:'OPERAÇÃO', ids:['dashboard','checkout']},
+  {title:'OPERAÇÃO', ids:['dashboard','checkout','cash','sales']},
+  {title:'GESTÃO', ids:['inventory','finance','reports']},
   {title:'CADASTROS', ids:entityOrder}
 ];
-const titles: Record<string,string> = {dashboard:'Visão geral',checkout:'Frente de caixa'};
+const titles: Record<string,string> = {dashboard:'Visão geral',checkout:'Frente de caixa',cash:'Controle de caixa',sales:'Vendas',inventory:'Estoque',finance:'Financeiro',reports:'Relatórios'};
 const formatValue = (field:any, value:any):string => {
   if (value === null || value === undefined) return '';
   if (field.type === 'money') return (Number(value)/100).toFixed(2);
@@ -47,6 +51,8 @@ export function App() {
   const [cart,setCart] = useState<CartItem[]>([]);
   const [cartSearch,setCartSearch] = useState('');
   const [cartError,setCartError] = useState('');
+  const [session,setSession] = useState<Row|null>(null);
+  const [paymentOpen,setPaymentOpen] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
   const activeSchema = definitions[view];
   const bridge = window.pdv;
@@ -66,6 +72,7 @@ export function App() {
   }
   useEffect(() => { void reloadAll(); }, []);
   useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
+  useEffect(() => { if(view==='checkout' && bridge) void bridge.sessionCurrent().then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
   useEffect(() => {
     if (view === 'checkout') searchInput.current?.focus();
   }, [view]);
@@ -134,12 +141,17 @@ export function App() {
     if (found) addProduct(found);
     else setCartError('Selecione um produto na lista ou confira o código.');
   }
-  function selectView(next:string) { setView(next); setEditing(null); setCartError(''); }
+  function selectView(next:string) { setView(next); setEditing(null); setPaymentOpen(false); setCartError(''); }
+  async function completeSale(sale:Row) {
+    setPaymentOpen(false);setCart([]);
+    try {await reload('products');if(bridge)setSession(await bridge.sessionCurrent());}catch(err){setCartError(friendlyError(err));}
+    setNotice('Venda '+sale.id.slice(0,8)+' concluída, total '+money(sale.total_cents)+'. Troco: '+money(sale.change_cents)+'. Comprovante não fiscal.');
+  }
 
   return <div className="shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Package size={21}/></div><div><strong>PDV Better</strong><span>by ArtiSys</span></div></div>
-      <div className="workspace"><div className="workspace-avatar">PB</div><div><strong>Estabelecimento local</strong><span>Modo offline • Marco A</span></div></div>
+      <div className="workspace"><div className="workspace-avatar">PB</div><div><strong>Estabelecimento local</strong><span>Funcionamento offline • Marco B</span></div></div>
       <nav aria-label="Navegação principal">
         {menus.map(section => <div className="menu-section" key={section.title}>
           <div className="menu-title">{section.title}</div>
@@ -175,10 +187,10 @@ export function App() {
               <button className="quick" onClick={() => selectView('products')}><span className="quick-icon"><Package size={21}/></span><strong>Gerenciar produtos</strong><span>Preços, estoque inicial e códigos</span><ArrowRight size={17}/></button>
               <button className="quick" onClick={() => selectView('customers')}><span className="quick-icon"><Users size={21}/></span><strong>Clientes</strong><span>Consultar ou incluir um cadastro</span><ArrowRight size={17}/></button>
             </div>
-            <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros são persistidos no banco local. Carrinhos ainda são prévias: não há recebimento, venda concluída ou baixa de estoque nesta versão.</p></div></div>
+            <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros, vendas, saldos de estoque e financeiro são registrados no SQLite local. Pix e cartão devem ser confirmados externamente antes da conclusão da venda.</p></div></div>
           </>}
           {view === 'checkout' && <>
-            <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO / F2</div><h1>Frente de caixa</h1><p>Selecione os produtos e revise o rascunho da venda.</p></div><span className="draft-label">Prévia • não salva venda</span></div>
+            <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO / F2</div><h1>Frente de caixa</h1><p>Busque produtos, revise quantidades e registre o pagamento no caixa aberto.</p></div><span className="draft-label">{session ? 'Caixa aberto' : 'Caixa fechado'}</span></div>
             <div className="checkout-grid">
               <div className="panel products-panel">
                 <div className="panel-header"><div><h2>Selecionar produtos</h2><p>Busque por nome, SKU ou código de barras</p></div><span className="count-chip">{matchingProducts.length} exibidos</span></div>
@@ -201,13 +213,15 @@ export function App() {
                 </div>
                 <div className="cart-footer">
                   <div className="total-line"><span>Total estimado</span><strong>{money(total)}</strong></div>
-                  <div className="muted-hint"><AlertTriangle size={15}/> Rascunho temporário: ao fechar o aplicativo, esta seleção será perdida.</div>
-                  <button className="primary full disabled-action" disabled title="Pagamento e conclusão da venda serão implementados no Marco B">Finalizar venda — disponível no Marco B</button>
+                  <div className="muted-hint"><AlertTriangle size={15}/> O carrinho é temporário até concluir a venda. O pagamento só será registrado após a confirmação.</div>
+                  <button className="primary full" disabled={!cart.length || !session} onClick={() => setPaymentOpen(true)}>{session ? 'Receber e concluir venda' : 'Abra o caixa para vender'}</button>
+                  {!session && <button className="secondary full" onClick={() => selectView('cash')}>Ir para abertura de caixa</button>}
                   <button className="plain full" disabled={!cart.length} onClick={() => { if(window.confirm('Limpar o rascunho da venda?')) setCart([]); }}><Trash2 size={16}/> Limpar rascunho</button>
                 </div>
               </div>
             </div>
           </>}
+          {['cash','sales','inventory','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll}/>}
           {activeSchema && <>
             <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div><button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button></div>
             <div className="panel data-panel">
@@ -223,6 +237,7 @@ export function App() {
         </>}
       </section>
     </main>
+    {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} onClose={()=>setPaymentOpen(false)} onDone={completeSale}/>}
     {editing && activeSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
       <section className="dialog" role="dialog" aria-modal="true" aria-label={(editing.id ? 'Editar ' : 'Adicionar ') + activeSchema.singular}>
         <header className="dialog-head"><div><div className="eyebrow">{editing.id ? 'EDIÇÃO' : 'NOVO CADASTRO'}</div><h2>{editing.id ? 'Editar ' : 'Adicionar '}{activeSchema.singular.toLowerCase()}</h2></div><button aria-label="Fechar formulário" className="icon-btn" disabled={saving} onClick={() => setEditing(null)}><X size={20}/></button></header>
@@ -232,7 +247,7 @@ export function App() {
              field.type === 'reference' ? <select value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}><option value="">Sem categoria</option>{(records[field.entity] || []).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select> :
              <input required={field.required} type={field.type === 'money' || field.type === 'quantity' ? 'text' : 'text'} autoComplete="off"
              inputMode={field.type === 'money' || field.type === 'quantity' ? 'decimal' : 'text'}
-             value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}
+             value={form[field.key]??''} readOnly={Boolean(field.readOnlyOnEdit && editing.id)} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}
              placeholder={field.type === 'money' ? '0,00' : field.type === 'quantity' ? '0,000' : field.label}/>}
           </label>)}</div>
           {error && <div className="form-error" role="alert"><AlertTriangle size={16}/>{error}</div>}
