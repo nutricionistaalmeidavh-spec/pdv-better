@@ -22,9 +22,18 @@ async function start() {
   fs.mkdirSync(folder, { recursive: true });
   const databaseFile=path.join(folder,'pdv-better.sqlite');
   applyPendingRestore(databaseFile);
-  store = openCatalog(databaseFile);
+  const terminalFile=path.join(folder,'terminal-id.txt');
+  const terminalId=fs.existsSync(terminalFile)?fs.readFileSync(terminalFile,'utf8').trim():require('node:crypto').randomUUID();
+  if(!fs.existsSync(terminalFile))fs.writeFileSync(terminalFile,terminalId,{mode:0o600});
+  store = openCatalog(databaseFile,{terminalId});
   runtime = await createRuntime({store,folder,safeStorage});
   const domain=(method,...args)=>runtime.call(method,...args);
+  ipcMain.handle(apiChannels.authStatus,()=>runtime.authStatus());
+  ipcMain.handle(apiChannels.authBootstrap,(_evt,input)=>runtime.bootstrap(input));
+  ipcMain.handle(apiChannels.authLogin,(_evt,input)=>runtime.login(input));
+  ipcMain.handle(apiChannels.authLogout,()=>runtime.logout());
+  ipcMain.handle(apiChannels.authSetPassword,(_evt,input)=>domain('setPassword',input));
+  ipcMain.handle(apiChannels.sessionsList,()=>domain('listOpenSessions'));
   ipcMain.handle(apiChannels.list, (_evt, kind, search) => domain('list',kind, search));
   ipcMain.handle(apiChannels.save, (_evt, kind, record) => domain('save',kind, record));
   ipcMain.handle(apiChannels.archive, (_evt, kind, id) => domain('archive',kind, id));
@@ -91,11 +100,12 @@ async function start() {
   };
   const deviceTarget=(host,port)=>host?assertDeviceAddress(host,port):null;
   ipcMain.handle(apiChannels.lanStatus,()=>runtime.status());
-  ipcMain.handle(apiChannels.lanHost,(_evt,options)=>runtime.host(options));
-  ipcMain.handle(apiChannels.lanJoin,(_evt,input)=>runtime.join(input));
-  ipcMain.handle(apiChannels.lanLocal,()=>runtime.local());
-  ipcMain.handle(apiChannels.deviceGet,()=>readDevice());
+  ipcMain.handle(apiChannels.lanHost,(_evt,options)=>{runtime.authorize('lanHost');return runtime.host(options);});
+  ipcMain.handle(apiChannels.lanJoin,(_evt,input)=>{if(runtime.currentUser())runtime.authorize('lanJoin');return runtime.join(input);});
+  ipcMain.handle(apiChannels.lanLocal,()=>{runtime.authorize('lanLocal');return runtime.local();});
+  ipcMain.handle(apiChannels.deviceGet,()=>{runtime.authorize('deviceGet');return readDevice();});
   ipcMain.handle(apiChannels.deviceSet,(_evt,input)=>{
+    runtime.authorize('deviceSet');
     const printer=deviceTarget(String(input?.printerHost||'').trim(),input?.printerPort||9100);
     const scale=deviceTarget(String(input?.scaleHost||'').trim(),input?.scalePort||4001);
     const config={printerHost:printer?.host||'',printerPort:printer?.port||9100,
@@ -104,21 +114,25 @@ async function start() {
     return config;
   });
   ipcMain.handle(apiChannels.devicePrinters,async()=>{
+    runtime.authorize('devicePrinters');
     const printers=await window.webContents.getPrintersAsync();
     return printers.map(p=>({name:p.name,displayName:p.displayName||p.name,isDefault:!!p.isDefault}));
   });
   ipcMain.handle(apiChannels.drawerOpen,async()=>{
+    runtime.authorize('drawerOpen');
     const prefs=readDevice();
     const target=deviceTarget(prefs.printerHost,prefs.printerPort);
     if(!target)throw new Error('Configure primeiro uma impressora ESC/POS TCP com gaveta conectada.');
     return sendTcp(target,drawerPulse());
   });
   ipcMain.handle(apiChannels.scaleRead,async()=>{
+    runtime.authorize('scaleRead');
     const prefs=readDevice(),target=deviceTarget(prefs.scaleHost,prefs.scalePort);
     if(!target)throw new Error('Configure primeiro a balança TCP nas configurações.');
     return readScale(target);
   });
   ipcMain.handle(apiChannels.devicePrint,async(_evt,input)=>{
+    runtime.authorize('devicePrint');
     const kind=input?.kind;
     if(kind==='receipt-tcp'){
       const prefs=readDevice(),target=deviceTarget(prefs.printerHost,prefs.printerPort);
@@ -146,6 +160,7 @@ async function start() {
     }finally{if(!printWindow.isDestroyed())printWindow.destroy();}
   });
   ipcMain.handle(apiChannels.backupCreate,async()=>{
+    runtime.authorize('backupCreate');
     if(runtime.isRemote())throw new Error('O backup deve ser feito no computador servidor do banco.');
     const selected=await dialog.showSaveDialog(window,{title:'Salvar backup SQLite',defaultPath:'PDV-Better-Backup.sqlite',
       filters:[{name:'Backup SQLite',extensions:['sqlite']}]});
@@ -156,8 +171,9 @@ async function start() {
     return {created:true,path:selected.filePath};
   });
   ipcMain.handle(apiChannels.backupRestore,async()=>{
+    runtime.authorize('backupRestore');
     if(runtime.isRemote())throw new Error('Restauração disponível apenas no computador servidor.');
-    if(store.getCurrentSession())throw new Error('Feche o caixa antes de restaurar um backup.');
+    if(store.listOpenSessions().length)throw new Error('Feche todos os caixas e terminais antes de restaurar o backup.');
     const selected=await dialog.showOpenDialog(window,{title:'Selecionar backup para restaurar',
       properties:['openFile'],filters:[{name:'Backup SQLite',extensions:['sqlite','db']}]});
     if(selected.canceled||!selected.filePaths?.length)return {cancelled:true};
