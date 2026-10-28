@@ -41,7 +41,7 @@ async function updateStock({product,kind,quantity,direction,reason}){
   await formField(form,'Motivo').fill(reason);
   await form.getByRole('button',{name:'Registrar estoque'}).click();
   await page.getByRole('status').filter({hasText:'Estoque atualizado e movimento auditado.'}).waitFor();
-  await page.getByRole('status').filter({hasText:'Estoque atualizado e movimento auditado.'}).waitFor({state:'hidden'}).catch(()=>{});
+  await historyPanel().getByText(reason,{exact:true}).waitFor();
 }
 try{
   app=await electron.launch({
