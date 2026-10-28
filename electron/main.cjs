@@ -62,6 +62,7 @@ async function start() {
     }
   });
   ipcMain.handle(apiChannels.reportExport, async (_evt,format) => {
+    runtime.authorize('reportExport');
     if(!['pdf','csv','xlsx'].includes(format)) throw new Error('Formato não suportado.');
     const selected=await dialog.showSaveDialog(window,{
       title:'Exportar relatório gerencial',
