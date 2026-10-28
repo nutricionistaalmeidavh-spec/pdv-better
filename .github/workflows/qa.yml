@@ -32,6 +32,29 @@ jobs:
         run: npm run test:flows:f41-f50
       - name: Testar F51–F54 com servidor LAN, terminal remoto e restauração SQLite
         run: npm run test:flows:f51-f54
+  user-journeys:
+    name: QA jornadas individuais J01–J05 — usuários reais de ponta a ponta
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+      - name: Compilar Electron, React e preload
+        run: npm run build
+      - name: Executar jornadas completas independentes
+        run: npm run test:journeys
+      - name: Evidências do QA (JSON e imagens somente em falha)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jornadas-individuais
+          path: qa-artifacts/
+          if-no-files-found: warn
+          retention-days: 7
   windows-tests:
     strategy:
       fail-fast: false
