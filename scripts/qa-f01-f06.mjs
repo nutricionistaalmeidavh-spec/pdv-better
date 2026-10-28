@@ -96,13 +96,20 @@ try {
   success('F02', 'senha inválida rejeitada e login correto do operador persistido');
 
   // F05 (caixa): módulos autorizados visíveis; bloqueio real também no backend.
-  for (const name of ['Frente de caixa', 'Controle de caixa', 'Vendas', 'Clientes']) {
+  for (const name of ['Frente de caixa', 'Controle de caixa', 'Vendas', 'Clientes', 'Produtos', 'Categorias']) {
     assert.equal(await menu(page, name).count(), 1, 'Caixa precisa enxergar '+name);
   }
-  for (const name of ['Produtos', 'Categorias', 'Fornecedores', 'Financeiro', 'Relatórios', 'Operadores', 'Dispositivos e rede']) {
+  for (const name of ['Fornecedores', 'Estoque', 'Financeiro', 'Relatórios', 'Operadores', 'Dispositivos e rede']) {
     assert.equal(await menu(page, name).count(), 0, 'Caixa não pode enxergar '+name);
   }
   assert.match(await errorOf(page, 'report'), /permiss/i);
+  await menu(page, 'Produtos').click();
+  await page.getByRole('heading', {name: 'Produtos', exact: true}).waitFor();
+  assert.equal(await page.getByRole('button', {name: /Adicionar produto/i}).count(), 0);
+  assert.match(await errorOf(page, 'save', 'products', {name: 'Produto indevido', unit: 'UN', sale_price_cents: '1,00'}), /permiss/i);
+  await menu(page, 'Categorias').click();
+  await page.getByRole('heading', {name: 'Categorias', exact: true}).waitFor();
+  assert.equal(await page.getByRole('button', {name: /Adicionar categoria/i}).count(), 0);
   await menu(page, 'Clientes').click();
   await page.getByRole('heading', {name: 'Clientes', exact: true}).waitFor();
   await menu(page, 'Vendas').click();
