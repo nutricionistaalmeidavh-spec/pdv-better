@@ -83,3 +83,11 @@ test('cadastros sobrevivem ao fechamento e reabertura do SQLite real', async () 
     } finally { db.close(); }
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
+
+test('catálogo completo não é truncado silenciosamente em 500 produtos', () => {
+  const store = openCatalog(':memory:');
+  try {
+    for(let i=0;i<510;i++) store.save('products',{name:'Produto '+i,unit:'UN',sale_price_cents:'1,00'});
+    assert.equal(store.list('products').length,510);
+  } finally {store.close();}
+});
