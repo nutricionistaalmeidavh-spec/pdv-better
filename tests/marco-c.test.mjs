@@ -58,15 +58,17 @@ test('LAN rejeita ausência de chave e chamadas não autorizadas; opera na fonte
  const token='a'.repeat(64);
  const lan=await startLanServer({host:'127.0.0.1',port:0,token,store});
  const address='http://127.0.0.1:'+lan.port;
+ const admin=await requestLan(address,token,'authBootstrap',[{name:'Admin teste',password:'SenhaSegura2026'}]);
+ const auth=admin.token;
  try{
    assert.ok(ALLOWED_RPC.includes('checkout'));
    await assert.rejects(requestLan(address,'b'.repeat(64),'list',['products']),/acesso|autoriz/i);
    await assert.rejects(requestLan(address,token,'close',[]),/não permitida/i);
-   const rows=await requestLan(address,token,'list',['products']);
+   const rows=await requestLan(address,token,'list',['products'],auth);
    assert.equal(rows[0].id,p.id);
-   await requestLan(address,token,'openSession',[{openingCashCents:0}]);
+   await requestLan(address,token,'openSession',[{openingCashCents:0}],auth);
    const payload={key:'lan-one',items:[{id:p.id,quantityMilli:1000}],payments:[{method:'cash',amountCents:350}]};
-   const [x,y]=await Promise.all([requestLan(address,token,'checkout',[payload]),requestLan(address,token,'checkout',[payload])]);
+   const [x,y]=await Promise.all([requestLan(address,token,'checkout',[payload],auth),requestLan(address,token,'checkout',[payload])]);
    assert.equal(x.id,y.id);
    assert.equal(store.listSales().length,1);
    assert.equal(store.list('products')[0].stock_milli,2000);
@@ -123,15 +125,17 @@ test('terminal auxiliar autentica e grava somente no host; offline nunca muda pa
   const key='d'.repeat(64);
   const lan=await startLanServer({host:'127.0.0.1',port:0,token:key,store:hostStore});
   const secure={isEncryptionAvailable:()=>true,encryptString:value=>Buffer.from(value,'utf8'),decryptString:buffer=>buffer.toString('utf8')};
+  const adm=hostStore.authBootstrap({name:'Admin remoto',password:'SenhaRemota2026'},'legacy');
   const remote=await createRuntime({store:clientStore,folder:dir,safeStorage:secure});
   try{
     assert.equal((await remote.join({address:'http://127.0.0.1:'+lan.port+'/',secret:key})).mode,'client');
+    await remote.login({operatorId:adm.user.id,password:'SenhaRemota2026'});
     const result=await remote.call('save','products',{name:'Host stock',unit:'UN',sale_price_cents:'1,20',stock_milli:'3'});
     assert.equal(hostStore.list('products')[0].id,result.id);
     assert.equal(clientStore.list('products').length,0);
     // Sair do modo terminal não replica os dados para o SQLite local.
     await remote.local();
-    assert.deepEqual(await remote.call('list','products'),[]);
+    assert.deepEqual(clientStore.list('products'),[]);
   } finally{
     await remote.stop();
     await lan.close();
