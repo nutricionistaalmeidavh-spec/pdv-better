@@ -6,7 +6,8 @@ import { assertDeviceAddress } from '../shared/peripherals.mjs';
 export const ALLOWED_RPC=Object.freeze([
   'list','save','archive','overview','getCurrentSession','openSession','closeSession',
   'moveCash','checkout','listSales','getSale','cancelSale','moveStock',
-  'listStockMovements','createFinance','listFinance','settleFinance','report'
+  'listStockMovements','createFinance','listFinance','settleFinance','report','listOpenSessions',
+  'authStatus','authBootstrap','authLogin','authLogout','setPassword'
 ]);
 export function validateToken(token){
   if(typeof token!=='string'|| !/^[a-f0-9]{64}$/i.test(token))throw new Error('Chave LAN inválida: utilize 64 caracteres hexadecimais.');
@@ -46,9 +47,17 @@ export async function startLanServer({host='127.0.0.1',port=48791,token,store}={
       try{
         const cmd=JSON.parse(body);
         if(!cmd||!ALLOWED_RPC.includes(cmd.method)||!Array.isArray(cmd.args)||cmd.args.length>5)throw new Error('Operação LAN não permitida.');
-        const fn=store[cmd.method];
-        if(typeof fn!=='function')throw new Error('Método do domínio indisponível.');
-        const result=fn(...cmd.args);
+        const terminalId=String(req.headers['x-pdv-terminal']||'');
+        if(!/^[a-zA-Z0-9_-]{1,100}$/.test(terminalId))throw new Error('Terminal não identificado.');
+        const sessionToken=String(req.headers['x-pdv-session']||'');
+        let result;
+        if(cmd.method==='authStatus')result=store.authStatus();
+        else if(cmd.method==='authBootstrap')result=store.authBootstrap(cmd.args[0],terminalId);
+        else if(cmd.method==='authLogin')result=store.authLogin(cmd.args[0],terminalId);
+        else if(cmd.method==='authLogout'){
+          store.authCurrent(sessionToken,terminalId);
+          result=store.authLogout(sessionToken);
+        }else result=store.secureCall(cmd.method==='setPassword'?'setPassword':cmd.method,cmd.args,{sessionToken,terminalId});
         Promise.resolve(result).then(value=>reply(200,{result:value}),error=>reply(422,{error:String(error.message||error)}));
       }catch(error){reply(422,{error:String(error.message||error)});}
     });
@@ -59,14 +68,15 @@ export async function startLanServer({host='127.0.0.1',port=48791,token,store}={
   });
   return {host,port:server.address().port,close:()=>new Promise((resolve,reject)=>{server.close(err=>err?reject(err):resolve());server.closeAllConnections?.();})};
 }
-export async function requestLan(url,token,method,args=[]){
+export async function requestLan(url,token,method,args=[],sessionToken=null,terminalId='legacy'){
   validateToken(token);
   if(!ALLOWED_RPC.includes(method))throw new Error('Operação LAN não permitida.');
   const target=new URL(url);
   if(target.protocol!=='http:'||target.username||target.password||target.pathname!=='/'||target.search||target.hash)throw new Error('Endereço LAN inválido.');
   assertDeviceAddress(target.hostname,Number(target.port||80));
   const response=await fetch(new URL('/rpc',target),{
-    method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},
+    method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json',
+      'x-pdv-terminal':terminalId,'x-pdv-session':sessionToken||''},
     body:JSON.stringify({method,args}),signal:AbortSignal.timeout(6000),cache:'no-store'
   });
   let result;

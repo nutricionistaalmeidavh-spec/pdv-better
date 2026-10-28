@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { CONTRACT_VERSION } from '../shared/contract.mjs';
 import { join,dirname,basename,resolve } from 'node:path';
 import { copyFileSync,existsSync,renameSync,unlinkSync,mkdirSync,writeFileSync,readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -11,7 +12,7 @@ export function verifyDatabase(filename){
     const integrity=db.prepare('PRAGMA quick_check').get();
     if(!integrity||integrity.quick_check!=='ok')throw new Error('Integridade do SQLite inválida.');
     const version=db.prepare('PRAGMA user_version').get().user_version;
-    if(!Number.isInteger(version)||version<1||version>3)throw new Error('Versão do banco inválida ou incompatível.');
+    if(!Number.isInteger(version)||version<1||version>CONTRACT_VERSION)throw new Error('Versão do banco inválida ou incompatível.');
     const tables=db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(x=>x.name);
     for(const table of ['products','categories','customers','suppliers','operators'])
       if(!tables.includes(table))throw new Error('Banco inválido: tabela '+table+' ausente.');

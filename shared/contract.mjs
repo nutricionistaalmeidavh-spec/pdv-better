@@ -1,5 +1,6 @@
 // Modelo canônico de entidades: formulário, validação, SQLite e lista usam este arquivo.
-export const CONTRACT_VERSION = 3;
+export const CONTRACT_VERSION = 4;
+export const roleNames = Object.freeze(['Caixa','Gerente','Administrador']);
 export const entityOrder = ['products', 'categories', 'customers', 'suppliers', 'operators'];
 export const entities = {
   products: {
@@ -40,7 +41,7 @@ export const entities = {
     label: 'Operadores', singular: 'Operador', description: 'Cadastro de colaboradores; autenticação prevista para outra fase.',
     fields: [
       { key: 'name', label: 'Nome', type: 'text', required: true },
-      { key: 'role', label: 'Função', type: 'select', values: ['Caixa', 'Gerente', 'Administrador'], required: true, default: 'Caixa' }
+      { key: 'role', label: 'Função', type: 'select', values: roleNames, required: true, default: 'Caixa' }
     ]
   }
 };
@@ -83,5 +84,7 @@ export const apiChannels = Object.freeze({
   lanStatus: 'pdv:lan:status', lanHost: 'pdv:lan:host', lanJoin: 'pdv:lan:join', lanLocal: 'pdv:lan:local',
   deviceGet: 'pdv:device:get', deviceSet: 'pdv:device:set', devicePrinters: 'pdv:device:printers',
   devicePrint: 'pdv:device:print', drawerOpen: 'pdv:drawer:open', scaleRead: 'pdv:scale:read',
-  backupCreate: 'pdv:backup:create', backupRestore: 'pdv:backup:restore'
+  backupCreate: 'pdv:backup:create', backupRestore: 'pdv:backup:restore',
+  authStatus: 'pdv:auth:status', authBootstrap: 'pdv:auth:bootstrap', authLogin: 'pdv:auth:login', authLogout: 'pdv:auth:logout', authSetPassword: 'pdv:auth:set-password',
+  sessionsList: 'pdv:sessions:list'
 });

@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { assertEntity, entities, entityOrder, CONTRACT_VERSION } from '../shared/contract.mjs';
 import { normalizeRecord } from '../shared/domain.mjs';
 import { createCommerce } from './commerce.mjs';
+import {migrateAccess,createAccess} from './access.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
-export function openCatalog(filename) {
+export function openCatalog(filename,{terminalId='legacy'}={}) {
   const db = new DatabaseSync(filename);
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 5000');
@@ -25,7 +26,9 @@ export function openCatalog(filename) {
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
-  const commerce = createCommerce(db);
+  const commerce = createCommerce(db,{defaultTerminalId:terminalId});
+  migrateAccess(db,terminalId);
+  const access=createAccess(db);
   function list(kind, search = '') {
     const schema = assertEntity(kind);
     const term = String(search || '').trim().slice(0, 120);
@@ -80,5 +83,32 @@ export function openCatalog(filename) {
   function overview() {
     return Object.fromEntries(entityOrder.map(kind => [kind, db.prepare('SELECT COUNT(*) AS n FROM "' + kind + '" WHERE active=1').get().n]));
   }
-  return { list, save, archive, overview, ...commerce, backupTo: (destination) => backup(db,destination), close: () => db.close() };
+  const operations={list,save,archive,overview,...commerce};
+  const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales']);
+  const noArgs=new Set(['getCurrentSession','listSales','listOpenSessions','report','overview','listFinance']);
+  function secureCall(method,args=[],ctx={}){
+    if(typeof method!=='string'||typeof operations[method]!=='function') {
+      if(method==='setPassword'){
+        const user=access.authorize(ctx.sessionToken,ctx.terminalId,method,args);
+        return access.setPassword(args[0]);
+      }
+      throw new Error('Operação não permitida.');
+    }
+    if(!Array.isArray(args)||args.length>4)throw new Error('Argumentos inválidos.');
+    const user=access.authorize(ctx.sessionToken,ctx.terminalId,method,args);
+    if(noArgs.has(method)&&args.length)throw new Error('Argumentos de sessão não permitidos.');
+    access.ensureLastAdmin(method,args);
+    if(method==='getSale'&&user.role==='Caixa'){
+      const sale=commerce.getSale(args[0]);
+      const own=commerce.listSales({terminalId:ctx.terminalId,role:'Caixa'});
+      if(!own.some(x=>x.id===sale.id))throw new Error('Permissão insuficiente: venda de outro terminal.');
+    }
+    if(method==='listStockMovements'&&user.role==='Caixa')throw new Error('Permissão insuficiente.');
+    const context={terminalId:ctx.terminalId,operatorId:user.id,role:user.role};
+    return sessionAware.has(method)?operations[method](...args,context):operations[method](...args);
+  }
+  return { ...operations,secureCall,
+    authStatus:access.status,authBootstrap:access.bootstrap,authLogin:access.login,
+    authLogout:access.logout,authCurrent:access.current,
+    backupTo: (destination) => backup(db,destination), close: () => db.close() };
 }

@@ -69,9 +69,10 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
     </section>
   </div>;
 }
-export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=>Promise<void>}){
+export function CommerceView({view,onDataChanged,role}:{view:string;onDataChanged:()=>Promise<void>;role:string}){
   const api=window.pdv;
   const [session,setSession]=useState<R|null>(null);
+  const [otherSessions,setOtherSessions]=useState<R[]>([]);
   const [sales,setSales]=useState<R[]>([]);
   const [receipt,setReceipt]=useState<R|null>(null);
   const [products,setProducts]=useState<R[]>([]);
@@ -96,10 +97,13 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
   async function load(){
     if(!api){setError('Abra pelo aplicativo Electron.');return;}
     try{
-      const [s,sl,pr,m,f,r]=await Promise.all([
-        api.sessionCurrent(),api.salesList(),api.list('products'),api.stockHistory(),api.financeList(),api.report()
+      const manager=role!=='Caixa';
+      const [s,sl,pr,m,fin,r,other]=await Promise.all([
+        api.sessionCurrent(),api.salesList(),api.list('products'),manager?api.stockHistory():Promise.resolve([]),
+        manager?api.financeList():Promise.resolve([]),manager?api.report():Promise.resolve({}),
+        manager?api.sessionsList():Promise.resolve([])
       ]);
-      setSession(s);setSales(sl);setProducts(pr);setMovements(m);setFinance(f);setSummary(r);setError('');
+      setSession(s);setSales(sl);setProducts(pr);setMovements(m);setFinance(fin);setSummary(r);setOtherSessions(other);setError('');
       if(s)setCounted((s.expected_cash_cents/100).toFixed(2));
     }catch(err){setError(errorMessage(err));}
   }
@@ -123,6 +127,11 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
     <div className="page-heading"><div><div className="eyebrow">MARCO B / OPERAÇÃO LOCAL</div><h1>{title[view]}</h1><p>Registros persistidos no SQLite do estabelecimento.</p></div><button className="secondary" disabled={busy} onClick={()=>void load()}><RotateCcw size={16}/>Atualizar</button></div>
     <Message error={error} success={success}/>
     {view==='cash' && <div className="commerce-columns">
+      {role!=='Caixa'&&<div className="panel commerce-section commerce-wide"><h2>Caixas abertos por terminal</h2><p>Cada caixa tem abertura, movimentações, saldo e fechamento independentes. O gerente visualiza os terminais, mas não fecha outro caixa remotamente.</p>
+        <div className="commerce-table"><table><thead><tr><th>Terminal</th><th>Operador de abertura</th><th>Aberto em</th><th>Troco inicial</th><th>Saldo previsto</th></tr></thead><tbody>
+          {otherSessions.map(x=><tr key={x.id}><td>{x.terminal_id}</td><td>{(x.operator_id||'Legado')}</td><td>{pretty(x.opened_at)}</td><td>{money(x.opening_cash_cents)}</td><td>{money(x.expected_cash_cents)}</td></tr>)}
+        </tbody></table>{otherSessions.length===0&&<p className="commerce-empty">Nenhum caixa aberto.</p>}</div>
+      </div>}
       <div className="panel commerce-section"><h2>{session?'Turno aberto':'Abrir novo caixa'}</h2>
         {session?<><p>Aberto em {pretty(session.opened_at)}</p><div className="total-line"><span>Dinheiro previsto em caixa</span><strong>{money(session.expected_cash_cents)}</strong></div>
           <form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.sessionClose({countedCashCents:counted}), 'Caixa fechado. Consulte a conferência nos relatórios.');}}>

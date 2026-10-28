@@ -106,7 +106,7 @@ test('migração de dados v1 registra saldo de abertura uma única vez',async()=
     db.exec("CREATE TABLE products(id TEXT PRIMARY KEY,stock_milli INTEGER NOT NULL); PRAGMA user_version=1;");
     db.prepare('INSERT INTO products(id,stock_milli) VALUES(?,?)').run('legacy',7000);
     createCommerce(db);
-    assert.equal(db.prepare('PRAGMA user_version').get().user_version,3);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version,3); // createCommerce isolado entrega v3; createAccess migra para v4
     assert.equal(db.prepare('SELECT SUM(delta_milli) AS quantity FROM stock_movements').get().quantity,7000);
     createCommerce(db);
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM stock_movements').get().n,1);

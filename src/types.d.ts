@@ -17,6 +17,12 @@ interface PdvBridge {
   financeList(): Promise<any[]>;
   financeSettle(input: any): Promise<any>;
   report(): Promise<any>;
+  authStatus(): Promise<{setupRequired:boolean;operators:Array<{id:string;name:string;role:string}>}>;
+  authBootstrap(input:{name:string;password:string}): Promise<{id:string;name:string;role:string}>;
+  authLogin(input:{operatorId:string;password:string}): Promise<{id:string;name:string;role:string}>;
+  authLogout(): Promise<any>;
+  authSetPassword(input:{operatorId:string;password:string}): Promise<any>;
+  sessionsList(): Promise<any[]>;
   lanStatus(): Promise<any>;
   lanHost(input: {port?:number}): Promise<any>;
   lanJoin(input: {address:string;secret:string}): Promise<any>;
