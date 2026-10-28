@@ -14,12 +14,14 @@ export function AuthGate(){
  const [address,setAddress]=useState('http://192.168.1.10:48791/');
  const [pairing,setPairing]=useState('');
  const [advanced,setAdvanced]=useState(false);
+ const [lanMode,setLanMode]=useState('local');
  const [show,setShow]=useState(false);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  async function refresh(){
    try{
      if(!api)throw new Error('Inicie pelo executável Electron do PDV Better.');
+     const net=await api.lanStatus();setLanMode(net.mode);
      const data=await api.authStatus();
      setStatus(data);setOperatorId(old=>data.operators.some(x=>x.id===old)?old:(data.operators[0]?.id||''));
      setError('');
@@ -63,6 +65,10 @@ export function AuthGate(){
        catch(e){setError(errText(e));}
        finally{setBusy(false);}
       })()}>Conectar e selecionar operador</button>
+      {lanMode==='client'&&<button type="button" className="secondary" disabled={busy} onClick={()=>void(async()=>{
+        try{setBusy(true);await api?.lanLocal();await refresh();setAdvanced(false);}
+        catch(e){setError(errText(e));}finally{setBusy(false);}
+      })()}>Voltar ao banco local deste computador</button>}
    </div>}
    <span className="auth-footer">Funcionamento local e LAN privada · Windows 10/11</span>
  </div></div>;
