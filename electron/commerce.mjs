@@ -235,7 +235,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     return all('SELECT * FROM sales ORDER BY created_at DESC,id DESC');
   }
   function listOpenSessions(){
-    return all("SELECT id,terminal_id,operator_id,opened_at,opening_cash_cents FROM cash_sessions WHERE status='open' ORDER BY opened_at");
+    return all("SELECT id,terminal_id,operator_id,opened_at,opening_cash_cents FROM cash_sessions WHERE status='open' ORDER BY opened_at")
+      .map(session=>({...session,expected_cash_cents:cashExpected(session)}));
   }
   function moveStock(input){
     return atomic(db,()=>{
