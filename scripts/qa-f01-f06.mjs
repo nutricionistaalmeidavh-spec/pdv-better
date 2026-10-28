@@ -62,7 +62,7 @@ try {
   }
   await menu(page, 'Operadores').click();
   await page.getByRole('button', {name: /Adicionar operador/i}).click();
-  await page.getByRole('textbox', {name: 'Nome', exact: true}).fill('Caixa QA');
+  await page.getByRole('dialog', {name: 'Adicionar Operador'}).getByRole('textbox', {name: /^Nome\b/}).fill('Caixa QA');
   await page.getByRole('combobox', {name: 'Função'}).selectOption('Caixa');
   await page.getByRole('button', {name: 'Salvar cadastro'}).click();
   const cashierRow = page.getByRole('row').filter({hasText: 'Caixa QA'});
@@ -114,6 +114,7 @@ try {
   await page.getByRole('heading', {name: 'Frente de caixa', exact: true}).waitFor();
   const search = page.getByRole('textbox', {name: 'Pesquisar ou ler código de barras'});
   await search.waitFor();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Pesquisar ou ler código de barras', null, {timeout: 5000});
   assert.equal(await search.evaluate(el => document.activeElement === el), true, 'F2 precisa focar pesquisa');
   success('F06', 'F2 abre a frente de caixa com campo de busca focado');
 
