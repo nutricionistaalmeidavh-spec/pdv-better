@@ -13,6 +13,19 @@ async function start() {
   ipcMain.handle(apiChannels.save, (_evt, kind, record) => store.save(kind, record));
   ipcMain.handle(apiChannels.archive, (_evt, kind, id) => store.archive(kind, id));
   ipcMain.handle(apiChannels.overview, () => store.overview());
+  ipcMain.handle(apiChannels.sessionCurrent, (_event) => store.getCurrentSession());
+  ipcMain.handle(apiChannels.sessionOpen, (_event, input) => store.openSession(input));
+  ipcMain.handle(apiChannels.sessionClose, (_event, input) => store.closeSession(input));
+  ipcMain.handle(apiChannels.cashMove, (_event, input) => store.moveCash(input));
+  ipcMain.handle(apiChannels.checkout, (_event, input) => store.checkout(input));
+  ipcMain.handle(apiChannels.salesList, (_event) => store.listSales());
+  ipcMain.handle(apiChannels.salesCancel, (_event, id) => store.cancelSale(id));
+  ipcMain.handle(apiChannels.stockMove, (_event, input) => store.moveStock(input));
+  ipcMain.handle(apiChannels.stockHistory, (_event, id) => store.listStockMovements(id));
+  ipcMain.handle(apiChannels.financeCreate, (_event, input) => store.createFinance(input));
+  ipcMain.handle(apiChannels.financeList, (_event) => store.listFinance());
+  ipcMain.handle(apiChannels.financeSettle, (_event, input) => store.settleFinance(input));
+  ipcMain.handle(apiChannels.report, (_event) => store.report());
   const window = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1024, minHeight: 660,
     backgroundColor: '#f5f6fb', show: false,
