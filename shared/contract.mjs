@@ -1,5 +1,5 @@
 // Modelo canônico de entidades: formulário, validação, SQLite e lista usam este arquivo.
-export const CONTRACT_VERSION = 1;
+export const CONTRACT_VERSION = 2;
 export const entityOrder = ['products', 'categories', 'customers', 'suppliers', 'operators'];
 export const entities = {
   products: {
@@ -50,5 +50,5 @@ export function assertEntity(kind) {
 }
 export const apiChannels = Object.freeze({
   list: 'pdv:catalog:list', save: 'pdv:catalog:save', archive: 'pdv:catalog:archive',
-  overview: 'pdv:overview'
+  overview: 'pdv:overview', saleComplete: 'pdv:sale:complete', salesList: 'pdv:sale:list', saleDetail: 'pdv:sale:detail'
 });

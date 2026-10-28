@@ -13,6 +13,9 @@ async function start() {
   ipcMain.handle(apiChannels.save, (_evt, kind, record) => store.save(kind, record));
   ipcMain.handle(apiChannels.archive, (_evt, kind, id) => store.archive(kind, id));
   ipcMain.handle(apiChannels.overview, () => store.overview());
+  ipcMain.handle(apiChannels.saleComplete, (_evt, sale) => store.completeSale(sale));
+  ipcMain.handle(apiChannels.salesList, () => store.salesList());
+  ipcMain.handle(apiChannels.saleDetail, (_evt, id) => store.saleDetail(id));
   const window = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1024, minHeight: 660,
     backgroundColor: '#f5f6fb', show: false,

@@ -1,7 +1,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { assertEntity, entities, entityOrder, CONTRACT_VERSION } from '../shared/contract.mjs';
-import { normalizeRecord } from '../shared/domain.mjs';
+import { normalizeRecord, lineTotalCents } from '../shared/domain.mjs';
+import { normalizeSale, calculatePayment } from '../shared/sales.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
 export function openCatalog(filename) {
   const db = new DatabaseSync(filename);
@@ -20,10 +21,54 @@ export function openCatalog(filename) {
         db.exec('CREATE TABLE IF NOT EXISTS "' + kind + '" (id TEXT PRIMARY KEY, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' + fields.join(', ') + ')');
       }
       db.exec("CREATE UNIQUE INDEX IF NOT EXISTS products_code_unique ON products(code) WHERE code IS NOT NULL AND code <> ''");
-      db.exec('PRAGMA user_version = ' + CONTRACT_VERSION);
+      db.exec('PRAGMA user_version = 1');
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
+  if (version < 2) {
+    db.exec('BEGIN');
+    try {
+      db.exec("CREATE TABLE IF NOT EXISTS sales (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, total_cents INTEGER NOT NULL, tendered_cents INTEGER NOT NULL, change_cents INTEGER NOT NULL, payment_method TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'completed')");
+      db.exec("CREATE TABLE IF NOT EXISTS sale_items (sale_id TEXT NOT NULL REFERENCES sales(id), product_id TEXT NOT NULL, name TEXT NOT NULL, unit TEXT NOT NULL, price_cents INTEGER NOT NULL, quantity_milli INTEGER NOT NULL, line_total_cents INTEGER NOT NULL, PRIMARY KEY(sale_id, product_id))");
+      db.exec('PRAGMA user_version = 2');
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  }
+  function completeSale(input) {
+    const sale = normalizeSale(input);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const previous = db.prepare('SELECT * FROM sales WHERE id=?').get(sale.id);
+      if (previous) { db.exec('COMMIT'); return previous; }
+      const lines = sale.items.map(item => {
+        const product = db.prepare('SELECT * FROM products WHERE id=? AND active=1').get(item.productId);
+        if (!product) throw new Error('Produto não encontrado ou inativo.');
+        if (product.unit === 'UN' && item.quantityMilli % 1000 !== 0) throw new Error('Unidade exige quantidade inteira.');
+        if (product.stock_milli < item.quantityMilli) throw new Error('Estoque insuficiente: ' + product.name);
+        return {...item,product,priceCents:product.sale_price_cents,quantityMilli:item.quantityMilli};
+      });
+      const cart = lines.map(line=>({priceCents:line.priceCents,quantityMilli:line.quantityMilli}));
+      const payment = calculatePayment(cart,sale.method,sale.tenderedCents);
+      const now = new Date().toISOString();
+      db.prepare('INSERT INTO sales (id,created_at,total_cents,tendered_cents,change_cents,payment_method,status) VALUES (?,?,?,?,?,?,?)')
+        .run(sale.id,now,payment.totalCents,sale.tenderedCents,payment.changeCents,sale.method,'completed');
+      for (const line of lines) {
+        const update = db.prepare('UPDATE products SET stock_milli=stock_milli-?,updated_at=? WHERE id=? AND stock_milli>=?').run(line.quantityMilli,now,line.productId,line.quantityMilli);
+        if (update.changes !== 1) throw new Error('Estoque insuficiente.');
+        db.prepare('INSERT INTO sale_items (sale_id,product_id,name,unit,price_cents,quantity_milli,line_total_cents) VALUES (?,?,?,?,?,?,?)')
+          .run(sale.id,line.productId,line.product.name,line.product.unit,line.priceCents,line.quantityMilli,lineTotalCents(line.priceCents,line.quantityMilli));
+      }
+      db.exec('COMMIT');
+      return db.prepare('SELECT * FROM sales WHERE id=?').get(sale.id);
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  }
+  function saleDetail(id) {
+    if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Venda inválida.');
+    const sale = db.prepare('SELECT * FROM sales WHERE id=?').get(id);
+    if (!sale) throw new Error('Venda não encontrada.');
+    return {...sale,items:db.prepare('SELECT product_id,name,unit,price_cents,quantity_milli,line_total_cents FROM sale_items WHERE sale_id=? ORDER BY rowid').all(id)};
+  }
+  function salesList() { return db.prepare('SELECT * FROM sales ORDER BY created_at DESC LIMIT 100').all(); }
   function list(kind, search = '') {
     const schema = assertEntity(kind);
     const term = String(search || '').trim().slice(0, 120);
@@ -71,5 +116,5 @@ export function openCatalog(filename) {
   function overview() {
     return Object.fromEntries(entityOrder.map(kind => [kind, db.prepare('SELECT COUNT(*) AS n FROM "' + kind + '" WHERE active=1').get().n]));
   }
-  return { list, save, archive, overview, close: () => db.close() };
+  return { list, save, archive, overview, completeSale, salesList, saleDetail, close: () => db.close() };
 }

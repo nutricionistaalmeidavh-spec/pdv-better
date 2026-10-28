@@ -1,4 +1,4 @@
-name: QA Marco A
+name: QA PDV Better
 on:
   pull_request:
     types: [opened, ready_for_review]
@@ -15,8 +15,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund
-      - run: npm test
-      - run: npm run build
+      - run: npm run check
       - name: Validar arquivos de build
         shell: pwsh
         run: |
@@ -28,6 +27,6 @@ jobs:
         run: npm run dist:win
       - uses: actions/upload-artifact@v4
         with:
-          name: PDV-Better-Marco-A-Win10-11
+          name: PDV-Better-Win10-11
           path: release/*.exe
           if-no-files-found: error
