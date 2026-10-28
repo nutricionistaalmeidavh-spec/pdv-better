@@ -5,6 +5,7 @@ import {
   ChevronRight, Minus, Settings, ShieldCheck, ArrowRight, Trash2, Keyboard
 } from 'lucide-react';
 import { entities, entityOrder } from '../shared/contract.mjs';
+import { filterCheckoutProducts } from '../shared/catalog.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
 
 type Row = Record<string, any>;
@@ -87,10 +88,7 @@ export function App() {
   const pageRows = filteredRows.slice(page*pageSize,(page+1)*pageSize);
   const products:Row[] = records.products || [];
   const categories:Row[] = records.categories || [];
-  const matchingProducts = useMemo(() => products.filter(row =>
-    (categoryFilter === 'all' || row.category_id === categoryFilter) &&
-    (!cartSearch || (row.name + ' ' + (row.code || '')).toLocaleLowerCase('pt-BR').includes(cartSearch.trim().toLocaleLowerCase('pt-BR')))
-  ).slice(0,60),[products,cartSearch,categoryFilter]);
+  const matchingProducts = useMemo(() => filterCheckoutProducts(products, categoryFilter, cartSearch),[products,cartSearch,categoryFilter]);
   const total = cartTotalCents(cart);
   function startForm(row?:Row) {
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
