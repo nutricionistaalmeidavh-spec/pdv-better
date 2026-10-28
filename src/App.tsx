@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { entities, entityOrder } from '../shared/contract.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
+import { filterCheckoutProducts } from '../shared/catalog.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
 import { SaleReceipt } from './Receipt';
 
@@ -49,8 +50,14 @@ export function App() {
   const [editing,setEditing] = useState<Row|null>(null);
   const [form,setForm] = useState<Row>({});
   const [saving,setSaving] = useState(false);
-  const [cart,setCart] = useState<CartItem[]>([]);
+  const [cart,setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved=JSON.parse(localStorage.getItem('pdv-better:draft-v1')||'[]');
+      return Array.isArray(saved)?saved.filter(x=>typeof x.id==='string'&&Number.isSafeInteger(x.quantityMilli)&&x.quantityMilli>0&&Number.isSafeInteger(x.priceCents)&&x.priceCents>=0):[];
+    } catch{return [];}
+  });
   const [cartSearch,setCartSearch] = useState('');
+  const [categoryFilter,setCategoryFilter] = useState('all');
   const [cartError,setCartError] = useState('');
   const [session,setSession] = useState<Row|null>(null);
   const [paymentOpen,setPaymentOpen] = useState(false);
@@ -73,6 +80,10 @@ export function App() {
     setRecords(prev => ({...prev,[kind]:current}));
   }
   useEffect(() => { void reloadAll(); }, []);
+  useEffect(()=>{
+    try{if(cart.length)localStorage.setItem('pdv-better:draft-v1',JSON.stringify(cart));else localStorage.removeItem('pdv-better:draft-v1');}
+    catch{/* A ausência de armazenamento temporário não impede uma venda */ }
+  },[cart]);
   useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
   useEffect(() => { if(view==='checkout' && bridge) void bridge.sessionCurrent().then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
   useEffect(() => {
@@ -94,9 +105,8 @@ export function App() {
   const pageCount = Math.max(1,Math.ceil(filteredRows.length/pageSize));
   const pageRows = filteredRows.slice(page*pageSize,(page+1)*pageSize);
   const products:Row[] = records.products || [];
-  const matchingProducts = useMemo(() => products.filter(row =>
-    !cartSearch || (row.name + ' ' + (row.code || '')).toLowerCase().includes(cartSearch.trim().toLowerCase())
-  ).slice(0,60),[products,cartSearch]);
+  const categories:Row[] = records.categories || [];
+  const matchingProducts = useMemo(()=>filterCheckoutProducts(products,categoryFilter,cartSearch),[products,categoryFilter,cartSearch]);
   const total = cartTotalCents(cart);
   function startForm(row?:Row) {
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
@@ -169,7 +179,7 @@ export function App() {
     </aside>
     <main className="main">
       <header className="topbar"><div className="breadcrumbs"><span>PDV Better</span><ChevronRight size={16}/><strong>{titles[view] || definitions[view]?.label}</strong></div>
-        <div className="top-actions"><span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Modo local'}</span><span className="version">Versão 0.1.0</span></div>
+        <div className="top-actions"><span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Modo local'}</span><span className="version">Versão 0.2.0</span></div>
       </header>
       <section className="content">
         {notice && <div className="notice success" role="status"><Check size={17}/>{notice}<button aria-label="Fechar aviso" onClick={() => setNotice('')}><X size={15}/></button></div>}
@@ -194,17 +204,18 @@ export function App() {
           {view === 'checkout' && <>
             <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO / F2</div><h1>Frente de caixa</h1><p>Busque produtos, revise quantidades e registre o pagamento no caixa aberto.</p></div><span className="draft-label">{session ? 'Caixa aberto' : 'Caixa fechado'}</span></div>
             <div className="checkout-grid">
-              <div className="panel products-panel">
+              <div className="panel products-panel glass-panel">
                 <div className="panel-header"><div><h2>Selecionar produtos</h2><p>Busque por nome, SKU ou código de barras</p></div><span className="count-chip">{matchingProducts.length} exibidos</span></div>
                 <label className="search-field"><Search size={19}/><input ref={searchInput} autoComplete="off" aria-label="Pesquisar ou ler código de barras" placeholder="Digite ou leia o código do produto…" value={cartSearch} onChange={ev => {setCartSearch(ev.target.value);setCartError('');}} onKeyDown={scanKey}/><span className="kbd">Enter</span></label>
-                <div className="product-list">
+                <div className="category-filter" aria-label="Filtrar produtos por categoria"><button type="button" className={categoryFilter==='all'?'active':''} aria-pressed={categoryFilter==='all'} onClick={()=>setCategoryFilter('all')}>Todos</button>{categories.map(c=><button type="button" key={c.id} className={categoryFilter===c.id?'active':''} aria-pressed={categoryFilter===c.id} onClick={()=>setCategoryFilter(c.id)}>{c.name}</button>)}</div>
+                <div className="product-list glass-product-grid">
                   {matchingProducts.map(row => <button className="product-option" key={row.id} onClick={() => addProduct(row)}>
                     <div className="product-icon"><Package size={19}/></div><div className="product-info"><strong>{row.name}</strong><span>{row.code || 'Sem código'} · {row.unit} · Saldo {Number(row.stock_milli || 0)/1000}</span></div><strong className="product-price">{money(row.sale_price_cents)}</strong><Plus size={19} className="add-icon"/>
                   </button>)}
                   {!matchingProducts.length && <div className="empty-state"><Search size={25}/><strong>Nenhum produto encontrado</strong><p>Cadastre produtos ou tente outra pesquisa.</p><button className="secondary" onClick={() => selectView('products')}>Ir para produtos</button></div>}
                 </div>
               </div>
-              <div className="panel cart-panel">
+              <div className="panel cart-panel glass-panel">
                 <div className="panel-header"><div><h2>Rascunho da venda</h2><p>{cart.length} {cart.length === 1 ? 'produto' : 'produtos'} na seleção</p></div><ShoppingCart size={19}/></div>
                 {cartError && <div className="cart-error" role="alert">{cartError}</div>}
                 <div className="cart-lines">
