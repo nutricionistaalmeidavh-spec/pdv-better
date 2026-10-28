@@ -1,6 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import { Plus,Check,AlertTriangle,ShoppingCart,Package,Wallet,ClipboardList,RotateCcw,Receipt,ArrowDownToLine,ArrowUpFromLine } from 'lucide-react';
 import { money,parseFixed } from '../shared/domain.mjs';
+import { reportRows } from '../shared/report.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
 type R=Record<string,any>;
 const methodLabel=(id:string)=>paymentMethods.find(x=>x.id===id)?.label||id;
@@ -108,6 +109,12 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
     catch(err){setError(errorMessage(err));}
     finally{setBusy(false);}
   }
+  async function exportReport(format:'pdf'|'xlsx'|'csv'){
+    if(busy || !api)return;
+    setBusy(true);setError('');setSuccess('');
+    try{const result=await api.reportExport(format);if(!result.cancelled)setSuccess('Relatório '+format.toUpperCase()+' exportado.');}
+    catch(err){setError(errorMessage(err));}finally{setBusy(false);}
+  }
   const title:Record<string,string>={cash:'Controle de caixa',sales:'Vendas realizadas',inventory:'Movimentações de estoque',finance:'Financeiro',reports:'Relatórios e indicadores'};
   return <div className="commerce-screen">
     <div className="page-heading"><div><div className="eyebrow">MARCO B / OPERAÇÃO LOCAL</div><h1>{title[view]}</h1><p>Registros persistidos no SQLite do estabelecimento.</p></div><button className="secondary" disabled={busy} onClick={()=>void load()}><RotateCcw size={16}/>Atualizar</button></div>
@@ -160,14 +167,11 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
           if(window.confirm('Confirmar liquidação via '+methodLabel(paymentMethod)+'?'))void action(()=>api!.financeSettle({id:f.id,method:paymentMethod}), 'Conta liquidada.');
         }}>Liquidar</button>}</td></tr>)}</tbody></table>{!finance.length&&<p className="commerce-empty">Nenhum lançamento financeiro.</p>}</div><p className="commerce-warning">Pagamentos não realizados em dinheiro são registrados manualmente. Nenhuma cobrança é executada em gateways externos.</p></div></>}
     {view==='reports'&&<>
-      <div className="report-grid">{[
-        ['Vendas concluídas',String(summary.sales_count??0)],['Faturamento de vendas',money(summary.sales_total_cents||0)],
-        ['Descontos concedidos',money(summary.discounts_cents||0)],['Dinheiro em vendas',money(summary.cash_cents||0)],
-        ['Pix informado',money(summary.pix_cents||0)],['Cartão informado',money(summary.card_cents||0)],
-        ['Fiado registrado',money(summary.credit_cents||0)],['Contas a receber em aberto',money(summary.receivables_open_cents||0)],
-        ['Contas a pagar em aberto',money(summary.payables_open_cents||0)],['Contas pagas',money(summary.payables_paid_cents||0)],
-        ['Valor de custo do estoque',money(summary.inventory_value_cents||0)],['Vendas canceladas',String(summary.cancelled_count||0)]
-      ].map(([label,value])=><div className="stat" key={label}><span className="report-label">{label}</span><strong className="report-number">{value}</strong><span className="stat-bottom">Acumulado local</span></div>)}</div>
+      <div className="commerce-heading">
+        <div><h2>Relatório gerencial acumulado</h2><p>Exporte localmente; nenhum dado é enviado a serviços externos.</p></div>
+        <div className="report-actions">{(['pdf','csv','xlsx'] as const).map(format=><button key={format} className="secondary" disabled={busy} onClick={()=>void exportReport(format)}>Exportar {format.toUpperCase()}</button>)}</div>
+      </div>
+      <div className="report-grid">{reportRows(summary).map(row=><div className="stat" key={row.key}><span className="report-label">{row.label}</span><strong className="report-number">{row.type==='money'?money(row.raw):row.value}</strong><span className="stat-bottom">Acumulado local</span></div>)}</div>
       <div className="info-bar"><AlertTriangle size={19}/><p>Relatório acumulado no banco local. Os valores de Pix e cartão refletem confirmações manuais, não consultas bancárias. Vendas canceladas não integram o faturamento.</p></div>
     </>}
   </div>;
