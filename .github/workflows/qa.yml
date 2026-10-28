@@ -22,7 +22,7 @@ jobs:
         run: |
           if (!(Test-Path "dist/index.html")) { throw "Falta dist/index.html" }
           if (!(Test-Path "electron/main.cjs")) { throw "Falta Electron main" }
-          if (!(Test-Path "electron/preload.mjs")) { throw "Falta preload" }
+          if (!(Test-Path "electron/preload.cjs")) { throw "Falta preload compilado" }
 
       - name: Gerar instalador de teste Windows 10/11
         run: npm run dist:win
