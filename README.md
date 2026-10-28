@@ -32,7 +32,7 @@ GitHub Actions: QA Marco A para validação de pull requests; instalador por exe
 - shared/contract.mjs: fonte de verdade do modelo, campos e canais IPC.
 - shared/domain.mjs: validação e lógica de cálculo monetário.
 - electron/db.mjs: banco canônico SQLite; migração com PRAGMA user_version.
-- electron/main.cjs e electron/preload.mjs: integração desktop via ponte limitada.
+- electron/main.cjs e electron/preload.mjs: ponte IPC canônica; o build gera preload.cjs isolado por sandbox.
 - src: interface React consumindo o mesmo contrato.
 - tests: regras reais de domínio e banco em memória.
 - docs/00-canonical.md: estados, invariantes, escopo e critérios de aceite.
