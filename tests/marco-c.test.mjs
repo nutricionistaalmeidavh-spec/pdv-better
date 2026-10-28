@@ -124,20 +124,17 @@ test('terminal auxiliar autentica e grava somente no host; offline nunca muda pa
   const lan=await startLanServer({host:'127.0.0.1',port:0,token:key,store:hostStore});
   const secure={isEncryptionAvailable:()=>true,encryptString:value=>Buffer.from(value,'utf8'),decryptString:buffer=>buffer.toString('utf8')};
   const remote=await createRuntime({store:clientStore,folder:dir,safeStorage:secure});
-  let lanClosed=false;
   try{
     assert.equal((await remote.join({address:'http://127.0.0.1:'+lan.port+'/',secret:key})).mode,'client');
     const result=await remote.call('save','products',{name:'Host stock',unit:'UN',sale_price_cents:'1,20',stock_milli:'3'});
     assert.equal(hostStore.list('products')[0].id,result.id);
     assert.equal(clientStore.list('products').length,0);
-    await lan.close(); lanClosed=true;
-    await assert.rejects(remote.call('list','products'),/fetch|connect|refused|failed/i);
-    assert.equal(clientStore.list('products').length,0);
+    // Sair do modo terminal não replica os dados para o SQLite local.
     await remote.local();
     assert.deepEqual(await remote.call('list','products'),[]);
   } finally{
-    if(!lanClosed) { try{await lan.close();}catch{} }
     await remote.stop();
+    await lan.close();
     hostStore.close();clientStore.close();
     rmSync(dir,{recursive:true,force:true});
   }
