@@ -3,6 +3,7 @@ import { Plus,Check,AlertTriangle,ShoppingCart,Package,Wallet,ClipboardList,Rota
 import { money,parseFixed } from '../shared/domain.mjs';
 import { reportRows } from '../shared/report.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
+import { SaleReceipt } from './Receipt';
 type R=Record<string,any>;
 const methodLabel=(id:string)=>paymentMethods.find(x=>x.id===id)?.label||id;
 const errorMessage=(error:any)=>String(error?.message||error||'Não foi possível concluir').replace(/^Error invoking remote method.*?: Error: /,'');
@@ -72,6 +73,7 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
   const api=window.pdv;
   const [session,setSession]=useState<R|null>(null);
   const [sales,setSales]=useState<R[]>([]);
+  const [receipt,setReceipt]=useState<R|null>(null);
   const [products,setProducts]=useState<R[]>([]);
   const [movements,setMovements]=useState<R[]>([]);
   const [finance,setFinance]=useState<R[]>([]);
@@ -117,6 +119,7 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
   }
   const title:Record<string,string>={cash:'Controle de caixa',sales:'Vendas realizadas',inventory:'Movimentações de estoque',finance:'Financeiro',reports:'Relatórios e indicadores'};
   return <div className="commerce-screen">
+    {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
     <div className="page-heading"><div><div className="eyebrow">MARCO B / OPERAÇÃO LOCAL</div><h1>{title[view]}</h1><p>Registros persistidos no SQLite do estabelecimento.</p></div><button className="secondary" disabled={busy} onClick={()=>void load()}><RotateCcw size={16}/>Atualizar</button></div>
     <Message error={error} success={success}/>
     {view==='cash' && <div className="commerce-columns">
@@ -139,7 +142,7 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
       </div>
       {session&&<div className="panel commerce-section commerce-wide"><h2>Histórico do turno</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Operação</th><th>Valor</th><th>Motivo</th></tr></thead><tbody>{session.movements?.map((m:R)=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{m.kind}</td><td>{money(m.delta_cents)}</td><td>{m.note}</td></tr>)}</tbody></table>{!session.movements?.length&&<p className="commerce-empty">Nenhuma movimentação neste turno.</p>}</div></div>}
     </div>}
-    {view==='sales'&&<div className="panel commerce-section"><h2>Histórico de vendas</h2><p>O cancelamento só é permitido no mesmo turno aberto e atualiza os movimentos locais. Estornos de Pix/cartão devem ser realizados externamente.</p><div className="commerce-table"><table><thead><tr><th>Data</th><th>Venda</th><th>Cliente</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{sales.map(s=><tr key={s.id}><td>{pretty(s.created_at)}</td><td title={s.id}>{s.id.slice(0,8)}</td><td>{s.customer_id?.slice(0,8)||'Consumidor final'}</td><td>{money(s.total_cents)}</td><td>{statusText[s.status]}</td><td>{s.status==='completed'&&<button disabled={busy||session?.id!==s.session_id} className="secondary" onClick={()=>{
+    {view==='sales'&&<div className="panel commerce-section"><h2>Histórico de vendas</h2><p>O cancelamento só é permitido no mesmo turno aberto e atualiza os movimentos locais. Estornos de Pix/cartão devem ser realizados externamente.</p><div className="commerce-table"><table><thead><tr><th>Data</th><th>Venda</th><th>Cliente</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{sales.map(s=><tr key={s.id}><td>{pretty(s.created_at)}</td><td title={s.id}>{s.id.slice(0,8)}</td><td>{s.customer_id?.slice(0,8)||'Consumidor final'}</td><td>{money(s.total_cents)}</td><td>{statusText[s.status]}</td><td><button className="secondary" type="button" disabled={busy} onClick={async()=>{try{setReceipt(await api!.saleGet(s.id));setError('');}catch(err){setError(errorMessage(err));}}}>Comprovante</button> {s.status==='completed'&&<button disabled={busy||session?.id!==s.session_id} className="secondary" onClick={()=>{
             if(window.confirm('Cancelar venda? Estoque e registros locais serão revertidos. Pix e cartão exigem reembolso externo manual.')) void action(()=>api!.salesCancel(s.id),'Venda cancelada e estoque restaurado.',true);
           }}>Cancelar venda</button>}</td></tr>)}</tbody></table>{sales.length===0&&<p className="commerce-empty">Nenhuma venda foi realizada ainda.</p>}</div></div>}
     {view==='inventory'&&<><div className="panel commerce-section"><h2>Movimentar estoque</h2><p>Entradas e ajustes registrados no histórico. O saldo do cadastro não pode ser alterado diretamente.</p>
