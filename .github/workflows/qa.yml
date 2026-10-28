@@ -1,4 +1,4 @@
-name: QA Marco A
+name: QA PDV Better — Windows Desktop
 on:
   pull_request:
     types: [opened, ready_for_review]
@@ -7,27 +7,45 @@ on:
 permissions:
   contents: read
 jobs:
-  tests:
-    runs-on: windows-latest
+  windows-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
-      - run: npm test
-      - run: npm run build
-      - name: Validar arquivos de build
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+      - name: Testar domínio, migrações e transações
+        run: npm test
+      - name: Compilar React e IPC canônico
+        run: npm run build
+      - name: Smoke Electron real, sem mocks
+        run: npm run test:desktop
+      - name: Gerar instalador NSIS
+        run: npm run dist:win
+      - name: Instalar NSIS silenciosamente e testar o executável instalado
         shell: pwsh
         run: |
-          if (!(Test-Path "dist/index.html")) { throw "Falta dist/index.html" }
-          if (!(Test-Path "electron/main.cjs")) { throw "Falta Electron main" }
-          if (!(Test-Path "electron/preload.cjs")) { throw "Falta preload compilado" }
-
-      - name: Gerar instalador de teste Windows 10/11
-        run: npm run dist:win
-      - uses: actions/upload-artifact@v4
+          $installer = Get-ChildItem -Path "release" -Filter "*.exe" | Where-Object { $_.Name -like "*Setup*" } | Select-Object -First 1
+          if (-not $installer) { throw "Instalador NSIS ausente" }
+          $destination = Join-Path $env:RUNNER_TEMP "PDV-Better-Installed"
+          $p = Start-Process -FilePath $installer.FullName -ArgumentList "/S", "/D=$destination" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Instalação falhou com código $($p.ExitCode)" }
+          $exe = Join-Path $destination "PDV Better.exe"
+          if (!(Test-Path $exe)) { throw "Executável instalado ausente: $exe" }
+          $env:PDV_TEST_APP_EXECUTABLE = $exe
+          $env:PDV_TEST_USER_DATA = Join-Path $env:RUNNER_TEMP "PDV-Better-Installed-Data"
+          npm run test:desktop
+          if ($LASTEXITCODE -ne 0) { throw "Smoke do executável instalado falhou" }
+      - name: Disponibilizar instalador da versão aprovada
+        uses: actions/upload-artifact@v4
         with:
-          name: PDV-Better-Marco-A-Win10-11
-          path: release/*.exe
+          name: PDV-Better-Win10-11-${{ matrix.os }}
+          path: release/*Setup*.exe
           if-no-files-found: error
