@@ -59,3 +59,30 @@ jobs:
             release/*Setup*.exe
             release/SHA256SUMS.txt
           if-no-files-found: error
+
+
+  visual-documentation:
+    name: Cobertura visual completa + PDF (Windows 2022)
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependencias gratuitas
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund pdf-lib
+      - name: Compilar aplicacao Electron
+        run: npm run build
+      - name: Gerar imagens reais e PDF com dados ficticios
+        run: node scripts/qa-all-screens.mjs
+      - name: Publicar PDF e capturas (mesmo se houver falhas)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDV-Better-QA-Todas-Telas-PDF
+          path: qa-evidence/**
+          if-no-files-found: warn
+          retention-days: 14
