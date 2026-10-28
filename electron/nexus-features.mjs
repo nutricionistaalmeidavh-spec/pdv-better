@@ -36,7 +36,7 @@ export function localBusinessDate(date=new Date()){
 }
 
 export function strictDate(value,label='Data'){
-  if(typeof value!=='string'||!/^\\d{4}-\\d{2}-\\d{2}$/.test(value))throw new Error(label+' inválida.');
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))throw new Error(label+' inválida.');
   const d=new Date(value+'T12:00:00Z');
   if(!Number.isFinite(d.valueOf())||d.toISOString().slice(0,10)!==value)throw new Error(label+' inválida.');
   return value;
