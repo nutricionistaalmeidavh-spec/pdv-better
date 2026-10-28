@@ -52,6 +52,12 @@ export const paymentMethods = Object.freeze([{id:'cash',label:'Dinheiro'}, {id:'
 export const inventoryKinds = Object.freeze(['receipt','adjustment']);
 export const cashMovementKinds = Object.freeze(['reinforcement','withdrawal']);
 export const financeTypes = Object.freeze(['payable','receivable']);
+export const commerceLabels = Object.freeze({
+  cash: {withdrawal:'Sangria (retirar)',reinforcement:'Reforço (adicionar)'},
+  inventory: {receipt:'Entrada',adjustment:'Ajuste'},
+  finance: {payable:'Conta a pagar',receivable:'Conta a receber'},
+  status: {completed:'Concluída',cancelled:'Cancelada',open:'Em aberto',closed:'Fechado',settled:'Liquidada'}
+});
 export const apiChannels = Object.freeze({
   list: 'pdv:catalog:list', save: 'pdv:catalog:save', archive: 'pdv:catalog:archive',
   overview: 'pdv:overview',
