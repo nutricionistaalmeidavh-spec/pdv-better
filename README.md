@@ -12,6 +12,10 @@ Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato c
 
 **Importante:** Marco A não salva vendas, não recebe pagamentos, não emite documentos fiscais nem faz baixa de estoque. O carrinho é temporário. Para operação comercial completa, são necessárias as fases seguintes.
 
+## Fluxos e QA
+
+A matriz canônica de 97 jornadas, contemplando mesas, comandas e garçom, está em [docs/qa/README.md](docs/qa/README.md), com [jornadas legíveis](docs/qa/jornadas.md) e referência a testes automatizados por fluxo. A matriz é de planejamento: não implica que todos os fluxos já estejam implementados ou testados.
+
 ## Requisitos
 Windows 10/11 x64, Node.js 22 para desenvolvimento e npm.
 
