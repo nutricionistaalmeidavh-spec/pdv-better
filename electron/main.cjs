@@ -6,7 +6,11 @@ async function start() {
   if (process.platform !== 'win32' && app.isPackaged) throw new Error('Distribuição homologada somente para Windows 10/11.');
   const { openCatalog } = await import('./db.mjs');
   const { apiChannels } = await import('../shared/contract.mjs');
-  if(process.env.PDV_TEST_SMOKE==='1' && process.env.PDV_TEST_USER_DATA) app.setPath('userData',path.resolve(process.env.PDV_TEST_USER_DATA));
+  if(process.env.PDV_TEST_SMOKE==='1' && process.env.PDV_TEST_USER_DATA) {
+    const smokeDir=path.resolve(process.env.PDV_TEST_USER_DATA);
+    fs.mkdirSync(smokeDir,{recursive:true});
+    app.setPath('userData',smokeDir);
+  }
   const folder = app.getPath('userData');
   fs.mkdirSync(folder, { recursive: true });
   store = openCatalog(path.join(folder, 'pdv-better.sqlite'));
