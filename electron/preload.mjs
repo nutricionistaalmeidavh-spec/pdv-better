@@ -7,5 +7,6 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   archive: (kind, id) => ipcRenderer.invoke(apiChannels.archive, kind, id),
   overview: () => ipcRenderer.invoke(apiChannels.overview),
   completeSale: sale => ipcRenderer.invoke(apiChannels.saleComplete, sale),
-  salesList: () => ipcRenderer.invoke(apiChannels.salesList)
+  salesList: () => ipcRenderer.invoke(apiChannels.salesList),
+  saleDetail: id => ipcRenderer.invoke(apiChannels.saleDetail, id)
 }));
