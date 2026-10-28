@@ -46,6 +46,7 @@ export function App() {
   const [saving,setSaving] = useState(false);
   const [cart,setCart] = useState<CartItem[]>([]);
   const [cartSearch,setCartSearch] = useState('');
+  const [categoryFilter,setCategoryFilter] = useState('all');
   const [cartError,setCartError] = useState('');
   const searchInput = useRef<HTMLInputElement>(null);
   const activeSchema = definitions[view];
@@ -85,9 +86,11 @@ export function App() {
   const pageCount = Math.max(1,Math.ceil(filteredRows.length/pageSize));
   const pageRows = filteredRows.slice(page*pageSize,(page+1)*pageSize);
   const products:Row[] = records.products || [];
+  const categories:Row[] = records.categories || [];
   const matchingProducts = useMemo(() => products.filter(row =>
-    !cartSearch || (row.name + ' ' + (row.code || '')).toLowerCase().includes(cartSearch.trim().toLowerCase())
-  ).slice(0,60),[products,cartSearch]);
+    (categoryFilter === 'all' || row.category_id === categoryFilter) &&
+    (!cartSearch || (row.name + ' ' + (row.code || '')).toLocaleLowerCase('pt-BR').includes(cartSearch.trim().toLocaleLowerCase('pt-BR')))
+  ).slice(0,60),[products,cartSearch,categoryFilter]);
   const total = cartTotalCents(cart);
   function startForm(row?:Row) {
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
@@ -180,17 +183,18 @@ export function App() {
           {view === 'checkout' && <>
             <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO / F2</div><h1>Frente de caixa</h1><p>Selecione os produtos e revise o rascunho da venda.</p></div><span className="draft-label">Prévia • não salva venda</span></div>
             <div className="checkout-grid">
-              <div className="panel products-panel">
+              <div className="panel products-panel glass-panel">
                 <div className="panel-header"><div><h2>Selecionar produtos</h2><p>Busque por nome, SKU ou código de barras</p></div><span className="count-chip">{matchingProducts.length} exibidos</span></div>
                 <label className="search-field"><Search size={19}/><input ref={searchInput} autoComplete="off" aria-label="Pesquisar ou ler código de barras" placeholder="Digite ou leia o código do produto…" value={cartSearch} onChange={ev => {setCartSearch(ev.target.value);setCartError('');}} onKeyDown={scanKey}/><span className="kbd">Enter</span></label>
-                <div className="product-list">
+                <div className="category-filter" aria-label="Filtrar produtos por categoria"><button type="button" className={categoryFilter === 'all' ? 'active' : ''} aria-pressed={categoryFilter === 'all'} onClick={() => setCategoryFilter('all')}>Todos</button>{categories.map(category => <button type="button" key={category.id} className={categoryFilter === category.id ? 'active' : ''} aria-pressed={categoryFilter === category.id} onClick={() => setCategoryFilter(category.id)}>{category.name}</button>)}</div>
+                <div className="product-list glass-product-grid">
                   {matchingProducts.map(row => <button className="product-option" key={row.id} onClick={() => addProduct(row)}>
-                    <div className="product-icon"><Package size={19}/></div><div className="product-info"><strong>{row.name}</strong><span>{row.code || 'Sem código'} · {row.unit} · Saldo {Number(row.stock_milli || 0)/1000}</span></div><strong className="product-price">{money(row.sale_price_cents)}</strong><Plus size={19} className="add-icon"/>
+                    <div className="product-icon"><Package size={24}/></div><div className="product-info"><strong>{row.name}</strong><span>{row.code || 'Sem código'} · {row.unit} · Saldo {Number(row.stock_milli || 0)/1000}</span></div><strong className="product-price">{money(row.sale_price_cents)}</strong><Plus size={19} className="add-icon"/>
                   </button>)}
                   {!matchingProducts.length && <div className="empty-state"><Search size={25}/><strong>Nenhum produto encontrado</strong><p>Cadastre produtos ou tente outra pesquisa.</p><button className="secondary" onClick={() => selectView('products')}>Ir para produtos</button></div>}
                 </div>
               </div>
-              <div className="panel cart-panel">
+              <div className="panel cart-panel glass-panel">
                 <div className="panel-header"><div><h2>Rascunho da venda</h2><p>{cart.length} {cart.length === 1 ? 'produto' : 'produtos'} na seleção</p></div><ShoppingCart size={19}/></div>
                 {cartError && <div className="cart-error" role="alert">{cartError}</div>}
                 <div className="cart-lines">
