@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   qa-f01-f06:
-    name: QA F01–F06 — autenticação e navegação
+    name: QA F01–F14 — jornadas de acesso e cadastros
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
@@ -22,6 +22,8 @@ jobs:
         run: npm run build
       - name: Testar F01–F06 em Electron real com SQLite fictício isolado
         run: npm run test:flows:f01-f06
+      - name: Testar F07–F14 com cadastros, perfis e desativação lógica
+        run: npm run test:flows:f07-f14
   windows-tests:
     strategy:
       fail-fast: false
