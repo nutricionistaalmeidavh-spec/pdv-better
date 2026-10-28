@@ -36,9 +36,8 @@ async function capture(title, {selector=null}={}){
 }
 async function go(label){
   await nav(page,label).click();
-  await page.getByRole('heading',{name:label==='Visão geral'?'Bem-vindo ao PDV Better':label,exact:label!=='Visão geral'}).first().waitFor({timeout:20000}).catch(async()=>{
-    await page.locator('.page-heading h1').first().waitFor({timeout:20000});
-  });
+  await page.locator('.page-heading h1').first().waitFor({timeout:20000});
+  await page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:label,exact:true}).waitFor();
   await page.waitForTimeout(260);
 }
 async function seed(){
@@ -144,7 +143,7 @@ async function buildPDF(){
     p.drawRectangle({x:0,y:0,width:842,height:595,color:rgb(0.97,0.98,0.99)});
     const normalized=item.title.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     p.drawText(item.id+'  '+normalized.slice(0,92),{x:30,y:560,size:16,font:bold,color:rgb(0.14,0.17,0.28)});
-    const img=await pdf.embedJpg(join(shots,item.file).endsWith('.jpg')?new Uint8Array((await import('node:fs')).readFileSync(join(shots,item.file))):null);
+    const img=await pdf.embedJpg(new Uint8Array((await import('node:fs')).readFileSync(join(shots,item.file))));
     const scale=Math.min(782/img.width,510/img.height);
     p.drawImage(img,{x:(842-img.width*scale)/2,y:28+(510-img.height*scale)/2,width:img.width*scale,height:img.height*scale});
     p.drawText('PDV Better | Evidencia real | '+item.id+'/'+String(captures.length).padStart(2,'0'),{x:32,y:12,size:8,font,color:rgb(0.42,0.44,0.51)});
@@ -189,13 +188,13 @@ async function main(){
     if(['products','categories','customers','suppliers','operators'].includes(key)){
       const singular={products:'produto',categories:'categoria',customers:'cliente',suppliers:'fornecedor',operators:'operador'}[key];
       await page.getByRole('button',{name:'Adicionar '+singular,exact:true}).click();
-      await page.getByRole('dialog',{name:'Adicionar '+singular}).waitFor();
+      await page.locator('[role="dialog"]').last().waitFor();
       await capture('Cadastro - adicionar '+singular+' - formulario');
-      await page.getByRole('dialog',{name:'Adicionar '+singular}).getByRole('button',{name:'Cancelar'}).click();
+      await page.locator('[role="dialog"]').last().getByRole('button',{name:'Cancelar'}).click();
       const edit=page.locator('.data-panel button[title="Editar cadastro"]').first();
       await edit.click();
       await capture('Cadastro - editar '+singular+' - dados existentes');
-      await page.getByRole('dialog',{name:'Editar '+singular}).getByRole('button',{name:'Cancelar'}).click();
+      await page.locator('[role="dialog"]').last().getByRole('button',{name:'Cancelar'}).click();
       if(key==='operators'){
         await page.getByRole('button',{name:'Definir senha'}).first().click();
         await capture('Perfis - definir senha de operador');
