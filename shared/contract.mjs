@@ -50,5 +50,5 @@ export function assertEntity(kind) {
 }
 export const apiChannels = Object.freeze({
   list: 'pdv:catalog:list', save: 'pdv:catalog:save', archive: 'pdv:catalog:archive',
-  overview: 'pdv:overview', saleComplete: 'pdv:sale:complete', salesList: 'pdv:sale:list'
+  overview: 'pdv:overview', saleComplete: 'pdv:sale:complete', salesList: 'pdv:sale:list', saleDetail: 'pdv:sale:detail'
 });
