@@ -58,6 +58,20 @@ export const commerceLabels = Object.freeze({
   finance: {payable:'Conta a pagar',receivable:'Conta a receber'},
   status: {completed:'Concluída',cancelled:'Cancelada',open:'Em aberto',closed:'Fechado',settled:'Liquidada'}
 });
+export const reportFields = Object.freeze([
+  {key:'sales_count',label:'Vendas concluídas',type:'count'},
+  {key:'sales_total_cents',label:'Faturamento de vendas',type:'money'},
+  {key:'discounts_cents',label:'Descontos concedidos',type:'money'},
+  {key:'cash_cents',label:'Dinheiro em vendas',type:'money'},
+  {key:'pix_cents',label:'Pix informado',type:'money'},
+  {key:'card_cents',label:'Cartão informado',type:'money'},
+  {key:'credit_cents',label:'Fiado registrado',type:'money'},
+  {key:'receivables_open_cents',label:'Contas a receber em aberto',type:'money'},
+  {key:'payables_open_cents',label:'Contas a pagar em aberto',type:'money'},
+  {key:'payables_paid_cents',label:'Contas pagas',type:'money'},
+  {key:'inventory_value_cents',label:'Valor de custo do estoque',type:'money'},
+  {key:'cancelled_count',label:'Vendas canceladas',type:'count'}
+]);
 export const apiChannels = Object.freeze({
   list: 'pdv:catalog:list', save: 'pdv:catalog:save', archive: 'pdv:catalog:archive',
   overview: 'pdv:overview',
@@ -65,5 +79,5 @@ export const apiChannels = Object.freeze({
   checkout: 'pdv:checkout:commit', salesList: 'pdv:sales:list', salesCancel: 'pdv:sales:cancel',
   stockMove: 'pdv:stock:move', stockHistory: 'pdv:stock:history',
   financeCreate: 'pdv:finance:create', financeList: 'pdv:finance:list', financeSettle: 'pdv:finance:settle',
-  report: 'pdv:report:summary'
+  report: 'pdv:report:summary', reportExport: 'pdv:report:export'
 });
