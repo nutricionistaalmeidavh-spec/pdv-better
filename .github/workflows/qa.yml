@@ -7,6 +7,21 @@ on:
 permissions:
   contents: read
 jobs:
+  qa-f01-f06:
+    name: QA F01–F06 — autenticação e navegação
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+      - name: Compilar aplicativo e preload
+        run: npm run build
+      - name: Testar F01–F06 em Electron real com SQLite fictício isolado
+        run: npm run test:flows:f01-f06
   windows-tests:
     strategy:
       fail-fast: false
