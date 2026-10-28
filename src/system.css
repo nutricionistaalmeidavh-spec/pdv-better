@@ -1,0 +1,18 @@
+.system-settings{display:flex;flex-direction:column;gap:19px}
+.settings-tabs{display:flex;gap:8px;flex-wrap:wrap}
+.settings-tabs button{display:inline-flex;align-items:center;gap:8px;padding:11px 15px;border-radius:10px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.22);color:#fff}
+.settings-tabs button[aria-selected="true"]{background:#6259c9;border-color:#b0a7ff}
+.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;align-items:start}
+.settings-block{padding:23px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.settings-block h2{display:flex;align-items:center;gap:10px;font-size:17px;margin:0;color:#f8f9ff}
+.settings-block p,.settings-tip{font-size:12px;line-height:1.65;color:#d7d8ec;margin:0}
+.settings-info{font-size:12px;padding:13px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.13);border-radius:9px;overflow-wrap:anywhere;line-height:1.65}
+.settings-info button{margin-top:10px}
+.settings-info code{display:block;color:#d8d4ff;font-size:12px;padding:3px}
+.settings-label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:700;color:#e6e8ff}
+.settings-label input{height:44px;min-width:0;padding:9px 11px;border-radius:8px;border:1px solid rgba(165,166,205,.45);background:#ffffff;color:#20243c;font-size:13px}
+.settings-block button{align-self:flex-start}
+.settings-note{grid-column:1/-1;display:flex;align-items:flex-start;gap:12px;padding:17px;border:1px solid #af9b63a0;background:#6553304d;border-radius:11px;color:#ffe4aa;font-size:12px;line-height:1.65}
+.settings-note p{margin:0}
+.settings-wide{grid-column:1/-1}
+@media(max-width:1120px){.settings-grid{grid-template-columns:1fr}}
