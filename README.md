@@ -9,7 +9,7 @@ Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato c
 - Frente de caixa com confirmação de pagamento manual, troco, desconto, fiado, histórico e idempotência de vendas.
 - Abertura, movimentações e fechamento de caixa com diferenças auditáveis.
 - Estoque com entradas, ajustes, lotes futuros e reversões vinculadas à venda.
-- Financeiro com contas a pagar/receber, liquidação e relatórios acumulados.
+- Financeiro com contas a pagar/receber, liquidação, relatórios acumulados e exportação local em PDF, CSV e XLSX.
 - SQLite local, sem internet, login nem serviço pago obrigatório.
 - Desativação lógica de registros e validações do domínio.
 
