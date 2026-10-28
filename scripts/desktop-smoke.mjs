@@ -24,13 +24,16 @@ const wait=async(page)=>{
   await page.getByRole('heading',{name:'PDV Better'}).waitFor({timeout:30000});
   const create=page.getByRole('button',{name:'Criar administrador'});
   const login=page.getByRole('button',{name:'Entrar no PDV'});
-  if(await create.isVisible().catch(()=>false)){
+  const setup=await page.evaluate(async()=> (await window.pdv.authStatus()).setupRequired);
+  if(setup){
+    await create.waitFor();
     await page.getByRole('textbox',{name:'Nome do administrador'}).fill('Administrador QA');
     const passwords=page.locator('.auth-form input[type="password"]');
     await passwords.nth(0).fill('SenhaQA2026!');
     await passwords.nth(1).fill('SenhaQA2026!');
     await create.click();
   }else{
+    await login.waitFor();
     await page.locator('.auth-form input[type="password"]').first().fill('SenhaQA2026!');
     await login.click();
   }
