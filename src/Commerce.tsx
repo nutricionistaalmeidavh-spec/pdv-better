@@ -1,12 +1,12 @@
 import React,{useEffect,useState} from 'react';
 import { Plus,Check,AlertTriangle,ShoppingCart,Package,Wallet,ClipboardList,RotateCcw,Receipt,ArrowDownToLine,ArrowUpFromLine } from 'lucide-react';
 import { money,parseFixed } from '../shared/domain.mjs';
-import { paymentMethods } from '../shared/contract.mjs';
+import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
 type R=Record<string,any>;
 const methodLabel=(id:string)=>paymentMethods.find(x=>x.id===id)?.label||id;
 const errorMessage=(error:any)=>String(error?.message||error||'Não foi possível concluir').replace(/^Error invoking remote method.*?: Error: /,'');
 const pretty=(timestamp:string)=>timestamp?new Date(timestamp).toLocaleString('pt-BR'):'—';
-const statusText:Record<string,string>={completed:'Concluída',cancelled:'Cancelada',open:'Em aberto',closed:'Fechado',settled:'Liquidada',receivable:'A receber',payable:'A pagar'};
+const statusText:Record<string,string>={...commerceLabels.status,...commerceLabels.finance};
 function Message({error,success}:{error:string;success:string}){
   return <>{error && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}</div>}{success && <div className="notice success" role="status"><Check size={17}/>{success}</div>}</>;
 }
@@ -124,7 +124,7 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
         </form>}
       </div>
       <div className="panel commerce-section"><h2>Sangria / reforço</h2><p>Movimentações auditáveis em dinheiro, vinculadas ao turno aberto.</p><form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.cashMove({kind,amountCents:amount,note:reason}),'Movimentação de caixa registrada.');}}>
-        <label>Operação<select value={kind} onChange={e=>setKind(e.target.value)}><option value="withdrawal">Sangria (retirar)</option><option value="reinforcement">Reforço (adicionar)</option></select></label>
+        <label>Operação<select value={kind} onChange={e=>setKind(e.target.value)}>{cashMovementKinds.map(k=><option value={k} key={k}>{commerceLabels.cash[k]}</option>)}</select></label>
         <label>Valor (R$)<input value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value)}/></label>
         <label>Motivo<input value={reason} onChange={e=>setReason(e.target.value)} placeholder="Descreva o motivo"/></label>
         <button disabled={!session||busy} className="secondary" type="submit">Registrar movimentação</button></form>
@@ -142,7 +142,7 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
         await api!.stockMove({productId,kind:stockKind,quantityMilli:stockKind==='receipt'?q:delta,reason});
       },'Estoque atualizado e movimento auditado.',true);}}>
         <label>Produto<select required value={productId} onChange={e=>setProductId(e.target.value)}><option value="">Selecione</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {p.stock_milli/1000} {p.unit}</option>)}</select></label>
-        <label>Tipo<select value={stockKind} onChange={e=>setStockKind(e.target.value)}><option value="receipt">Entrada</option><option value="adjustment">Ajuste</option></select></label>
+        <label>Tipo<select value={stockKind} onChange={e=>setStockKind(e.target.value)}>{inventoryKinds.map(k=><option value={k} key={k}>{commerceLabels.inventory[k]}</option>)}</select></label>
         {stockKind==='adjustment'&&<label>Direção<select value={stockDirection} onChange={e=>setStockDirection(e.target.value)}><option value="positive">Adicionar</option><option value="negative">Retirar</option></select></label>}
         <label>Quantidade<input required inputMode="decimal" value={stockQuantity} onChange={e=>setStockQuantity(e.target.value)}/></label>
         <label>Motivo<input required value={reason} onChange={e=>setReason(e.target.value)} placeholder="Compra, inventário…"/></label>
@@ -150,7 +150,7 @@ export function CommerceView({view,onDataChanged}:{view:string;onDataChanged:()=
       </form></div>
       <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.slice(0,300).map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div></div></>}
     {view==='finance'&&<><div className="panel commerce-section"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn}), 'Lançamento registrado.');}}>
-      <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}><option value="payable">Conta a pagar</option><option value="receivable">Conta a receber</option></select></label>
+      <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
       <label>Descrição<input required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Ex.: aluguel"/></label>
       <label>Valor (R$)<input value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value)}/></label>
       <label>Vencimento<input type="date" value={dueOn} onChange={e=>setDueOn(e.target.value)}/></label>
