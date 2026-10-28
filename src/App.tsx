@@ -40,6 +40,7 @@ export function App() {
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
   const [search,setSearch] = useState('');
+  const [page,setPage] = useState(0);
   const [editing,setEditing] = useState<Row|null>(null);
   const [form,setForm] = useState<Row>({});
   const [saving,setSaving] = useState(false);
@@ -64,7 +65,7 @@ export function App() {
     setRecords(prev => ({...prev,[kind]:current}));
   }
   useEffect(() => { void reloadAll(); }, []);
-  useEffect(() => { setSearch(''); setNotice(''); setError(''); }, [view]);
+  useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
   useEffect(() => {
     if (view === 'checkout') searchInput.current?.focus();
   }, [view]);
@@ -80,6 +81,9 @@ export function App() {
   const filteredRows = useMemo(() => rows.filter(row =>
     !search || Object.values(row).some(value => String(value??'').toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
   ),[rows,search]);
+  const pageSize = 75;
+  const pageCount = Math.max(1,Math.ceil(filteredRows.length/pageSize));
+  const pageRows = filteredRows.slice(page*pageSize,(page+1)*pageSize);
   const products:Row[] = records.products || [];
   const matchingProducts = useMemo(() => products.filter(row =>
     !cartSearch || (row.name + ' ' + (row.code || '')).toLowerCase().includes(cartSearch.trim().toLowerCase())
@@ -207,11 +211,12 @@ export function App() {
           {activeSchema && <>
             <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div><button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button></div>
             <div className="panel data-panel">
-              <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => setSearch(ev.target.value)}/></label><span className="count-chip">{filteredRows.length} cadastros</span></div>
+              <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{filteredRows.length} cadastros</span></div>
               <div className="table-wrap"><table><thead><tr>{activeSchema.fields.slice(0,4).map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
-              <tbody>{filteredRows.map(row => <tr key={row.id}>{activeSchema.fields.slice(0,4).map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col"><button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button><button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button></td></tr>)}</tbody></table>
+              <tbody>{pageRows.map(row => <tr key={row.id}>{activeSchema.fields.slice(0,4).map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col"><button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button><button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button></td></tr>)}</tbody></table>
                 {!filteredRows.length && <div className="empty-state"><Package size={26}/><strong>{search ? 'Nenhum resultado para a pesquisa' : 'Ainda não há cadastros'}</strong><p>{search ? 'Experimente outro termo.' : 'Use o botão Adicionar para começar.'}</p></div>}
               </div>
+              {filteredRows.length > pageSize && <div className="pagination"><span>Página {page+1} de {pageCount} · {filteredRows.length} registros</span><div><button className="secondary" disabled={page===0} onClick={() => setPage(p => Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={page>=pageCount-1} onClick={() => setPage(p => Math.min(pageCount-1,p+1))}>Próxima</button></div></div>}
             </div>
             {view === 'operators' && <div className="info-bar"><AlertTriangle size={19}/><p>As funções cadastradas ainda não controlam acesso. Autenticação e permissões serão implementadas em etapa posterior.</p></div>}
           </>}
