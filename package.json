@@ -15,7 +15,13 @@
     "build:preload": "node scripts/build-preload.mjs",
     "predev": "npm run build:preload",
     "predesktop": "npm run build:preload",
-    "test:desktop": "node scripts/desktop-smoke.mjs"
+    "test:desktop": "node scripts/desktop-smoke.mjs",
+    "test:flows:f01-f06": "node scripts/qa-f01-f06.mjs",
+    "test:flows:f07-f14": "node scripts/qa-f07-f14.mjs",
+    "test:flows:f15-f30": "node scripts/qa-f15-f30.mjs",
+    "test:flows:f31-f40": "node scripts/qa-f31-f40.mjs",
+    "test:flows:f41-f50": "node scripts/qa-f41-f50.mjs",
+    "test:flows:f51-f54": "node scripts/qa-f51-f54.mjs"
   },
   "dependencies": {
     "react": "^19.1.1",

@@ -7,6 +7,31 @@ on:
 permissions:
   contents: read
 jobs:
+  qa-f01-f06:
+    name: QA F01–F54 — jornadas completas do PDV
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+      - name: Compilar aplicativo e preload
+        run: npm run build
+      - name: Testar F01–F06 em Electron real com SQLite fictício isolado
+        run: npm run test:flows:f01-f06
+      - name: Testar F07–F14 com cadastros, perfis e desativação lógica
+        run: npm run test:flows:f07-f14
+      - name: Testar F15–F30 com frente de caixa, pagamentos e TCP de teste
+        run: npm run test:flows:f15-f30
+      - name: Testar F31–F40 com caixa multterminal, vendas e estoque real
+        run: npm run test:flows:f31-f40
+      - name: Testar F41–F50 com financeiro, relatórios e periféricos TCP
+        run: npm run test:flows:f41-f50
+      - name: Testar F51–F54 com servidor LAN, terminal remoto e restauração SQLite
+        run: npm run test:flows:f51-f54
   windows-tests:
     strategy:
       fail-fast: false
