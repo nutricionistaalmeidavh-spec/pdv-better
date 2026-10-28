@@ -6,7 +6,7 @@ const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 test('tema grafite é o último stylesheet carregado globalmente',()=>{
  const code=read('src/main.tsx');
  assert.match(code,/import '\.\/graphite\.css';/);
- assert.equal(code.trim().split('\n').at(-2),"import './graphite.css';");
+ assert.equal(code.trim().split('\n').at(-2)?.trim(),"import './graphite.css';");
 });
 test('tokens de contraste cobrem superfícies, navegação, tabelas e modais',()=>{
  const css=read('src/graphite.css');
