@@ -31,6 +31,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - [MOD-21 — Auditoria e segurança](#mod-21)
 - [MOD-22 — Atualizações e manutenção](#mod-22)
 
+<a id="mod-01"></a>
+
 ## MOD-01 — Instalação e inicialização
 
 **Tela do módulo:** Instalador NSIS / abertura do aplicativo
@@ -74,6 +76,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Recuperação do erro:** Oferecer tentar novamente e restauração de backup
 - **Situação:** presente-no-marco-a
 - **QA automatizado vinculado:** QA-01-04 (integracao) — `tests/journeys/QA-01-04.test.mjs` — pendente-jornada
+
+<a id="mod-02"></a>
 
 ## MOD-02 — Operadores e permissões
 
@@ -119,6 +123,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Recuperação do erro:** Manter operador anterior caso troca falhe
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-02-04 (e2e) — `tests/journeys/QA-02-04.test.mjs` — pendente-jornada
+
+<a id="mod-03"></a>
 
 ## MOD-03 — Produtos e categorias
 
@@ -168,6 +174,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **QA automatizado vinculado:** QA-03-04 (e2e) — `tests/journeys/QA-03-04.test.mjs` — pendente-jornada
 - **Evidência parcial de backend:** `tests/catalog.test.mjs` (não prova jornada ponta a ponta)
 
+<a id="mod-04"></a>
+
 ## MOD-04 — Clientes
 
 **Tela do módulo:** Cadastros / Clientes
@@ -214,6 +222,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-04-04 (integracao) — `tests/journeys/QA-04-04.test.mjs` — pendente-jornada
 
+<a id="mod-05"></a>
+
 ## MOD-05 — Fornecedores
 
 **Tela do módulo:** Cadastros / Fornecedores
@@ -248,6 +258,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Recuperação do erro:** Exibir ausência de compras ou tentar ler novamente
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-05-03 (integracao) — `tests/journeys/QA-05-03.test.mjs` — pendente-jornada
+
+<a id="mod-06"></a>
 
 ## MOD-06 — Frente de caixa
 
@@ -305,6 +317,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Situação:** em-desenvolvimento-pr-2
 - **QA automatizado vinculado:** QA-06-05 (integracao) — `tests/journeys/QA-06-05.test.mjs` — pendente-jornada
 
+<a id="mod-07"></a>
+
 ## MOD-07 — Pagamentos
 
 **Tela do módulo:** Frente de caixa / Pagamento
@@ -358,6 +372,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Recuperação do erro:** Preservar lançamento quando estorno falhar, sem simular devolução externa
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-07-05 (integracao) — `tests/journeys/QA-07-05.test.mjs` — pendente-jornada
+
+<a id="mod-08"></a>
 
 ## MOD-08 — Controle de caixa
 
@@ -413,6 +429,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-08-05 (integracao) — `tests/journeys/QA-08-05.test.mjs` — pendente-jornada
 
+<a id="mod-09"></a>
+
 ## MOD-09 — Estoque
 
 **Tela do módulo:** Estoque / Movimentações
@@ -467,6 +485,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-09-05 (integracao) — `tests/journeys/QA-09-05.test.mjs` — pendente-jornada
 
+<a id="mod-10"></a>
+
 ## MOD-10 — Compras e recebimento
 
 **Tela do módulo:** Compras / Pedidos
@@ -510,6 +530,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Recuperação do erro:** Não salvar despesa sem vínculo válido
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-10-04 (integracao) — `tests/journeys/QA-10-04.test.mjs` — pendente-jornada
+
+<a id="mod-11"></a>
 
 ## MOD-11 — Trocas, devoluções e cancelamentos
 
@@ -565,6 +587,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-11-05 (integracao) — `tests/journeys/QA-11-05.test.mjs` — pendente-jornada
 
+<a id="mod-12"></a>
+
 ## MOD-12 — Orçamentos e pedidos
 
 **Tela do módulo:** Vendas / Orçamentos
@@ -608,6 +632,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Recuperação do erro:** Exibir estado vazio ou permitir recarregar
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-12-04 (e2e) — `tests/journeys/QA-12-04.test.mjs` — pendente-jornada
+
+<a id="mod-13"></a>
 
 ## MOD-13 — Mesas, comandas e garçom
 
@@ -663,6 +689,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-13-05 (e2e) — `tests/journeys/QA-13-05.test.mjs` — pendente-jornada
 
+<a id="mod-14"></a>
+
 ## MOD-14 — Fiscal
 
 **Tela do módulo:** Fiscal / Emissão
@@ -716,6 +744,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Recuperação do erro:** Não marcar autorizado até protocolo real
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-14-05 (integracao) — `tests/journeys/QA-14-05.test.mjs` — pendente-jornada
+
+<a id="mod-15"></a>
 
 ## MOD-15 — Financeiro
 
@@ -771,6 +801,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-15-05 (integracao) — `tests/journeys/QA-15-05.test.mjs` — pendente-jornada
 
+<a id="mod-16"></a>
+
 ## MOD-16 — Relatórios
 
 **Tela do módulo:** Relatórios / Indicadores
@@ -824,6 +856,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Recuperação do erro:** Exibir dado indisponível quando custo for desconhecido
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-16-05 (unitario) — `tests/journeys/QA-16-05.test.mjs` — pendente-jornada
+
+<a id="mod-17"></a>
 
 ## MOD-17 — Impressão e periféricos
 
@@ -879,6 +913,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-17-05 (hardware) — `tests/journeys/QA-17-05.test.mjs` — pendente-jornada
 
+<a id="mod-18"></a>
+
 ## MOD-18 — Configurações comerciais
 
 **Tela do módulo:** Configurações / Regras
@@ -924,6 +960,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-18-04 (integracao) — `tests/journeys/QA-18-04.test.mjs` — pendente-jornada
 
+<a id="mod-19"></a>
+
 ## MOD-19 — Backup e restauração
 
 **Tela do módulo:** Ferramentas / Backup
@@ -967,6 +1005,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Recuperação do erro:** Bloquear restauração insegura e oferecer correção orientada
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-19-04 (integracao) — `tests/journeys/QA-19-04.test.mjs` — pendente-jornada
+
+<a id="mod-20"></a>
 
 ## MOD-20 — Funcionamento offline e sincronização
 
@@ -1013,6 +1053,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-20-04 (integracao) — `tests/journeys/QA-20-04.test.mjs` — pendente-jornada
 
+<a id="mod-21"></a>
+
 ## MOD-21 — Auditoria e segurança
 
 **Tela do módulo:** Auditoria / Eventos
@@ -1056,6 +1098,8 @@ Escopo: Windows 10/11 x64; SQLite local; R$ 0 no núcleo; serviço remoto soment
 - **Recuperação do erro:** Não travar operação por falha de visualização de logs
 - **Situação:** planejado
 - **QA automatizado vinculado:** QA-21-04 (integracao) — `tests/journeys/QA-21-04.test.mjs` — pendente-jornada
+
+<a id="mod-22"></a>
 
 ## MOD-22 — Atualizações e manutenção
 
