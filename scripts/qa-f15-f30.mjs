@@ -114,6 +114,15 @@ try{
   const kg=await call('save','products',{name:'Queijo a Granel QA',code:'QA-KG-3003',category_id:grocery.id,unit:'KG',sale_price_cents:'40,00',cost_price_cents:'20,00',stock_milli:'15,000'});
   const customer=await call('save','customers',{name:'Cliente Fiado QA',phone:'11999990000'});
 
+  // O fixture foi gravado pelo IPC após o primeiro carregamento da UI;
+  // relogar força o App a carregar a fonte canônica, sem mocks nem recarga artificial.
+  await page.getByRole('button',{name:'Sair',exact:true}).click();
+  await page.getByRole('heading',{name:'PDV Better',exact:true}).waitFor();
+  await page.getByRole('combobox',{name:'Operador'}).selectOption({label:'Admin Vendas QA — Administrador'});
+  await page.locator('.auth-form input[type="password"]').first().fill(password);
+  await page.getByRole('button',{name:'Entrar no PDV'}).click();
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor();
+
   await toCheckout();
   // F15: busca por nome e código parcial, além de inexistente.
   await search().fill('Café Arábica');
