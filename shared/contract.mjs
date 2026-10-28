@@ -79,5 +79,9 @@ export const apiChannels = Object.freeze({
   checkout: 'pdv:checkout:commit', salesList: 'pdv:sales:list', saleGet: 'pdv:sales:get', salesCancel: 'pdv:sales:cancel',
   stockMove: 'pdv:stock:move', stockHistory: 'pdv:stock:history',
   financeCreate: 'pdv:finance:create', financeList: 'pdv:finance:list', financeSettle: 'pdv:finance:settle',
-  report: 'pdv:report:summary', reportExport: 'pdv:report:export'
+  report: 'pdv:report:summary', reportExport: 'pdv:report:export',
+  lanStatus: 'pdv:lan:status', lanHost: 'pdv:lan:host', lanJoin: 'pdv:lan:join', lanLocal: 'pdv:lan:local',
+  deviceGet: 'pdv:device:get', deviceSet: 'pdv:device:set', devicePrinters: 'pdv:device:printers',
+  devicePrint: 'pdv:device:print', drawerOpen: 'pdv:drawer:open', scaleRead: 'pdv:scale:read',
+  backupCreate: 'pdv:backup:create', backupRestore: 'pdv:backup:restore'
 });
