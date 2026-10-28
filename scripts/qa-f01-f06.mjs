@@ -68,8 +68,8 @@ try {
   const cashierRow = page.getByRole('row').filter({hasText: 'Caixa QA'});
   await cashierRow.getByRole('button', {name: 'Definir senha'}).click();
   const setPassword = page.getByRole('dialog', {name: /Definir senha: Caixa QA/});
-  await setPassword.getByLabel('Nova senha (mínimo 8 caracteres)').fill(cashierPassword);
-  await setPassword.getByLabel('Confirmar senha').fill(cashierPassword);
+  await setPassword.locator('input[type="password"]').nth(0).fill(cashierPassword);
+  await setPassword.locator('input[type="password"]').nth(1).fill(cashierPassword);
   await setPassword.getByRole('button', {name: 'Salvar acesso'}).click();
   await setPassword.waitFor({state: 'hidden'});
   await menu(page, 'Dispositivos e rede').click();
