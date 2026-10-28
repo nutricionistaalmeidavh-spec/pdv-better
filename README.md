@@ -1,4 +1,4 @@
-# PDV Better — Marco B (Windows 10/11)
+# PDV Better — Marco C (Windows 10/11)
 
 Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato canônico compartilhado e armazenamento SQLite.
 
@@ -14,6 +14,14 @@ Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato c
 - Desativação lógica de registros e validações do domínio.
 
 **Marco B:** vendas reais com baixa de estoque transacional, caixa, pagamentos mistos, fiado, sangria, reforço, contas a pagar/receber, relatórios, cancelamentos seguros e trilha de movimentos. Pix e cartão exigem confirmação manual. **Não emite documentos fiscais e não executa cobranças externas.**
+
+## Marco C — Operação instalada
+- Periféricos: leitor HID, etiquetas/recibos no Windows, ESC/POS TCP, gaveta e balança TCP.
+- Servidor LAN opcional com token, banco SQLite central e terminais que operam no mesmo banco sem sincronização duplicada.
+- Backup SQLite íntegro e restauração com retenção do banco anterior e reinício seguro.
+- QA no Electron e no NSIS instalado, com hash SHA256 no artefato GitHub Actions.
+
+**Limites:** balança serial COM, TEF, múltiplos turnos de caixa separados por terminal e homologação de hardware físico não foram implementados. HTTP na LAN não cifra o tráfego: use rede privada confiável. Pix e cartão continuam manuais.
 
 ## Requisitos
 Windows 10/11 x64, Node.js 22 para desenvolvimento e npm.
@@ -42,6 +50,7 @@ GitHub Actions: valida o Marco B em Windows Server 2022/2025, testa Electron rea
 - src: interface React consumindo o mesmo contrato.
 - tests: regras reais de domínio e banco em memória.
 - docs/00-canonical.md: fontes e limites do Marco A.
-- docs/01-marco-b.md: fluxos canônicos, invariantes, estornos e homologação Windows.
+- docs/01-marco-b.md: regras do Marco B.
+- docs/02-marco-c.md: configuração LAN, periféricos, backup, limites e QA do Marco C.
 
 Não adicione regras de preços, quantidades, cadastros ou canais IPC duplicadas à UI. Para ampliar o modelo, edite o contrato canônico e seus testes.

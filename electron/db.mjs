@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, backup } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { assertEntity, entities, entityOrder, CONTRACT_VERSION } from '../shared/contract.mjs';
 import { normalizeRecord } from '../shared/domain.mjs';
@@ -80,5 +80,5 @@ export function openCatalog(filename) {
   function overview() {
     return Object.fromEntries(entityOrder.map(kind => [kind, db.prepare('SELECT COUNT(*) AS n FROM "' + kind + '" WHERE active=1').get().n]));
   }
-  return { list, save, archive, overview, ...commerce, close: () => db.close() };
+  return { list, save, archive, overview, ...commerce, backupTo: (destination) => backup(db,destination), close: () => db.close() };
 }

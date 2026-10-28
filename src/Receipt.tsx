@@ -1,9 +1,18 @@
-import React from 'react';
+import React,{useState} from 'react';
 import { Printer, X, ReceiptText } from 'lucide-react';
 import { money } from '../shared/domain.mjs';
 import { paymentMethods } from '../shared/contract.mjs';
 const method=(id:string)=>paymentMethods.find(x=>x.id===id)?.label||id;
 export function SaleReceipt({sale,onClose}:{sale:any;onClose:()=>void}){
+  const [error,setError]=useState('');
+  const [busy,setBusy]=useState(false);
+  async function print(kind:'receipt'|'receipt-tcp'){
+    if(busy||!window.pdv)return;
+    setBusy(true);setError('');
+    try{await window.pdv.devicePrint({kind,saleId:sale.id});}
+    catch(e){setError(String(e?.message||e));}
+    finally{setBusy(false);}
+  }
   return <div className="modal-backdrop" role="presentation">
     <section className="dialog receipt-dialog glass-payment" role="dialog" aria-modal="true" aria-label="Comprovante não fiscal da venda">
       <header className="dialog-head receipt-actions"><div><div className="eyebrow">VENDA CONCLUÍDA</div><h2>Comprovante</h2></div><button className="secondary" onClick={onClose} aria-label="Fechar comprovante"><X size={16}/>Fechar</button></header>
@@ -28,7 +37,8 @@ export function SaleReceipt({sale,onClose}:{sale:any;onClose:()=>void}){
         <div className="receipt-sep"/>
         <p className="receipt-disclaimer">NÃO É DOCUMENTO FISCAL. Pix e cartão foram registrados manualmente no estabelecimento. Este comprovante não substitui NFC-e, SAT ou cupom fiscal.</p>
       </div>
-      <footer className="dialog-footer receipt-actions"><button className="secondary" onClick={onClose}>Concluir</button><button className="primary" onClick={()=>window.print()}><Printer size={16}/>Imprimir comprovante</button></footer>
+      {error&&<div className="form-error" role="alert">{error}</div>}
+      <footer className="dialog-footer receipt-actions"><button className="secondary" onClick={onClose}>Concluir</button><button className="secondary" disabled={busy} onClick={()=>void print('receipt-tcp')}>ESC/POS rede</button><button className="primary" disabled={busy} onClick={()=>void print('receipt')}><Printer size={16}/>Imprimir no Windows</button></footer>
     </section>
   </div>;
 }

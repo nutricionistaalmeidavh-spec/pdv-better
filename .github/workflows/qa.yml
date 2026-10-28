@@ -43,9 +43,19 @@ jobs:
           $env:PDV_TEST_USER_DATA = Join-Path $env:RUNNER_TEMP "PDV-Better-Installed-Data"
           npm run test:desktop
           if ($LASTEXITCODE -ne 0) { throw "Smoke do executável instalado falhou" }
+      - name: Gerar SHA256 do instalador
+        shell: pwsh
+        run: |
+          Get-ChildItem release -Filter "*Setup*.exe" | ForEach-Object {
+            $hash = Get-FileHash $_.FullName -Algorithm SHA256
+            "$($hash.Hash)  $($_.Name)" | Add-Content "release/SHA256SUMS.txt"
+          }
+          if (!(Test-Path "release/SHA256SUMS.txt")) { throw "Checksum não criado" }
       - name: Disponibilizar instalador da versão aprovada
         uses: actions/upload-artifact@v4
         with:
           name: PDV-Better-Win10-11-${{ matrix.os }}
-          path: release/*Setup*.exe
+          path: |
+            release/*Setup*.exe
+            release/SHA256SUMS.txt
           if-no-files-found: error
