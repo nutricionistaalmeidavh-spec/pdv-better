@@ -12,14 +12,14 @@ type Row = Record<string, any>;
 type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number};
 const definitions: Record<string, any> = entities;
 const icons: Record<string, any> = {
-  dashboard: LayoutDashboard, checkout: ShoppingCart, products: Package, categories: Tags,
+  dashboard: LayoutDashboard, checkout: ShoppingCart, history: Database, products: Package, categories: Tags,
   customers: Users, suppliers: Truck, operators: UserRoundCog
 };
 const menus = [
-  {title:'OPERAÇÃO', ids:['dashboard','checkout']},
+  {title:'OPERAÇÃO', ids:['dashboard','checkout','history']},
   {title:'CADASTROS', ids:entityOrder}
 ];
-const titles: Record<string,string> = {dashboard:'Visão geral',checkout:'Frente de caixa'};
+const titles: Record<string,string> = {dashboard:'Visão geral',checkout:'Frente de caixa',history:'Histórico de vendas'};
 const formatValue = (field:any, value:any):string => {
   if (value === null || value === undefined) return '';
   if (field.type === 'money') return (Number(value)/100).toFixed(2);
@@ -55,6 +55,9 @@ export function App() {
   const [paymentBusy,setPaymentBusy] = useState(false);
   const [saleId,setSaleId] = useState('');
   const [lastSale,setLastSale] = useState<Row|null>(null);
+  const [saleHistory,setSaleHistory] = useState<Row[]>([]);
+  const [historyError,setHistoryError] = useState('');
+  const [historyLoading,setHistoryLoading] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
   const activeSchema = definitions[view];
   const bridge = window.pdv;
@@ -73,7 +76,7 @@ export function App() {
     setRecords(prev => ({...prev,[kind]:current}));
   }
   useEffect(() => { void reloadAll(); }, []);
-  useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
+  useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); if(view === 'history') void openHistory(); }, [view]);
   useEffect(() => {
     if (view === 'checkout') searchInput.current?.focus();
   }, [view]);
@@ -104,10 +107,23 @@ export function App() {
       const id = saleId || crypto.randomUUID();
       if (!saleId) setSaleId(id);
       const sale = await bridge.completeSale({id,items:cart.map(item=>({id:item.id,quantityMilli:item.quantityMilli})),method:paymentMethod,tenderedCents});
-      setLastSale(sale);setCart([]);setPaymentOpen(false);setSaleId('');setReceived('');
+      const detail = await bridge.saleDetail(sale.id);
+      setLastSale(detail);setCart([]);setPaymentOpen(false);setSaleId('');setReceived('');
       await reload('products');
     } catch (err) { setCartError(friendlyError(err)); }
     finally { setPaymentBusy(false); }
+  }
+  async function openHistory() {
+    if (!bridge) return;
+    setHistoryLoading(true);setHistoryError('');
+    try { setSaleHistory(await bridge.salesList()); }
+    catch (err) { setHistoryError(friendlyError(err)); }
+    finally { setHistoryLoading(false); }
+  }
+  async function openReceipt(id:string) {
+    if (!bridge) return;
+    try { setLastSale(await bridge.saleDetail(id)); }
+    catch (err) { setHistoryError(friendlyError(err)); }
   }
   function startForm(row?:Row) {
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
@@ -160,7 +176,7 @@ export function App() {
   return <div className="shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Package size={21}/></div><div><strong>PDV Better</strong><span>by ArtiSys</span></div></div>
-      <div className="workspace"><div className="workspace-avatar">PB</div><div><strong>Estabelecimento local</strong><span>Modo offline • Marco A</span></div></div>
+      <div className="workspace"><div className="workspace-avatar">PB</div><div><strong>Estabelecimento local</strong><span>Modo offline • vendas locais</span></div></div>
       <nav aria-label="Navegação principal">
         {menus.map(section => <div className="menu-section" key={section.title}>
           <div className="menu-title">{section.title}</div>
@@ -196,10 +212,20 @@ export function App() {
               <button className="quick" onClick={() => selectView('products')}><span className="quick-icon"><Package size={21}/></span><strong>Gerenciar produtos</strong><span>Preços, estoque inicial e códigos</span><ArrowRight size={17}/></button>
               <button className="quick" onClick={() => selectView('customers')}><span className="quick-icon"><Users size={21}/></span><strong>Clientes</strong><span>Consultar ou incluir um cadastro</span><ArrowRight size={17}/></button>
             </div>
-            <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros são persistidos no banco local. Carrinhos ainda são prévias: não há recebimento, venda concluída ou baixa de estoque nesta versão.</p></div></div>
+            <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros e vendas concluídas são persistidos localmente. Recebimentos por cartão são registrados manualmente; não há emissão fiscal integrada.</p></div></div>
+          </>}
+          {view === 'history' && <>
+            <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO</div><h1>Histórico de vendas</h1><p>Últimas 100 vendas registradas neste dispositivo.</p></div><button className="secondary" onClick={()=>void openHistory()}><RotateCcw size={17}/> Atualizar</button></div>
+            <div className="panel data-panel">
+              {historyLoading && <p>Carregando vendas…</p>}
+              {historyError && <div role="alert" className="form-error">{historyError}</div>}
+              {!historyLoading && <div className="table-wrap"><table><thead><tr><th>Data</th><th>Identificador</th><th>Pagamento</th><th>Total</th><th>Comprovante</th></tr></thead><tbody>
+                {saleHistory.map(sale=><tr key={sale.id}><td>{new Date(sale.created_at).toLocaleString('pt-BR')}</td><td>{sale.id.slice(0,8)}</td><td>{sale.payment_method === 'cash'?'Dinheiro':sale.payment_method==='credit_manual'?'Crédito manual':'Débito manual'}</td><td>{money(sale.total_cents)}</td><td><button className="secondary" onClick={()=>void openReceipt(sale.id)}>Visualizar</button></td></tr>)}
+              </tbody></table>{!saleHistory.length && <p className="empty-state">Nenhuma venda registrada.</p>}</div>}
+            </div>
           </>}
           {view === 'checkout' && <>
-            <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO / F2</div><h1>Frente de caixa</h1><p>Selecione os produtos e revise o rascunho da venda.</p></div><span className="draft-label">Prévia • não salva venda</span></div>
+            <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO / F2</div><h1>Frente de caixa</h1><p>Selecione os produtos, revise o carrinho e registre o recebimento.</p></div><span className="draft-label">Venda registrada após pagamento</span></div>
             <div className="checkout-grid">
               <div className="panel products-panel glass-panel">
                 <div className="panel-header"><div><h2>Selecionar produtos</h2><p>Busque por nome, SKU ou código de barras</p></div><span className="count-chip">{matchingProducts.length} exibidos</span></div>
@@ -223,7 +249,7 @@ export function App() {
                 </div>
                 <div className="cart-footer">
                   <div className="total-line"><span>Total estimado</span><strong>{money(total)}</strong></div>
-                  <div className="muted-hint"><AlertTriangle size={15}/> Rascunho temporário: ao fechar o aplicativo, esta seleção será perdida.</div>
+                  <div className="muted-hint"><AlertTriangle size={15}/> O carrinho não concluído é temporário. Após o pagamento, a venda é registrada no SQLite local.</div>
                   <button className="primary full" disabled={!cart.length} onClick={() => {setCartError('');setPaymentOpen(true);}}>Finalizar venda <ArrowRight size={17}/></button>
                   <button className="plain full" disabled={!cart.length} onClick={() => { if(window.confirm('Limpar o rascunho da venda?')) setCart([]); }}><Trash2 size={16}/> Limpar rascunho</button>
                 </div>
@@ -245,7 +271,19 @@ export function App() {
         </>}
       </section>
     </main>
-    {lastSale && <div className="sale-success" role="status"><Check size={18}/> Venda registrada: {money(lastSale.total_cents)} <button onClick={()=>setLastSale(null)} aria-label="Fechar confirmação"><X size={16}/></button></div>}
+    {lastSale && <div className="modal-backdrop receipt-overlay"><section className="dialog glass-payment receipt-dialog" role="dialog" aria-modal="true" aria-label="Comprovante não fiscal">
+      <header className="dialog-head no-print"><div><div className="eyebrow">VENDA CONCLUÍDA</div><h2>Pagamento registrado</h2></div><button className="icon-btn" onClick={()=>setLastSale(null)} aria-label="Fechar"><X size={20}/></button></header>
+      <div className="receipt-paper" id="receipt-print">
+        <h2>PDV Better</h2><p>COMPROVANTE NÃO FISCAL</p><p>Não substitui NFC-e, SAT ou documento fiscal.</p>
+        <hr/><p>Venda: {lastSale.id}</p><p>Data: {new Date(lastSale.created_at).toLocaleString('pt-BR')}</p>
+        <hr/>{(lastSale.items||[]).map((item:Row)=><div className="receipt-line" key={item.product_id}><span>{item.name} — {(item.quantity_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {item.unit}</span><strong>{money(item.line_total_cents)}</strong></div>)}
+        <hr/><div className="receipt-line"><strong>Total</strong><strong>{money(lastSale.total_cents)}</strong></div>
+        <div className="receipt-line"><span>Recebido</span><span>{money(lastSale.tendered_cents)}</span></div>
+        <div className="receipt-line"><span>Troco</span><span>{money(lastSale.change_cents)}</span></div>
+        <p>Pagamento: {lastSale.payment_method === 'cash'?'Dinheiro':lastSale.payment_method === 'credit_manual'?'Crédito manual':'Débito manual'}</p>
+      </div>
+      <footer className="receipt-actions no-print"><button className="secondary" onClick={()=>window.print()}>Imprimir comprovante</button><button className="primary" onClick={()=>{setLastSale(null);setView('checkout');searchInput.current?.focus();}}>Nova venda</button><button className="plain" onClick={()=>{setLastSale(null);setView('history');}}>Histórico</button></footer>
+    </section></div>}
     {paymentOpen && <div className="modal-backdrop" role="presentation">
       <section className="dialog glass-payment" role="dialog" aria-modal="true" aria-label="Pagamento da venda">
         <header className="dialog-head"><div><div className="eyebrow">FINALIZAÇÃO</div><h2>Pagamento</h2></div><button className="icon-btn" disabled={paymentBusy} onClick={()=>setPaymentOpen(false)} aria-label="Voltar ao carrinho"><X size={20}/></button></header>
