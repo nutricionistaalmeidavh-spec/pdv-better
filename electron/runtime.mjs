@@ -52,8 +52,10 @@ export async function createRuntime({store,folder,safeStorage}){
     return status();
   }
   function status(){
+    let canPair=false;
+    try{if(sessionToken && mode!=='client')canPair=store.authCurrent(sessionToken,terminalId).role==='Administrador';}catch{}
     return {mode,port:server?.port||null,addresses:localAddresses(),address:url,
-      pairingKey:mode==='host'&&user?.role==='Administrador'?token:null,terminalId,warning:startError};
+      pairingKey:mode==='host'&&canPair?token:null,terminalId,warning:startError};
   }
   async function authStatus(){
     return mode==='client' ? requestLan(url,token,'authStatus',[],null,terminalId):store.authStatus();
