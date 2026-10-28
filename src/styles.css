@@ -20,3 +20,5 @@
 .commerce-dialog{width:min(720px,98%)}.payment-inputs{padding:0 28px 20px}.payment-inputs h3{font-size:13px;margin:0 0 7px}.payment-inputs>p{font-size:11px;color:#85889f;line-height:1.45}
 .payment-row{display:grid;grid-template-columns:1.7fr .8fr auto;gap:9px;align-items:center;margin:9px 0}.payment-row .secondary{padding:10px}
 @media(max-width:1200px){.report-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.commerce-columns{grid-template-columns:1fr}.commerce-wide{grid-column:auto}}
+
+.report-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.report-actions .secondary{padding:9px 12px}
