@@ -22,3 +22,18 @@
 @media(max-width:1200px){.report-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.commerce-columns{grid-template-columns:1fr}.commerce-wide{grid-column:auto}}
 
 .report-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.report-actions .secondary{padding:9px 12px}
+
+
+/* Comprovante não fiscal com impressão offline */
+.receipt-dialog{width:min(490px,98%)}.receipt-content{padding:24px 28px 30px;max-height:60vh;overflow:auto;font-size:11px;color:#20202a;background:#fff}
+.receipt-brand{text-align:center;padding-bottom:10px}.receipt-brand svg{color:#6257af}.receipt-brand h3{font-size:19px;letter-spacing:-.5px;margin:7px 0 3px}.receipt-brand p{font-size:11px;color:#747481;margin:0}
+.receipt-content p{line-height:1.55;margin:7px 0;overflow-wrap:anywhere}.receipt-sep{border-top:1px dashed #9999a5;margin:14px 0}.receipt-items{width:100%;border-collapse:collapse;font-size:10px}.receipt-items td,.receipt-items th{padding:8px 4px;border:0;border-bottom:1px solid #eee;text-align:right;white-space:normal}.receipt-items td:first-child,.receipt-items th:first-child{text-align:left}.receipt-items small{display:block;color:#777;margin-top:3px}.receipt-sum{display:flex;justify-content:space-between;gap:12px;margin:8px 0;font-size:11px}.receipt-total{font-size:15px;font-weight:800;padding:7px 0}.receipt-disclaimer{text-align:center;font-size:10px;color:#5e5e6d;border:1px solid #aaa;padding:10px 9px}
+@media print {
+  @page{size:80mm auto;margin:4mm}
+  body,html{background:white!important;margin:0!important;overflow:visible!important}
+  body *{visibility:hidden!important}
+  .receipt-content,.receipt-content *{visibility:visible!important}
+  .receipt-content{position:absolute!important;inset:0 auto auto 0!important;width:72mm!important;max-height:none!important;overflow:visible!important;padding:0!important;color:#000!important}
+  .receipt-dialog,.modal-backdrop{position:static!important;box-shadow:none!important;background:transparent!important;display:block!important;border:0!important;padding:0!important;margin:0!important}
+  .receipt-actions{display:none!important}
+}
