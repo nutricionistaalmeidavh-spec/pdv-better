@@ -1,0 +1,25 @@
+name: QA Marco A
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+      - name: Validar arquivos de build
+        shell: pwsh
+        run: |
+          if (!(Test-Path "dist/index.html")) { throw "Falta dist/index.html" }
+          if (!(Test-Path "electron/main.cjs")) { throw "Falta Electron main" }
+          if (!(Test-Path "electron/preload.mjs")) { throw "Falta preload" }
