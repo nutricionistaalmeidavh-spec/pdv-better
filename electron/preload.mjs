@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   cashMove: (input) => ipcRenderer.invoke(apiChannels.cashMove, input),
   checkout: (input) => ipcRenderer.invoke(apiChannels.checkout, input),
   salesList: () => ipcRenderer.invoke(apiChannels.salesList),
+  saleGet: (id) => ipcRenderer.invoke(apiChannels.saleGet, id),
   salesCancel: (id) => ipcRenderer.invoke(apiChannels.salesCancel, id),
   stockMove: (input) => ipcRenderer.invoke(apiChannels.stockMove, input),
   stockHistory: (id) => ipcRenderer.invoke(apiChannels.stockHistory, id),
