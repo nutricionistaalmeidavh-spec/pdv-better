@@ -8,9 +8,9 @@ permissions:
   contents: read
 jobs:
   qa-f01-f06:
-    name: QA F01–F40 — acesso, cadastros, vendas, caixa e estoque
+    name: QA F01–F54 — jornadas completas do PDV
     runs-on: windows-2022
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,6 +28,10 @@ jobs:
         run: npm run test:flows:f15-f30
       - name: Testar F31–F40 com caixa multterminal, vendas e estoque real
         run: npm run test:flows:f31-f40
+      - name: Testar F41–F50 com financeiro, relatórios e periféricos TCP
+        run: npm run test:flows:f41-f50
+      - name: Testar F51–F54 com servidor LAN, terminal remoto e restauração SQLite
+        run: npm run test:flows:f51-f54
   windows-tests:
     strategy:
       fail-fast: false
