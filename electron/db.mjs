@@ -30,7 +30,7 @@ export function openCatalog(filename) {
     const searchable = schema.fields.filter(f => f.type === 'text').map(f => '"' + f.key + '" LIKE ?');
     const query = 'SELECT * FROM "' + kind + '" WHERE active=1' +
       (term && searchable.length ? ' AND (' + searchable.join(' OR ') + ')' : '') +
-      ' ORDER BY name COLLATE NOCASE LIMIT 500';
+      ' ORDER BY name COLLATE NOCASE';
     return db.prepare(query).all(...(term ? searchable.map(() => '%' + term.replace(/[%_]/g, '') + '%') : []));
   }
   function save(kind, input) {
