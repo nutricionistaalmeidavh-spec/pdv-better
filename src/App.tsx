@@ -193,7 +193,7 @@ export function App() {
     </aside>
     <main className="main">
       <header className="topbar"><div className="breadcrumbs"><span>PDV Better</span><ChevronRight size={16}/><strong>{titles[view] || definitions[view]?.label}</strong></div>
-        <div className="top-actions"><span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Modo local'}</span><span className="version">Versão 0.2.0</span></div>
+        <div className="top-actions"><span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Modo local'}</span><span className="version">Versão 0.3.0</span></div>
       </header>
       <section className="content">
         {notice && <div className="notice success" role="status"><Check size={17}/>{notice}<button aria-label="Fechar aviso" onClick={() => setNotice('')}><X size={15}/></button></div>}
