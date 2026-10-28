@@ -193,6 +193,8 @@ try{
   const offline=await error(client,'list','products');
   assert.match(String(offline),/fetch|network|failed|conex|indispon|aborted|timeout/i);
   assert.equal((await call(client,'lanStatus')).mode,'client');
+  // Sair do modo servidor revoga a sessao local: autenticar novamente antes de operar.
+  await call(host,'authLogin',{operatorId:operator.id,password:adminPassword});
   assert.equal((await call(host,'list','products')).some(p=>p.id===product.id),true);
   const replacement=await call(host,'lanHost',{port:await freePort()});
   await call(client,'lanJoin',{address:'http://127.0.0.1:'+replacement.port+'/',secret:replacement.pairingKey});
