@@ -11,8 +11,15 @@ function atomic(db,fn) {
 }
 function createTables(db){
   const old=db.prepare('PRAGMA user_version').get().user_version;
-  if(old>=2)return;
+  if(old>=3)return;
+  const oldSales=Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sales'").get());
+  const legacySales=oldSales&&!db.prepare('PRAGMA table_info(sales)').all().some(x=>x.name==='idempotency_key');
+  const hasStockHistory=Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='stock_movements'").get());
   atomic(db,()=>{
+    if(legacySales) {
+      db.exec('ALTER TABLE sale_items RENAME TO legacy_sale_items');
+      db.exec('ALTER TABLE sales RENAME TO legacy_sales');
+    }
     db.exec([
       "CREATE TABLE IF NOT EXISTS cash_sessions(id TEXT PRIMARY KEY,opened_at TEXT NOT NULL,closed_at TEXT,opening_cash_cents INTEGER NOT NULL CHECK(opening_cash_cents>=0),counted_cash_cents INTEGER,expected_cash_cents INTEGER,difference_cents INTEGER,status TEXT NOT NULL CHECK(status IN ('open','closed')));",
       "CREATE UNIQUE INDEX IF NOT EXISTS only_one_open_cash_session ON cash_sessions(status) WHERE status='open';",
@@ -28,11 +35,59 @@ function createTables(db){
       "CREATE TABLE IF NOT EXISTS financial_entries(id TEXT PRIMARY KEY,type TEXT NOT NULL CHECK(type IN ('payable','receivable')),description TEXT NOT NULL,amount_cents INTEGER NOT NULL CHECK(amount_cents>0),due_on TEXT,customer_id TEXT REFERENCES customers(id),sale_id TEXT REFERENCES sales(id),status TEXT NOT NULL CHECK(status IN ('open','settled','cancelled')),method TEXT,created_at TEXT NOT NULL,settled_at TEXT);",
       "CREATE INDEX IF NOT EXISTS financial_entries_sale ON financial_entries(sale_id);"
     ].join('\n'));
-    // Backfill único: saldos existentes no Marco A ganham movimento de abertura auditável.
-    for(const p of db.prepare('SELECT id,stock_milli FROM products WHERE stock_milli>0').all())
-      db.prepare('INSERT INTO stock_movements(id,product_id,delta_milli,kind,reason,created_at) VALUES(?,?,?,?,?,?)')
-        .run(randomUUID(),p.id,p.stock_milli,'opening','Saldo migrado do Marco A',now());
-    db.exec('PRAGMA user_version = 2');
+    if(legacySales) {
+      // Venda Glass v2: conservar IDs/itens/troco, e nunca dar baixa de estoque duas vezes.
+      const history=db.prepare('SELECT * FROM legacy_sales ORDER BY created_at,id').all();
+      const lines=db.prepare('SELECT * FROM legacy_sale_items ORDER BY sale_id,product_id').all();
+      const openQuantity=new Map();
+      for(const item of lines) {
+        const sale=history.find(s=>s.id===item.sale_id);
+        if(sale?.status!=='cancelled')openQuantity.set(item.product_id,(openQuantity.get(item.product_id)||0)+item.quantity_milli);
+      }
+      const historicSession=randomUUID();
+      const cashTotal=history.filter(s=>s.status!=='cancelled'&&s.payment_method==='cash').reduce((sum,s)=>sum+s.total_cents,0);
+      db.prepare("INSERT INTO cash_sessions(id,opened_at,closed_at,opening_cash_cents,counted_cash_cents,expected_cash_cents,difference_cents,status) VALUES(?,?,?,?,?,?,?,'closed')")
+        .run(historicSession,history[0]?.created_at||now(),now(),0,cashTotal,cashTotal,0);
+      for(const sale of history){
+        const status=sale.status==='cancelled'?'cancelled':'completed';
+        const digest=createHash('sha256').update(JSON.stringify(sale)).digest('hex');
+        db.prepare('INSERT INTO sales(id,idempotency_key,request_hash,session_id,customer_id,subtotal_cents,discount_cents,total_cents,change_cents,status,created_at,cancelled_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+          .run(sale.id,'glass-v2:'+sale.id,digest,historicSession,null,sale.total_cents,0,sale.total_cents,sale.change_cents,status,sale.created_at,status==='cancelled'?sale.created_at:null);
+        if(sale.total_cents>0) {
+          const method=sale.payment_method==='cash'?'cash':'card';
+          db.prepare('INSERT INTO sale_payments(id,sale_id,method,amount_cents,tendered_cents) VALUES(?,?,?,?,?)')
+            .run(randomUUID(),sale.id,method,sale.total_cents,sale.tendered_cents);
+          if(method==='cash'&&status==='completed')
+            db.prepare('INSERT INTO cash_movements(id,session_id,kind,delta_cents,note,sale_id,created_at) VALUES(?,?,?,?,?,?,?)')
+              .run(randomUUID(),historicSession,'legacy_sale',sale.total_cents,'Venda Glass v2 migrada',sale.id,sale.created_at);
+        }
+      }
+      for(const item of lines){
+        const product=db.prepare('SELECT id,code,cost_price_cents FROM products WHERE id=?').get(item.product_id);
+        if(!product)throw new Error('Migração Glass v2 bloqueada: item histórico sem produto. Banco original preservado.');
+        db.prepare('INSERT INTO sale_items(id,sale_id,product_id,name,code,unit,quantity_milli,unit_price_cents,line_total_cents,unit_cost_cents) VALUES(?,?,?,?,?,?,?,?,?,?)')
+          .run(randomUUID(),item.sale_id,item.product_id,item.name,product.code||null,item.unit,item.quantity_milli,item.price_cents,item.line_total_cents,product.cost_price_cents||0);
+      }
+      for(const product of db.prepare('SELECT id,stock_milli FROM products').all()){
+        const original=product.stock_milli+(openQuantity.get(product.id)||0);
+        if(original>0)
+          db.prepare('INSERT INTO stock_movements(id,product_id,delta_milli,kind,reason,created_at) VALUES(?,?,?,?,?,?)')
+            .run(randomUUID(),product.id,original,'opening','Saldo reconciliado da versão Glass v2',now());
+      }
+      for(const item of lines){
+        if(history.find(s=>s.id===item.sale_id)?.status!=='cancelled')
+          db.prepare('INSERT INTO stock_movements(id,product_id,delta_milli,kind,reason,sale_id,created_at) VALUES(?,?,?,?,?,?,?)')
+            .run(randomUUID(),item.product_id,-item.quantity_milli,'sale','Venda Glass v2 migrada',item.sale_id,now());
+      }
+      db.exec('DROP TABLE legacy_sale_items');
+      db.exec('DROP TABLE legacy_sales');
+    }else if(!hasStockHistory){
+      // Banco v1: o saldo atual vira primeiro movimento auditável.
+      for(const product of db.prepare('SELECT id,stock_milli FROM products WHERE stock_milli>0').all())
+        db.prepare('INSERT INTO stock_movements(id,product_id,delta_milli,kind,reason,created_at) VALUES(?,?,?,?,?,?)')
+          .run(randomUUID(),product.id,product.stock_milli,'opening','Saldo inicial migrado',now());
+    }
+    db.exec('PRAGMA user_version = 3');
   });
 }
 export function createCommerce(db){
