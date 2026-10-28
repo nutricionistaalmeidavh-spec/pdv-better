@@ -98,6 +98,7 @@ export function App() {
     try {
       const saved = await bridge.save(view, form);
       await reload(view);
+      if (view === 'products') setCart(prev => prev.map(item => item.id === saved.id ? {...item, name:saved.name, code:saved.code || '', priceCents:saved.sale_price_cents, unit:saved.unit, quantityMilli:saved.unit === 'UN' && item.quantityMilli % 1000 !== 0 ? 1000 : item.quantityMilli} : item));
       setEditing(null); setNotice(definitions[view].singular + ' salvo: ' + saved.name);
     } catch (err) { setError('Não foi possível salvar. ' + friendlyError(err)); }
     finally { setSaving(false); }
@@ -105,7 +106,7 @@ export function App() {
   async function archiveRecord(row:Row) {
     if (!bridge || !window.confirm('Desativar ' + row.name + '? O cadastro ficará oculto, sem exclusão permanente.')) return;
     setError(''); setNotice('');
-    try { await bridge.archive(view,row.id); await reload(view); setNotice(row.name + ' foi desativado.'); }
+    try { await bridge.archive(view,row.id); await reload(view); if(view === 'products') setCart(prev => prev.filter(item => item.id !== row.id)); setNotice(row.name + ' foi desativado.'); }
     catch(err) { setError('Não foi possível desativar. ' + friendlyError(err)); }
   }
   function addProduct(row:Row) {
