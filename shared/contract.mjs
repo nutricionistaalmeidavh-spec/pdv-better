@@ -76,7 +76,7 @@ export const apiChannels = Object.freeze({
   list: 'pdv:catalog:list', save: 'pdv:catalog:save', archive: 'pdv:catalog:archive',
   overview: 'pdv:overview',
   sessionCurrent: 'pdv:session:current', sessionOpen: 'pdv:session:open', sessionClose: 'pdv:session:close', cashMove: 'pdv:cash:move',
-  checkout: 'pdv:checkout:commit', salesList: 'pdv:sales:list', salesCancel: 'pdv:sales:cancel',
+  checkout: 'pdv:checkout:commit', salesList: 'pdv:sales:list', saleGet: 'pdv:sales:get', salesCancel: 'pdv:sales:cancel',
   stockMove: 'pdv:stock:move', stockHistory: 'pdv:stock:history',
   financeCreate: 'pdv:finance:create', financeList: 'pdv:finance:list', financeSettle: 'pdv:finance:settle',
   report: 'pdv:report:summary', reportExport: 'pdv:report:export'
