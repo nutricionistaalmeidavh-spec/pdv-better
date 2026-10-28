@@ -7,6 +7,7 @@ import { openCatalog } from '../electron/db.mjs';
 import { makeReceipt,drawerPulse,parseScaleWeight,assertDeviceAddress } from '../shared/peripherals.mjs';
 import { sendTcp,readScale } from '../electron/peripherals.mjs';
 import { startLanServer, requestLan, ALLOWED_RPC } from '../electron/lan.mjs';
+import { createRuntime } from '../electron/runtime.mjs';
 import { verifyDatabase,stageRestore,scheduleRestore,applyPendingRestore } from '../electron/backup.mjs';
 import { createServer } from 'node:net';
 
@@ -113,4 +114,29 @@ test('restauração agendada troca banco íntegro e preserva cópia de seguranç
     retained.close();
     assert.equal(applyPendingRestore(active).restored,false);
   } finally {rmSync(dir,{recursive:true,force:true});}
+});
+
+test('terminal auxiliar autentica e grava somente no host; offline nunca muda para base própria',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'pdv-c-two-stations-'));
+  const hostStore=openCatalog(join(dir,'server.sqlite'));
+  const clientStore=openCatalog(join(dir,'client.sqlite'));
+  const key='d'.repeat(64);
+  const lan=await startLanServer({host:'127.0.0.1',port:0,token:key,store:hostStore});
+  const secure={isEncryptionAvailable:()=>true,encryptString:value=>Buffer.from(value,'utf8'),decryptString:buffer=>buffer.toString('utf8')};
+  const remote=await createRuntime({store:clientStore,folder:dir,safeStorage:secure});
+  try{
+    assert.equal((await remote.join({address:'http://127.0.0.1:'+lan.port+'/',secret:key})).mode,'client');
+    const result=await remote.call('save','products',{name:'Host stock',unit:'UN',sale_price_cents:'1,20',stock_milli:'3'});
+    assert.equal(hostStore.list('products')[0].id,result.id);
+    assert.equal(clientStore.list('products').length,0);
+    await lan.close();
+    await assert.rejects(remote.call('list','products'),/fetch|connect|refused|failed/i);
+    assert.equal(clientStore.list('products').length,0);
+    await remote.local();
+    assert.deepEqual(await remote.call('list','products'),[]);
+  } finally{
+    await remote.stop();
+    hostStore.close();clientStore.close();
+    rmSync(dir,{recursive:true,force:true});
+  }
 });
