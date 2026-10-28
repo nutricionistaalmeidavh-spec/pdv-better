@@ -55,7 +55,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [saving,setSaving] = useState(false);
   const [cart,setCart] = useState<CartItem[]>(() => {
     try {
-      const saved=JSON.parse(localStorage.getItem('pdv-better:draft-v1')||'[]');
+      const saved=JSON.parse(localStorage.getItem('pdv-better:draft-v1:'+user.id)||'[]');
       return Array.isArray(saved)?saved.filter(x=>typeof x.id==='string'&&Number.isSafeInteger(x.quantityMilli)&&x.quantityMilli>0&&Number.isSafeInteger(x.priceCents)&&x.priceCents>=0):[];
     } catch{return [];}
   });
@@ -89,7 +89,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   }
   useEffect(() => { void reloadAll(); }, []);
   useEffect(()=>{
-    try{if(cart.length)localStorage.setItem('pdv-better:draft-v1',JSON.stringify(cart));else localStorage.removeItem('pdv-better:draft-v1');}
+    try{if(cart.length)localStorage.setItem('pdv-better:draft-v1:'+user.id,JSON.stringify(cart));else localStorage.removeItem('pdv-better:draft-v1:'+user.id);}
     catch{/* A ausência de armazenamento temporário não impede uma venda */ }
   },[cart]);
   useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
