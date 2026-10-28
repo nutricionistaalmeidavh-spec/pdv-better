@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   qa-f01-f06:
-    name: QA F01–F30 — jornadas de acesso, cadastros e vendas
+    name: QA F01–F40 — acesso, cadastros, vendas, caixa e estoque
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
@@ -26,6 +26,8 @@ jobs:
         run: npm run test:flows:f07-f14
       - name: Testar F15–F30 com frente de caixa, pagamentos e TCP de teste
         run: npm run test:flows:f15-f30
+      - name: Testar F31–F40 com caixa multterminal, vendas e estoque real
+        run: npm run test:flows:f31-f40
   windows-tests:
     strategy:
       fail-fast: false
