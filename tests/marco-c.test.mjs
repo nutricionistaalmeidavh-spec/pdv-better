@@ -19,7 +19,7 @@ test('cupom ESC/POS contém dados e corte; pulso de gaveta não dispara com impr
  assert.match(data.toString('latin1'),/Pao de queijo/);
  assert.equal(data.at(-3),0x1d);assert.equal(data.at(-2),0x56);
  assert.deepEqual([...drawerPulse().subarray(0,3)],[0x1b,0x70,0x00]);
- assert.equal(data.includes(0x70),true);
+ assert.equal(data.indexOf(drawerPulse()),-1,'a impressão não deve abrir a gaveta automaticamente');
 });
 test('balança aceita apenas leituras estáveis e válidas',()=>{
  assert.equal(parseScaleWeight('ST,GS,   0.750kg\\r\\n'),750);
