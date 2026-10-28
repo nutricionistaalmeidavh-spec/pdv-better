@@ -18,5 +18,6 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   financeCreate: (input) => ipcRenderer.invoke(apiChannels.financeCreate, input),
   financeList: () => ipcRenderer.invoke(apiChannels.financeList),
   financeSettle: (input) => ipcRenderer.invoke(apiChannels.financeSettle, input),
-  report: () => ipcRenderer.invoke(apiChannels.report)
+  report: () => ipcRenderer.invoke(apiChannels.report),
+  reportExport: format => ipcRenderer.invoke(apiChannels.reportExport,format)
 }));
