@@ -30,7 +30,7 @@ export async function createRuntime({store,folder,safeStorage}){
     mode='host';server=next;token=nextToken;url='';startError='';
     return status();
   }
-  async function join({address,secret}={}){
+  async function connectClient({address,secret}={}){
     if(typeof address!=='string'||typeof secret!=='string')throw new Error('Endereço e chave do servidor são obrigatórios.');
     const key=validateToken(secret);
     await requestLan(address,key,'overview',[]);
@@ -68,5 +68,5 @@ export async function createRuntime({store,folder,safeStorage}){
       }
     }catch(error){mode='local';startError='Configuração LAN não iniciada: '+String(error.message||error);}
   }
-  return {host,join,local,status,call,isRemote:()=>mode==='client',stop:closeServer};
+  return {host,join:connectClient,local,status,call,isRemote:()=>mode==='client',stop:closeServer};
 }
