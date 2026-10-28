@@ -22,7 +22,8 @@
     "test:flows:f31-f40": "node scripts/qa-f31-f40.mjs",
     "test:flows:f41-f50": "node scripts/qa-f41-f50.mjs",
     "test:flows:f51-f54": "node scripts/qa-f51-f54.mjs",
-    "test:journeys": "node scripts/qa-jornadas-individuais.mjs"
+    "test:journeys": "node scripts/qa-jornadas-individuais.mjs",
+    "test:journeys:infra": "node scripts/qa-jornadas-infra.mjs"
   },
   "dependencies": {
     "react": "^19.1.1",
