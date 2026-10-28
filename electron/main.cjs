@@ -41,7 +41,8 @@ async function start() {
     }
   });
   window.once('ready-to-show', () => window.show());
-  const devUrl = process.env.PDV_DEV_URL || (app.isPackaged ? null : 'http://127.0.0.1:5173');
+  const builtPage=path.join(__dirname,'../dist/index.html');
+  const devUrl = process.env.PDV_DEV_URL || (app.isPackaged || fs.existsSync(builtPage) ? null : 'http://127.0.0.1:5173');
   if (devUrl) window.loadURL(devUrl);
   else window.loadFile(path.join(__dirname, '../dist/index.html'));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
