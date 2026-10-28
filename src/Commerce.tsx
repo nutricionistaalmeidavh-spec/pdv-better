@@ -2,6 +2,7 @@ import React,{useEffect,useState} from 'react';
 import { Plus,Check,AlertTriangle,ShoppingCart,Package,Wallet,ClipboardList,RotateCcw,Receipt,ArrowDownToLine,ArrowUpFromLine } from 'lucide-react';
 import { money,parseFixed } from '../shared/domain.mjs';
 import { reportRows } from '../shared/report.mjs';
+import { paymentPreview } from '../shared/payment-preview.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
 import { SaleReceipt } from './Receipt';
 type R=Record<string,any>;
@@ -22,11 +23,17 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
   const [pending,setPending]=useState(false);
   const [error,setError]=useState('');
   const [operationKey]=useState(()=>crypto.randomUUID());
-  let discountCents=0,total=subtotal;
-  try{discountCents=parseFixed(discount,2,'Desconto');total=subtotal-discountCents;}catch{}
+  let discountCents=0,total=subtotal,discountError='';
+  try{
+    discountCents=parseFixed(discount,2,'Desconto');
+    if(discountCents>=subtotal)throw new Error('Desconto deve ser menor que o subtotal.');
+    total=subtotal-discountCents;
+  }catch(err){discountError=errorMessage(err);}
+  const payment=paymentPreview(total,payments);
   const updatePayment=(i:number,key:string,value:string)=>setPayments(rows=>rows.map((r,index)=>i===index?{...r,[key]:value}:r));
   const send=async(ev:React.FormEvent)=>{
     ev.preventDefault();if(pending || !window.pdv)return;
+    if(discountError || !payment.canSubmit){setError(discountError || payment.error || 'Confira os pagamentos.');return;}
     setPending(true);setError('');
     try{
       const result=await window.pdv.checkout({
@@ -49,6 +56,7 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
           <label className="form-field"><span>Total com desconto</span><input value={money(total)} readOnly/></label>
           <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{customers.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
         </div>
+        {discountError&&<div className="form-error" role="alert">{discountError}</div>}
         <div className="payment-inputs"><h3>Formas de pagamento</h3><p>Informe o valor de cada forma. No dinheiro, informe quanto recebeu para calcular o troco.</p>
           {payments.map((p,i)=><div className="payment-row" key={i}>
             <select aria-label={'Forma de pagamento '+(i+1)} value={p.method} onChange={e=>updatePayment(i,'method',e.target.value)}>
@@ -61,10 +69,19 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
             const next=paymentMethods.find(p=>!payments.some(r=>r.method===p.id));
             if(next)setPayments(rows=>[...rows,{method:next.id,amount:'0,00'}]);
           }}><Plus size={16}/> Dividir pagamento</button>}
+          <div className="payment-summary" aria-invalid={!payment.canSubmit && !!payment.error}>
+            <div><small>Valor informado</small><strong>{money(payment.paidCents)}</strong></div>
+            <div><small>Saldo restante</small><strong className={payment.remainingCents>0?'payment-balance':'payment-ready'}>{money(payment.remainingCents)}</strong></div>
+            <div><small>Troco previsto</small><strong>{money(payment.changeCents)}</strong></div>
+          </div>
+          <p className={'payment-status'+(payment.error?' is-error':'')} role="status" aria-live="polite">
+            {payment.canSubmit?'Valores conferidos. Confirme o recebimento externo antes de concluir.':
+              payment.remainingCents>0?'Faltam '+money(payment.remainingCents)+' para concluir. '+payment.error:payment.error}
+          </p>
           <p className="commerce-warning">Pix e cartão são registrados manualmente. Confirme o recebimento no aplicativo do banco ou na maquininha antes de concluir. Este comprovante não é fiscal.</p>
         </div>
         {error && <div className="form-error" role="alert">{error}</div>}
-        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||!cart.length||total<=0} type="submit">{pending?'Registrando…':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
+        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||!cart.length||total<=0||!!discountError||!payment.canSubmit} type="submit">{pending?'Registrando…':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
       </form>
     </section>
   </div>;
@@ -129,7 +146,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     {view==='cash' && <div className="commerce-columns">
       {role!=='Caixa'&&<div className="panel commerce-section commerce-wide"><h2>Caixas abertos por terminal</h2><p>Cada caixa tem abertura, movimentações, saldo e fechamento independentes. O gerente visualiza os terminais, mas não fecha outro caixa remotamente.</p>
         <div className="commerce-table"><table><thead><tr><th>Terminal</th><th>Operador de abertura</th><th>Aberto em</th><th>Troco inicial</th><th>Saldo previsto</th></tr></thead><tbody>
-          {otherSessions.map(x=><tr key={x.id}><td>{x.terminal_id}</td><td>{(x.operator_id||'Legado')}</td><td>{pretty(x.opened_at)}</td><td>{money(x.opening_cash_cents)}</td><td>{money(x.expected_cash_cents)}</td></tr>)}
+          {otherSessions.map(x=><tr key={x.id}><td>{x.terminal_id}</td><td>{x.operator_name|| (x.operator_id?'Operador não encontrado':'Turno legado')}</td><td>{pretty(x.opened_at)}</td><td>{money(x.opening_cash_cents)}</td><td>{money(x.expected_cash_cents)}</td></tr>)}
         </tbody></table>{otherSessions.length===0&&<p className="commerce-empty">Nenhum caixa aberto.</p>}</div>
       </div>}
       <div className="panel commerce-section"><h2>{session?'Turno aberto':'Abrir novo caixa'}</h2>
@@ -151,7 +168,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       </div>
       {session&&<div className="panel commerce-section commerce-wide"><h2>Histórico do turno</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Operação</th><th>Valor</th><th>Motivo</th></tr></thead><tbody>{session.movements?.map((m:R)=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{m.kind}</td><td>{money(m.delta_cents)}</td><td>{m.note}</td></tr>)}</tbody></table>{!session.movements?.length&&<p className="commerce-empty">Nenhuma movimentação neste turno.</p>}</div></div>}
     </div>}
-    {view==='sales'&&<div className="panel commerce-section"><h2>Histórico de vendas</h2><p>O cancelamento só é permitido no mesmo turno aberto e atualiza os movimentos locais. Estornos de Pix/cartão devem ser realizados externamente.</p><div className="commerce-table"><table><thead><tr><th>Data</th><th>Venda</th><th>Cliente</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{sales.map(s=><tr key={s.id}><td>{pretty(s.created_at)}</td><td title={s.id}>{s.id.slice(0,8)}</td><td>{s.customer_id?.slice(0,8)||'Consumidor final'}</td><td>{money(s.total_cents)}</td><td>{statusText[s.status]}</td><td><button className="secondary" type="button" disabled={busy} onClick={async()=>{try{setReceipt(await api!.saleGet(s.id));setError('');}catch(err){setError(errorMessage(err));}}}>Comprovante</button> {s.status==='completed'&&<button disabled={busy||session?.id!==s.session_id} className="secondary" onClick={()=>{
+    {view==='sales'&&<div className="panel commerce-section"><h2>Histórico de vendas</h2><p>O cancelamento só é permitido no mesmo turno aberto e atualiza os movimentos locais. Estornos de Pix/cartão devem ser realizados externamente.</p><div className="commerce-table"><table><thead><tr><th>Data</th><th>Venda</th><th>Cliente</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{sales.map(s=><tr key={s.id}><td>{pretty(s.created_at)}</td><td title={s.id}>{s.id.slice(0,8)}</td><td>{s.customer_id?.slice(0,8)||'Consumidor final'}</td><td>{money(s.total_cents)}</td><td>{statusText[s.status]}</td><td><button className="secondary" type="button" disabled={busy} onClick={async()=>{try{setReceipt(await api!.saleGet(s.id));setError('');}catch(err){setError(errorMessage(err));}}}>Comprovante</button> {s.status==='completed'&&<button disabled={busy||session?.id!==s.session_id} className="secondary button-danger" onClick={()=>{
             if(window.confirm('Cancelar venda? Estoque e registros locais serão revertidos. Pix e cartão exigem reembolso externo manual.')) void action(()=>api!.salesCancel(s.id),'Venda cancelada e estoque restaurado.',true);
           }}>Cancelar venda</button>}</td></tr>)}</tbody></table>{sales.length===0&&<p className="commerce-empty">Nenhuma venda foi realizada ainda.</p>}</div></div>}
     {view==='inventory'&&<><div className="panel commerce-section"><h2>Movimentar estoque</h2><p>Entradas e ajustes registrados no histórico. O saldo do cadastro não pode ser alterado diretamente.</p>
