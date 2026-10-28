@@ -9,6 +9,7 @@ interface PdvBridge {
   cashMove(input: any): Promise<any>;
   checkout(input: any): Promise<any>;
   salesList(): Promise<any[]>;
+  saleGet(id: string): Promise<any>;
   salesCancel(id: string): Promise<any>;
   stockMove(input: any): Promise<any>;
   stockHistory(id?: string): Promise<any[]>;
