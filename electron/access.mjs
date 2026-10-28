@@ -1,5 +1,5 @@
 import {scryptSync,randomBytes,randomUUID,timingSafeEqual} from 'node:crypto';
-import {allowed,roleNames} from '../shared/access.mjs';
+import {allowed} from '../shared/access.mjs';
 const now=()=>new Date().toISOString();
 const sessionTime=12*60*60*1000;
 const safeName=x=>{const s=String(x??'').trim();if(!s||s.length>100)throw new Error('Nome do operador inválido.');return s;};
