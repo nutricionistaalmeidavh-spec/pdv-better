@@ -15,7 +15,8 @@
     "build:preload": "node scripts/build-preload.mjs",
     "predev": "npm run build:preload",
     "predesktop": "npm run build:preload",
-    "test:desktop": "node scripts/desktop-smoke.mjs"
+    "test:desktop": "node scripts/desktop-smoke.mjs",
+    "test:flows:f01-f06": "node scripts/qa-f01-f06.mjs"
   },
   "dependencies": {
     "react": "^19.1.1",
