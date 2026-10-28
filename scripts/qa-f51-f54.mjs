@@ -78,7 +78,7 @@ try{
   assert.equal(lan.mode,'host');
   assert.equal(lan.port,port);
   assert.match(lan.pairingKey,/^[a-f0-9]{64}$/i);
-  assert.equal(await host.getByText('Servidor LAN', {exact:true}).count(),1);
+  assert.match(await host.locator('.settings-info').first().innerText(),/Modo atual:\s*Servidor LAN/);
   const address='http://127.0.0.1:'+port+'/';
   const health=await fetch('http://127.0.0.1:'+port+'/health');
   assert.equal(health.status,200);
