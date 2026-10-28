@@ -69,6 +69,9 @@ try{
   await page.getByRole('cell',{name:'Café Smoke'}).waitFor();
   await page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:'Vendas',exact:true}).click();
   await page.getByText('Concluída').first().waitFor();
+  await page.getByRole('button',{name:'Comprovante'}).first().click();
+  await page.getByRole('dialog',{name:'Comprovante não fiscal da venda'}).waitFor();
+  await page.getByRole('dialog',{name:'Comprovante não fiscal da venda'}).getByRole('button',{name:'Concluir'}).click();
   console.log('SMOKE OK: Electron, IPC, cadastros, caixa, venda e dados persistidos após reinício');
 }finally{
   if(app)await app.close();
