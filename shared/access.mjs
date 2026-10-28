@@ -10,6 +10,7 @@ export const permissions=Object.freeze({
 });
 export function allowed(role,method,args=[]){
  if(!roleNames.includes(role))return false;
+ if(method==='list' && role==='Caixa')return ['products','categories','customers'].includes(args[0]);
  if(method==='list' && args[0]==='operators')return role==='Administrador';
  if(method==='save' && args[0]==='operators')return role==='Administrador';
  if(method==='archive' && args[0]==='operators')return role==='Administrador';
