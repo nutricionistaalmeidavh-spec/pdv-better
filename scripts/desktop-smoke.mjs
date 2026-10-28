@@ -20,6 +20,20 @@ async function launch(){
 }
 const navigation=(page,label)=>page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:label,exact:true});
 const wait=async(page)=>{
+  // Login real pela ponte IPC em vez de contornar perfis no teste.
+  await page.getByRole('heading',{name:'PDV Better'}).waitFor({timeout:30000});
+  const create=page.getByRole('button',{name:'Criar administrador'});
+  const login=page.getByRole('button',{name:'Entrar no PDV'});
+  if(await create.isVisible().catch(()=>false)){
+    await page.getByRole('textbox',{name:'Nome do administrador'}).fill('Administrador QA');
+    const passwords=page.locator('.auth-form input[type="password"]');
+    await passwords.nth(0).fill('SenhaQA2026!');
+    await passwords.nth(1).fill('SenhaQA2026!');
+    await create.click();
+  }else{
+    await page.locator('.auth-form input[type="password"]').first().fill('SenhaQA2026!');
+    await login.click();
+  }
   page.on('console', msg=>console.log('Renderer console:',msg.type(),msg.text()));
   page.on('pageerror', error=>console.error('Renderer exception:',error.message));
   try{await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});}
