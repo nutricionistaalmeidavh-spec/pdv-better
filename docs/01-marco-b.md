@@ -39,7 +39,7 @@
 - Operadores sem autenticação efetiva (requer autorização local na próxima etapa).
 - Uma única instalação/banco por loja; não sincronizar bancos em rede ainda.
 - Financeiro simples de contas, sem DRE tributária certificada.
-- Relatório agregado acumulado, sem filtros de competência nesta etapa.
+- Relatório agregado acumulado com exportação local em PDF, CSV e XLSX (ExcelJS open source), sem filtros de competência nesta etapa.
 - Recibo do PDV é não fiscal; nenhuma emissão tributária.
 - Permitir saldo inicial de estoque positivo durante cadastro; edições posteriores de saldo exigem movimento auditável.
 
