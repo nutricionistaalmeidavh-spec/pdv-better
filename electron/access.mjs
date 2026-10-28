@@ -17,6 +17,8 @@ export function migrateAccess(db,terminalId='legacy'){
    db.exec("DROP INDEX IF EXISTS only_one_open_cash_session");
    db.exec("ALTER TABLE cash_sessions ADD COLUMN terminal_id TEXT NOT NULL DEFAULT 'legacy'");
    db.exec('ALTER TABLE cash_sessions ADD COLUMN operator_id TEXT');
+   db.exec('ALTER TABLE sales ADD COLUMN operator_id TEXT');
+   db.exec('ALTER TABLE cash_movements ADD COLUMN operator_id TEXT');
    db.prepare("UPDATE cash_sessions SET terminal_id=? WHERE status='open' AND terminal_id='legacy'").run(tokenId(terminalId));
    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS one_open_session_per_terminal ON cash_sessions(terminal_id) WHERE status='open'");
    db.exec("CREATE TABLE operator_credentials(operator_id TEXT PRIMARY KEY REFERENCES operators(id),salt TEXT NOT NULL,hash TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)");
