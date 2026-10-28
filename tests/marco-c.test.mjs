@@ -82,7 +82,7 @@ test('backup usa snapshot SQLite consistente e restauração rejeita arquivo cor
    store.save('products',{name:'Produto Backup',sale_price_cents:'1,00',stock_milli:'5',unit:'UN'});
    await store.backupTo(backup);
    assert.ok(existsSync(backup));
-   assert.equal(verifyDatabase(backup).version,4);
+   assert.equal(verifyDatabase(backup).version,5);
    const snapshot=openCatalog(backup);
    try{assert.equal(snapshot.list('products')[0].name,'Produto Backup');}
    finally{snapshot.close();}
@@ -107,7 +107,7 @@ test('restauração agendada troca banco íntegro e preserva cópia de seguranç
     assert.equal(scheduleRestore(source,active).pending,true);
     const result=applyPendingRestore(active);
     assert.equal(result.restored,true);
-    assert.equal(verifyDatabase(result.previous).version,4);
+    assert.equal(verifyDatabase(result.previous).version,5);
     store=openCatalog(active);
     assert.equal(store.list('products')[0].name,'Restaurado');
     store.close();
