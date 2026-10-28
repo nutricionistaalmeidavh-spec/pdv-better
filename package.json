@@ -1,0 +1,61 @@
+{
+  "name": "pdv-better",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PDV Better Marco A Windows 10/11",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "build": "npm run build:preload && tsc -p tsconfig.json && vite build",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run test && npm run build",
+    "desktop": "electron .",
+    "dist:win": "npm run build && electron-builder --win nsis --x64",
+    "build:preload": "node scripts/build-preload.mjs",
+    "predev": "npm run build:preload",
+    "predesktop": "npm run build:preload"
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "lucide-react": "^0.468.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.1.2",
+    "electron": "39.8.10",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.9.3",
+    "vite": "^6.3.5",
+    "wait-on": "^8.0.3",
+    "esbuild": "^0.25.0"
+  },
+  "build": {
+    "appId": "dev.artisys.pdvbetter",
+    "productName": "PDV Better",
+    "asar": true,
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "shared/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

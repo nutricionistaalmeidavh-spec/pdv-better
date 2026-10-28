@@ -1,0 +1,9 @@
+node_modules/
+dist/
+release/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.log
+.env
+electron/preload.cjs
