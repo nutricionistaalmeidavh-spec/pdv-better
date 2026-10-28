@@ -22,7 +22,7 @@ export function renderJourneys(data) {
     '',
   ];
   for (const module of data.modules) {
-    result.push('## ' + module.id + ' — ' + module.name, '', '**Tela do módulo:** ' + module.screen, '');
+    result.push('<a id="' + module.id.toLowerCase() + '"></a>', '', '## ' + module.id + ' — ' + module.name, '', '**Tela do módulo:** ' + module.screen, '');
     for (const f of module.flows) {
       result.push('### ' + f.id + ' — ' + f.title, '',
         '- **Tela inicial:** ' + f.screen,
