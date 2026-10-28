@@ -4,7 +4,7 @@
 - Entidades, campos, tipos, rótulos e canais IPC: shared/contract.mjs.
 - Validação, arredondamento e cálculos do carrinho: shared/domain.mjs.
 - Persistência permanente: SQLite local, gerenciado apenas pelo processo principal Electron em electron/db.mjs. Sem segunda tabela espelhada no frontend.
-- Operações de catálogo: bridge IPC explícita. Sem acesso genérico a Node.js, disco, SQL ou shell a partir da interface.
+- Operações de catálogo: bridge IPC explícita, compilada a partir do contrato para manter o renderer em sandbox. Sem acesso genérico a Node.js, disco, SQL ou shell a partir da interface.
 - Valores monetários persistidos em centavos inteiros; quantidades em milésimos inteiros.
 - Cadastros possuem UUID estável e desativação lógica, sem exclusão física.
 - O carrinho é um rascunho em memória no Marco A; não há venda salva, pagamento ou baixa de estoque.
