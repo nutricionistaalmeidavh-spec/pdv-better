@@ -67,7 +67,7 @@ try {
   await page.getByRole('button', {name: 'Salvar cadastro'}).click();
   const cashierRow = page.getByRole('row').filter({hasText: 'Caixa QA'});
   await cashierRow.getByRole('button', {name: 'Definir senha'}).click();
-  const setPassword = page.getByRole('dialog', {name: /Definir senha: Caixa QA/});
+  const setPassword = page.getByRole('dialog', {name: 'Definir senha do operador'});
   await setPassword.locator('input[type="password"]').nth(0).fill(cashierPassword);
   await setPassword.locator('input[type="password"]').nth(1).fill(cashierPassword);
   await setPassword.getByRole('button', {name: 'Salvar acesso'}).click();
