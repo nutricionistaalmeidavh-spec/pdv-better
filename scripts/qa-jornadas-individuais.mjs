@@ -179,7 +179,10 @@ await journey('J02','Caixa: login, turno, venda dinheiro, troco, comprovante e f
  assert.equal(db.prepare('SELECT total_cents FROM sales WHERE id=?').get(saleId).total_cents,700);
  assert.equal(db.prepare("SELECT stock_milli FROM products WHERE code='JORN-BISC-02'").get().stock_milli,14000);
  const shift=db.prepare('SELECT status,expected_cash_cents,counted_cash_cents,difference_cents FROM cash_sessions').get();
- assert.deepEqual(shift,{status:'closed',expected_cash_cents:10700,counted_cash_cents:10700,difference_cents:0});
+ assert.equal(shift.status,'closed');
+ assert.equal(shift.expected_cash_cents,10700);
+ assert.equal(shift.counted_cash_cents,10700);
+ assert.equal(shift.difference_cents,0);
 });
 await journey('J03','Gerente: estoque, financeiro, liquidação e relatório',async p=>{
  await bootstrap(p);
@@ -189,7 +192,7 @@ await journey('J03','Gerente: estoque, financeiro, liquidação e relatório',as
  assert.equal(await nav(p,'Operadores').count(),0);
  await visit(p,'Estoque','Movimentações de estoque');
  const f=p.locator('.commerce-section').filter({has:p.getByRole('heading',{name:'Movimentar estoque'})}).locator('form');
- await field(f,'Produto').selectOption({label:/Arroz Jornada/});
+ await field(f,'Produto').selectOption({index:1});
  await field(f,'Tipo').selectOption('receipt');
  await field(f,'Quantidade').fill('5,000');
  await field(f,'Motivo').fill('Entrega fornecedor Jornada');
@@ -250,7 +253,9 @@ await journey('J04','Fiado: caixa, cliente, liquidação pelo gestor e saldo',as
 },(db,{saleId})=>{
  assert.equal(db.prepare('SELECT status FROM sales WHERE id=?').get(saleId).status,'completed');
  const row=db.prepare('SELECT type,status,amount_cents FROM financial_entries WHERE sale_id=?').get(saleId);
- assert.deepEqual(row,{type:'receivable',status:'settled',amount_cents:1600});
+ assert.equal(row.type,'receivable');
+ assert.equal(row.status,'settled');
+ assert.equal(row.amount_cents,1600);
  assert.equal(db.prepare("SELECT stock_milli FROM products WHERE code='JORN-LEITE-04'").get().stock_milli,4000);
 });
 await journey('J05','Cancelamento de venda mista reconcilia caixa, estoque e relatório',async p=>{
