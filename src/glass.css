@@ -60,3 +60,23 @@ button:focus-visible,input:focus-visible { outline:3px solid #b8b3ff;outline-off
 .payment-body .payment-note { line-height:1.5;font-size:12px;color:#ffe5a8; }
 .sale-success { position:fixed;right:22px;bottom:20px;z-index:12;background:#273c48;color:white;border:1px solid #9acbbd;border-radius:12px;display:flex;align-items:center;gap:12px;padding:15px 18px;box-shadow:0 12px 30px #0005; }
 .sale-success button { background:none;border:0;color:white; }
+
+/* Phase 5: desktop sizes, contrast, printing and reduced effects */
+.receipt-dialog { max-width:520px;max-height:calc(100vh - 36px);overflow:auto; }
+.receipt-paper { margin:16px 24px;background:#fff;color:#111;padding:22px;font-family:system-ui,sans-serif;font-size:13px;overflow-wrap:anywhere; }
+.receipt-paper h2,.receipt-paper p { text-align:center;color:#111; }
+.receipt-paper hr { border:0;border-top:1px dashed #555;margin:15px 0; }
+.receipt-line { display:flex;justify-content:space-between;gap:12px;margin:8px 0; }
+.receipt-actions { display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:16px; }
+@media(max-width:1366px) { .glass-product-grid {grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;} .glass-product-grid .product-option {min-height:145px;padding:10px;} }
+@media(max-height:768px) { .receipt-dialog {max-height:calc(100vh - 20px);} .payment-body {padding:16px;gap:12px;} }
+@media(prefers-reduced-transparency:reduce) { .glass-payment {background:#202940;backdrop-filter:none;} }
+@media print {
+  @page { size:80mm auto;margin:4mm; }
+  body,html,#root {background:#fff!important;color:#000!important;min-width:0!important;margin:0!important;}
+  body * {visibility:hidden!important;}
+  .receipt-paper,.receipt-paper * {visibility:visible!important;}
+  .receipt-paper {position:absolute;top:0;left:0;width:72mm!important;margin:0!important;padding:0!important;box-shadow:none!important;background:#fff!important;color:#000!important;font-size:11px!important;}
+  .receipt-overlay,.receipt-dialog {position:static!important;overflow:visible!important;background:none!important;box-shadow:none!important;border:0!important;backdrop-filter:none!important;}
+  .no-print {display:none!important;}
+}
