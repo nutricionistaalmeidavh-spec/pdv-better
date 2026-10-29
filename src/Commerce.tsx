@@ -23,17 +23,34 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
   const [pending,setPending]=useState(false);
   const [error,setError]=useState('');
   const [operationKey]=useState(()=>crypto.randomUUID());
+  const [quote,setQuote]=useState<R|null>(null);
+  const [quoteError,setQuoteError]=useState('');
+  const [batches,setBatches]=useState<R[]>([]);
+  const [selectedBatches,setSelectedBatches]=useState<Record<string,string>>({});
+  useEffect(()=>{let mounted=true;
+    window.pdv?.batchesList().then(rows=>{if(mounted)setBatches(rows);}).catch(()=>{});
+    return ()=>{mounted=false;};
+  },[]);
   let discountCents=0,total=subtotal,discountError='';
   try{
     discountCents=parseFixed(discount,2,'Desconto');
     if(discountCents>=subtotal)throw new Error('Desconto deve ser menor que o subtotal.');
     total=subtotal-discountCents;
   }catch(err){discountError=errorMessage(err);}
+  useEffect(()=>{let mounted=true;
+    if(discountError){setQuote(null);setQuoteError(discountError);return ()=>{mounted=false;};}
+    setQuote(null);setQuoteError('');
+    window.pdv?.quoteSale({items:cart.map(row=>({id:row.id,quantityMilli:row.quantityMilli,batchId:selectedBatches[row.id]||undefined})),discountCents})
+      .then(result=>{if(mounted){setQuote(result);setQuoteError('');}})
+      .catch(err=>{if(mounted){setQuoteError(errorMessage(err));setQuote(null);}});
+    return ()=>{mounted=false;};
+  },[cart,discountCents,discountError]);
+  total=quote?.total_cents??total;
   const payment=paymentPreview(total,payments);
   const updatePayment=(i:number,key:string,value:string)=>setPayments(rows=>rows.map((r,index)=>i===index?{...r,[key]:value}:r));
   const send=async(ev:React.FormEvent)=>{
     ev.preventDefault();if(pending || !window.pdv)return;
-    if(discountError || !payment.canSubmit){setError(discountError || payment.error || 'Confira os pagamentos.');return;}
+    if(discountError || quoteError || !quote || !payment.canSubmit){setError(discountError || quoteError || payment.error || 'Aguarde a cotação e confira os pagamentos.');return;}
     setPending(true);setError('');
     try{
       const result=await window.pdv.checkout({
@@ -53,10 +70,19 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
         <div className="form-grid">
           <label className="form-field"><span>Subtotal</span><input value={money(subtotal)} readOnly/></label>
           <label className="form-field"><span>Desconto em reais</span><input value={discount} inputMode="decimal" onChange={e=>setDiscount(e.target.value)}/></label>
+          <label className="form-field"><span>Promoções automáticas</span><input value={money(quote?.promotion_discount_cents??0)} readOnly/></label>
           <label className="form-field"><span>Total com desconto</span><input value={money(total)} readOnly/></label>
           <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{customers.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
         </div>
-        {discountError&&<div className="form-error" role="alert">{discountError}</div>}
+        {(discountError||quoteError)&&<div className="form-error" role="alert">{discountError||quoteError}</div>}
+        {cart.filter(item=>batches.some(b=>b.product_id===item.id&&b.remaining_milli>0)).map(item=>
+          <label key={item.id} className="form-field">Lote físico — {item.name}
+            <select aria-label={'Lote físico de '+item.name} value={selectedBatches[item.id]||''} onChange={e=>setSelectedBatches(current=>({...current,[item.id]:e.target.value}))}>
+              <option value="">Seleção automática FEFO</option>
+              {batches.filter(b=>b.product_id===item.id&&b.remaining_milli>0).map(b=>
+                <option key={b.id} value={b.id}>{b.code} — validade {b.expires_on} — saldo {b.remaining_milli/1000}</option>)}
+            </select>
+          </label>)}
         <div className="payment-inputs"><h3>Formas de pagamento</h3><p>Informe o valor de cada forma. No dinheiro, informe quanto recebeu para calcular o troco.</p>
           {payments.map((p,i)=><div className="payment-row" key={i}>
             <select aria-label={'Forma de pagamento '+(i+1)} value={p.method} onChange={e=>updatePayment(i,'method',e.target.value)}>
@@ -81,7 +107,7 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
           <p className="commerce-warning">Pix e cartão são registrados manualmente. Confirme o recebimento no aplicativo do banco ou na maquininha antes de concluir. Este comprovante não é fiscal.</p>
         </div>
         {error && <div className="form-error" role="alert">{error}</div>}
-        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||!cart.length||total<=0||!!discountError||!payment.canSubmit} type="submit">{pending?'Registrando…':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
+        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||!cart.length||total<=0||!!discountError||!!quoteError||!quote||!payment.canSubmit} type="submit">{pending?'Registrando…':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
       </form>
     </section>
   </div>;
