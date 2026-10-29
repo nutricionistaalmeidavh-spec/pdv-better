@@ -45,3 +45,24 @@ test('CROSS-03: rejeita itens duplicados, inexistentes, desconto acima do valor 
   assert.throws(()=>f.store.setBundlePromotion({...base,items:[base.items[0],{productId:'nao-existe',quantityMilli:1000}],bundlePriceCents:1000}),/produto|inexistente/i);
  }finally{f.cleanup();}
 });
+
+test('CROSS-04: upgrade v5-v6 preserva produtos e movimentos e nao replica tabelas',async()=>{
+ const {DatabaseSync}=await import('node:sqlite');
+ const {createCommerce}=await import('../electron/commerce.mjs');
+ const {migrateAccess}=await import('../electron/access.mjs');
+ const {migrateNexusFeatures}=await import('../electron/nexus-features.mjs');
+ const {migrateCrossSku}=await import('../electron/cross-sku.mjs');
+ const db=new DatabaseSync(':memory:');
+ try{
+  db.exec("PRAGMA foreign_keys=ON; CREATE TABLE products(id TEXT PRIMARY KEY,stock_milli INTEGER NOT NULL); CREATE TABLE operators(id TEXT PRIMARY KEY,name TEXT,role TEXT,active INTEGER NOT NULL); PRAGMA user_version=1;");
+  db.prepare('INSERT INTO products(id,stock_milli) VALUES(?,?)').run('sku-legado',4000);
+  createCommerce(db);migrateAccess(db,'terminal-legado');migrateNexusFeatures(db);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version,5);
+  migrateCrossSku(db);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version,6);
+  migrateCrossSku(db);
+  assert.equal(db.prepare('SELECT stock_milli FROM products WHERE id=?').get('sku-legado').stock_milli,4000);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM stock_movements').get().n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name='bundle_promotions'").get().n,1);
+ }finally{db.close();}
+});
