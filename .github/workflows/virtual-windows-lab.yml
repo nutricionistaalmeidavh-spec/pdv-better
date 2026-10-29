@@ -1,0 +1,45 @@
+name: Laboratório virtual — falhas de hardware e SQLite
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: virtual-lab-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  virtual-windows:
+    name: VM Windows ${{ matrix.os }} — queda, disco e dispositivos virtuais
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependências sem publicar ou contratar serviços
+        shell: pwsh
+        run: ./scripts/ci-install.ps1
+      - name: Preparar aplicativo real Electron e interface
+        run: npm run build
+      - name: VM-DB-01/04 — encerramento real de processo, WAL, SQLite FULL e restauração
+        run: node scripts/qa-vm-fault-lab.mjs
+      - name: VM-PRN/SCL — impressora e balança virtuais pela rede TCP loopback
+        run: node --test tests/virtual-lab-devices.test.mjs
+      - name: VM-HID — scanner de etiqueta Code128 via teclado em Electron real
+        run: node scripts/qa-batch-scanner-e2e.mjs
+      - name: Publicar relatório do laboratório virtual por ambiente
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VM-Windows-Lab-${{ matrix.os }}
+          path: qa-artifacts/virtual-windows-lab/**
+          if-no-files-found: warn
+          retention-days: 30
