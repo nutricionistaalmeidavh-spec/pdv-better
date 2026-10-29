@@ -72,6 +72,7 @@ async function start() {
   ipcMain.handle(apiChannels.financeSettle, (_event, input) => domain('settleFinance',input));
   ipcMain.handle(apiChannels.report, (_event) => domain('report'));
   ipcMain.handle(apiChannels.reportItems, (_event, filters) => domain('reportItems',filters));
+  ipcMain.handle(apiChannels.reportCompare, (_event, input) => domain('compareReportPeriods',input));
   const window = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1024, minHeight: 660,
     backgroundColor: '#f5f6fb', show: false,
