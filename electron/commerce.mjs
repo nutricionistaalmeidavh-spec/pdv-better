@@ -4,6 +4,7 @@ import {
   validateSaleInput, inventoryDelta, cashDelta, financeInput, lineTotalCents, methodIds
 } from '../shared/commerce.mjs';
 import {bestPromotionPrice,localBusinessDate,strictDate} from './nexus-features.mjs';
+import {optimizeCrossSkuDiscounts} from './cross-sku.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
 const now=()=>new Date().toISOString();
 function atomic(db,fn) {
@@ -174,6 +175,45 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       return row('SELECT * FROM product_promotions WHERE product_id=? AND quantity_milli=?',productId,qty);
     });
   }
+
+  function listBundlePromotions(){
+    return all("SELECT * FROM bundle_promotions WHERE active=1 ORDER BY name COLLATE NOCASE,id")
+      .map(b=>({...b,items:all('SELECT product_id,quantity_milli FROM bundle_promotion_items WHERE bundle_id=? ORDER BY rowid',b.id)}));
+  }
+  function setBundlePromotion(input){
+    return atomic(db,()=>{
+      const name=assertLabel(input?.name,'Nome da promoção',100);
+      if(!Array.isArray(input?.items)||input.items.length<2||input.items.length>8)
+        throw new Error('Kit multisku exige ao menos duas SKUs distintas (máximo oito).');
+      const used=new Set();let normal=0;
+      const items=input.items.map(i=>{
+        const id=assertLabel(i?.productId,'Produto',64);
+        if(used.has(id))throw new Error('Produto duplicado: kit exige SKUs diferentes.');
+        used.add(id);
+        const p=row('SELECT * FROM products WHERE id=? AND active=1',id);
+        if(!p)throw new Error('Produto inexistente ou inativo no kit.');
+        const qty=assertMilli(i?.quantityMilli);
+        if(p.unit==='UN'&&qty%1000!==0)throw new Error('Produto em unidade exige quantidade inteira.');
+        normal+=lineTotalCents(p.sale_price_cents,qty);
+        if(!Number.isSafeInteger(normal))throw new Error('Valor do kit excede limite.');
+        return {productId:id,quantityMilli:qty};
+      });
+      const price=assertCents(input?.bundlePriceCents,'Preço do kit');
+      if(price<=0||price>normal)throw new Error('Preço do kit deve ser positivo e não maior que o total normal.');
+      const id=randomUUID();
+      run('INSERT INTO bundle_promotions(id,name,bundle_price_cents,created_at) VALUES(?,?,?,?)',id,name,price,now());
+      for(const i of items)run('INSERT INTO bundle_promotion_items(bundle_id,product_id,quantity_milli) VALUES(?,?,?)',id,i.productId,i.quantityMilli);
+      return listBundlePromotions().find(b=>b.id===id);
+    });
+  }
+  function archiveBundlePromotion(id){
+    return atomic(db,()=>{
+      const result=run('UPDATE bundle_promotions SET active=0 WHERE id=? AND active=1',assertLabel(id,'Promoção',64));
+      if(result.changes!==1)throw new Error('Kit promocional não encontrado.');
+      return {id,archived:true};
+    });
+  }
+
   function calculateLines(items){
     let subtotal=0,promotionDiscount=0;
     const snapshots=items.map(item=>{
@@ -188,7 +228,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       if(!Number.isSafeInteger(subtotal)||!Number.isSafeInteger(promotionDiscount))throw new Error('Total da venda excede o limite.');
       return {...item,product,line,promoDiscount:line-promoNet};
     });
-    return {subtotal,promotionDiscount,snapshots};
+    const adjusted=optimizeCrossSkuDiscounts(snapshots,listBundlePromotions(),id=>listPromotions(id));
+    return {subtotal,promotionDiscount:adjusted.promotionDiscount,snapshots:adjusted.snapshots};
   }
   function quoteSale(input){
     const draft=validateSaleInput({...input,key:'quote-only',payments:[]});
@@ -448,7 +489,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
   }
   return {
     openSession,getCurrentSession,closeSession,moveCash,checkout,getSale,cancelSale,listSales,listOpenSessions,
-    moveStock,listStockMovements,receiveBatch,listBatches,setPromotion,listPromotions,quoteSale,reportItems,
+    moveStock,listStockMovements,receiveBatch,listBatches,setPromotion,listPromotions,
+    setBundlePromotion,listBundlePromotions,archiveBundlePromotion,quoteSale,reportItems,
     createFinance,settleFinance,listFinance,report,recordInitialStock
   };
 }
