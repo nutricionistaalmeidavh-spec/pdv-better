@@ -8,8 +8,6 @@ test('COMPARE-01: compara dois períodos comerciais em centavos sem duplicar pag
   let db=f.store;db.openSession({openingCashCents:0});
   const a=db.checkout({key:'period-01',items:[{id:f.unit.id,quantityMilli:1000}],payments:[{method:'pix',amountCents:1250}]});
   const b=db.checkout({key:'period-02',items:[{id:f.unit.id,quantityMilli:2000}],payments:[{method:'cash',amountCents:2500}]});
-  db=f.reopen();
-  db.close();
   const raw=new DatabaseSync(f.database);
   raw.prepare('UPDATE sales SET created_at=? WHERE id=?').run('2026-10-01T12:00:00Z',a.id);
   raw.prepare('UPDATE sales SET created_at=? WHERE id=?').run('2026-10-15T12:00:00Z',b.id);
