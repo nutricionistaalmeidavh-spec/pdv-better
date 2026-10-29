@@ -181,6 +181,11 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [bundleQtyA,setBundleQtyA]=useState('1,000');
   const [bundleQtyB,setBundleQtyB]=useState('1,000');
   const [bundlePrice,setBundlePrice]=useState('20,00');
+  const [compareFrom,setCompareFrom]=useState('');
+  const [compareTo,setCompareTo]=useState('');
+  const [compareNextFrom,setCompareNextFrom]=useState('');
+  const [compareNextTo,setCompareNextTo]=useState('');
+  const [comparison,setComparison]=useState<R|null>(null);
   const [reportFrom,setReportFrom]=useState('');
   const [reportTo,setReportTo]=useState('');
   const [reportProduct,setReportProduct]=useState('');
@@ -371,6 +376,25 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
             </tr>)}
           </tbody></table>{itemReport.rows?.length>500&&<p>Mostrando os primeiros 500 itens. Refine o período para visualizar os demais.</p>}</div>
         </>}
+      </div>
+      <div className="panel commerce-section"><h2>Comparativo de períodos comerciais</h2>
+        <p>Compare duas janelas de datas utilizando somente vendas reais concluídas. Simulações e cancelamentos não entram nos totais.</p>
+        <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(async()=>{
+          const result=await api!.reportCompare({from:compareFrom,to:compareTo,comparisonFrom:compareNextFrom,comparisonTo:compareNextTo});
+          setComparison(result);
+        },'Comparativo atualizado.');}}>
+          <label>Primeiro período — início<input type="date" required value={compareFrom} onChange={e=>setCompareFrom(e.target.value)}/></label>
+          <label>Primeiro período — fim<input type="date" required value={compareTo} onChange={e=>setCompareTo(e.target.value)}/></label>
+          <label>Segundo período — início<input type="date" required value={compareNextFrom} onChange={e=>setCompareNextFrom(e.target.value)}/></label>
+          <label>Segundo período — fim<input type="date" required value={compareNextTo} onChange={e=>setCompareNextTo(e.target.value)}/></label>
+          <button type="submit" className="primary" disabled={busy}>Comparar períodos</button>
+        </form>
+        {comparison&&<div className="report-grid" aria-live="polite">
+          <div className="stat"><span>Primeiro período</span><strong>{money(comparison.previous.total_cents)}</strong><span>{comparison.previous.sales_count} vendas</span></div>
+          <div className="stat"><span>Segundo período</span><strong>{money(comparison.current.total_cents)}</strong><span>{comparison.current.sales_count} vendas</span></div>
+          <div className="stat"><span>Variação absoluta</span><strong>{money(comparison.delta_cents)}</strong></div>
+          <div className="stat"><span>Variação percentual</span><strong>{comparison.delta_basis_points===null?'Sem base anterior':(comparison.delta_basis_points/100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%'}</strong></div>
+        </div>}
       </div>
       <div className="info-bar"><AlertTriangle size={19}/><p>Relatório acumulado no banco local. Os valores de Pix e cartão refletem confirmações manuais, não consultas bancárias. Vendas canceladas não integram o faturamento.</p></div>
     </>}
