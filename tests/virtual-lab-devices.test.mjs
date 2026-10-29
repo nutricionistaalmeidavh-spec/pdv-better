@@ -24,8 +24,8 @@ test('VM-PRN-01: impressora ESC/POS virtual TCP recebe bytes de cupom e corte, s
 });
 
 test('VM-SCL-01: balança virtual TCP aceita peso estável, rejeita leitura instável e silêncio',async()=>{
- const stable=await startVirtualScale({reply:'ST,GS,0.350kg\\r\\n'});
- const unstable=await startVirtualScale({reply:'US,GS,0.350kg\\r\\n'});
+ const stable=await startVirtualScale({reply:'ST,GS,0.350kg\r\n'});
+ const unstable=await startVirtualScale({reply:'US,GS,0.350kg\r\n'});
  const silent=await startVirtualScale({reply:null});
  try{
   assert.equal(await readScale(stable.target,1000),350);
