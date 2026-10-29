@@ -192,6 +192,7 @@ async function start() {
       const prefs=readDevice(),target=deviceTarget(prefs.printerHost,prefs.printerPort);
       if(!target)throw new Error('Impressora ESC/POS TCP não configurada.');
       const sale=await domain('getSale',String(input.saleId||''));
+      if(sale.is_training)throw new Error('Simulação de treinamento não pode gerar comprovante de venda.');
       return sendTcp(target,makeReceipt(sale));
     }
     if(!['receipt','label','batch-label'].includes(kind))throw new Error('Tipo de impressão inválido.');
@@ -199,6 +200,7 @@ async function start() {
       ? await domain('getSale',String(input.saleId||''))
       : (await domain('list','products')).find(p=>p.id===input.productId);
     if(!record)throw new Error('Registro não encontrado para impressão.');
+    if(kind==='receipt'&&record.is_training)throw new Error('Simulação de treinamento não pode gerar comprovante de venda.');
     let document;
     if(kind==='batch-label'){
       const batch=(await domain('listBatches',record.id)).find(b=>b.id===input.batchId);
