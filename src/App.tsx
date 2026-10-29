@@ -10,6 +10,7 @@ import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '..
 import { filterCheckoutProducts } from '../shared/catalog.mjs';
 import { resolveBatchScan,parseBatchLabel } from '../shared/batch-label.mjs';
 import {applyManualWeight} from '../shared/manual-weight.mjs';
+import {deriveStockAlerts} from '../shared/stock-alerts.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
 import { SaleReceipt } from './Receipt';
 import { SystemSettings } from './SystemSettings';
@@ -56,6 +57,9 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [form,setForm] = useState<Row>({});
   const [saving,setSaving] = useState(false);
   const [importingCsv,setImportingCsv] = useState(false);
+  const [stockBatches,setStockBatches]=useState<Row[]>([]);
+  const [stockAlertsLoaded,setStockAlertsLoaded]=useState(false);
+  const [stockAlertsError,setStockAlertsError]=useState('');
   const [cart,setCart] = useState<CartItem[]>(() => {
     try {
       const saved=JSON.parse(localStorage.getItem('pdv-better:draft-v1:'+user.id)||'[]');
@@ -94,6 +98,14 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   }
   useEffect(() => { void reloadAll(); }, []);
   useEffect(()=>{
+    if(view!=='dashboard'||!bridge)return;
+    let alive=true;
+    setStockAlertsLoaded(false);setStockAlertsError('');
+    void bridge.batchesList().then(rows=>{if(alive){setStockBatches(rows);setStockAlertsLoaded(true);}})
+      .catch(error=>{if(alive)setStockAlertsError(friendlyError(error));});
+    return ()=>{alive=false;};
+  },[view]);
+  useEffect(()=>{
     try{if(cart.length)localStorage.setItem('pdv-better:draft-v1:'+user.id,JSON.stringify(cart));else localStorage.removeItem('pdv-better:draft-v1:'+user.id);}
     catch{/* A ausência de armazenamento temporário não impede uma venda */ }
   },[cart]);
@@ -120,6 +132,8 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const products:Row[] = records.products || [];
   const categories:Row[] = records.categories || [];
   const matchingProducts = useMemo(()=>filterCheckoutProducts(products,categoryFilter,cartSearch),[products,categoryFilter,cartSearch]);
+  const todayLocal=(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');})();
+  const stockAlerts=deriveStockAlerts(products,stockBatches,todayLocal);
   const total = cartTotalCents(cart);
   function startForm(row?:Row) {
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
@@ -270,7 +284,24 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
                 return <button className="stat" onClick={() => selectView(kind)} key={kind}><div className="stat-top"><span>{definitions[kind].label}</span><Icon size={20}/></div><strong>{(records[kind] || []).length}</strong><span className="stat-bottom">Cadastros ativos <ArrowRight size={14}/></span></button>;
               })}
             </div>
-            <div className="section-title"><h2>Acesso rápido</h2><p>Comece pelas tarefas mais utilizadas.</p></div>
+            <div className="panel glass-panel" aria-label="Alertas de estoque e validade">
+               <h2><AlertTriangle size={18}/> Alertas de estoque e validade</h2>
+               {stockAlertsError&&<p role="alert">Falha ao consultar lotes: {stockAlertsError}. Os alertas de validade podem estar incompletos.</p>}
+               {!stockAlertsLoaded&&!stockAlertsError&&<p>Consultando lotes locais…</p>}
+               {stockAlertsLoaded&&<div className="stat-grid">
+                 <div className="stat"><span>Sem estoque</span><strong>{stockAlerts.outOfStock.length}</strong></div>
+                 <div className="stat"><span>Estoque baixo</span><strong>{stockAlerts.lowStock.length}</strong></div>
+                 <div className="stat"><span>Lotes vencidos</span><strong>{stockAlerts.expired.length}</strong></div>
+                 <div className="stat"><span>Vencem em até 30 dias</span><strong>{stockAlerts.expiring.length}</strong></div>
+               </div>}
+               {stockAlertsLoaded&&[...stockAlerts.expired,...stockAlerts.expiring].slice(0,10).map(batch=>
+                 <p key={batch.id}><strong>{batch.product_name}</strong> · Lote {batch.code||batch.id.slice(0,8)} ·
+                   {batch.days_until_expiry<0?' Vencido há '+Math.abs(batch.days_until_expiry)+' dias':' Vence em '+batch.days_until_expiry+' dias'} ·
+                   Saldo rastreado {batch.remaining_milli/1000}
+                 </p>)}
+               <p>Alertas informativos; vendas de lotes vencidos continuam bloqueadas pelo domínio.</p>
+             </div>
+             <div className="section-title"><h2>Acesso rápido</h2><p>Comece pelas tarefas mais utilizadas.</p></div>
             <div className="quick-grid">
               <button className="quick" onClick={() => selectView('checkout')}><span className="quick-icon"><ShoppingCart size={21}/></span><strong>Preparar uma venda</strong><span>Buscar produtos e conferir total</span><ArrowRight size={17}/></button>
               <button className="quick" onClick={() => selectView('products')}><span className="quick-icon"><Package size={21}/></span><strong>Gerenciar produtos</strong><span>Preços, estoque inicial e códigos</span><ArrowRight size={17}/></button>
