@@ -217,7 +217,8 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   async function completeSale(sale:Row) {
     setPaymentOpen(false);setCart([]);setReceipt(sale);
     try {await reload('products');if(bridge)setSession(await bridge.sessionCurrent());}catch(err){setCartError(friendlyError(err));}
-    setNotice('Venda '+sale.id.slice(0,8)+' concluída, total '+money(sale.total_cents)+'. Troco: '+money(sale.change_cents)+'. Comprovante não fiscal.');
+    setNotice(sale.is_training?'Simulação de treinamento '+sale.id.slice(0,8)+' registrada: sem faturamento, caixa ou baixa de estoque.':
+      'Venda '+sale.id.slice(0,8)+' concluída, total '+money(sale.total_cents)+'. Troco: '+money(sale.change_cents)+'. Comprovante não fiscal.');
   }
 
   const canVisit=(id:string)=>{
@@ -351,7 +352,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
        <label className="form-field">Confirmar senha<input type="password" required minLength={8} maxLength={128} value={repeatPassword} autoComplete="new-password" onChange={e=>setRepeatPassword(e.target.value)}/></label>
       </div>{error&&<p role="alert">{error}</p>}<footer className="dialog-footer"><button type="button" className="secondary" onClick={()=>setPasswordTarget(null)}>Cancelar</button><button type="submit" className="primary">Salvar acesso</button></footer></form>
     </section></div>}
-    {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} onClose={()=>setPaymentOpen(false)} onDone={completeSale}/>}
+    {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} role={user.role} onClose={()=>setPaymentOpen(false)} onDone={completeSale}/>}
     {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
     {editing && activeSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
       <section className="dialog" role="dialog" aria-modal="true" aria-label={(editing.id ? 'Editar ' : 'Adicionar ') + activeSchema.singular}>
