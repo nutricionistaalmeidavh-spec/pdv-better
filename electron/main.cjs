@@ -232,7 +232,7 @@ async function start() {
       }catch(queueError){
         throw new Error('Impressão falhou, mas o registro na fila também falhou: '+String(queueError.message||queueError),{cause:error});
       }
-      throw new Error('Impressão não concluída. Tentativa registrada na fila local ('+job.id.slice(0,8)+'). Confira o dispositivo antes de reenviar.',{cause:error});
+      throw new Error('Impressora não concluiu o envio: '+String(error?.message||error).slice(0,130)+'. Tentativa registrada na fila local ('+job.id.slice(0,8)+'). Confira o dispositivo antes de reenviar.',{cause:error});
     }
   });
   ipcMain.handle(apiChannels.printQueueList,()=>{
