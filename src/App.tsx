@@ -8,13 +8,14 @@ import {
 import { entities, entityOrder } from '../shared/contract.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
 import { filterCheckoutProducts } from '../shared/catalog.mjs';
+import { resolveBatchScan,parseBatchLabel } from '../shared/batch-label.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
 import { SaleReceipt } from './Receipt';
 import { SystemSettings } from './SystemSettings';
 import {allowed} from '../shared/access.mjs';
 
 type Row = Record<string, any>;
-type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number};
+type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number;batchId?:string;batchCode?:string};
 const definitions: Record<string, any> = entities;
 const icons: Record<string, any> = {
   dashboard: LayoutDashboard, checkout: ShoppingCart, products: Package, categories: Tags,
@@ -62,6 +63,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [cartSearch,setCartSearch] = useState('');
   const [categoryFilter,setCategoryFilter] = useState('all');
   const [cartError,setCartError] = useState('');
+  const [scanningBatch,setScanningBatch] = useState(false);
   const [session,setSession] = useState<Row|null>(null);
   const [paymentOpen,setPaymentOpen] = useState(false);
   const [receipt,setReceipt] = useState<Row|null>(null);
@@ -156,7 +158,26 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   function scanKey(ev:React.KeyboardEvent<HTMLInputElement>) {
     if (ev.key !== 'Enter') return;
     ev.preventDefault();
-    const code = cartSearch.trim().toUpperCase();
+    const raw=cartSearch.trim();
+    try {
+      if(parseBatchLabel(raw)){
+        if(scanningBatch||!bridge)return;
+        setScanningBatch(true);
+        void bridge.batchesList().then(list=>{
+          const scanned=resolveBatchScan(raw,products,list);
+          if(!scanned)return;
+          const existing=cart.find(row=>row.id===scanned.product.id);
+          if(existing && existing.batchId!==scanned.batch.id)
+            throw new Error('Este produto já está no carrinho com outro lote ou sem lote. Remova a linha e leia a etiqueta novamente.');
+          const updated=addToCart(cart,scanned.product,1000);
+          setCart(updated.map(row=>row.id===scanned.product.id
+            ? {...row,batchId:scanned.batch.id,batchCode:scanned.batch.code}:row));
+          setCartError('');setCartSearch('');searchInput.current?.focus();
+        }).catch(err=>setCartError(friendlyError(err))).finally(()=>setScanningBatch(false));
+        return;
+      }
+    }catch(err){setCartError(friendlyError(err));return;}
+    const code = raw.toUpperCase();
     const found = products.find(p => p.code === code) || (matchingProducts.length === 1 ? matchingProducts[0] : null);
     if (found) addProduct(found);
     else setCartError('Selecione um produto na lista ou confira o código.');
@@ -241,7 +262,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             <div className="checkout-grid">
               <div className="panel products-panel glass-panel">
                 <div className="panel-header"><div><h2>Selecionar produtos</h2><p>Busque por nome, SKU ou código de barras</p></div><span className="count-chip">{matchingProducts.length} exibidos</span></div>
-                <label className="search-field"><Search size={19}/><input ref={searchInput} autoComplete="off" aria-label="Pesquisar ou ler código de barras" placeholder="Digite ou leia o código do produto…" value={cartSearch} onChange={ev => {setCartSearch(ev.target.value);setCartError('');}} onKeyDown={scanKey}/><span className="kbd">Enter</span></label>
+                <label className="search-field"><Search size={19}/><input ref={searchInput} autoComplete="off" disabled={scanningBatch} aria-label="Pesquisar ou ler código de barras" placeholder="Digite ou leia o código do produto…" value={cartSearch} onChange={ev => {setCartSearch(ev.target.value);setCartError('');}} onKeyDown={scanKey}/><span className="kbd">Enter</span></label>
                 <div className="category-filter" aria-label="Filtrar produtos por categoria"><button type="button" className={categoryFilter==='all'?'active':''} aria-pressed={categoryFilter==='all'} onClick={()=>setCategoryFilter('all')}>Todos</button>{categories.map(c=><button type="button" key={c.id} className={categoryFilter===c.id?'active':''} aria-pressed={categoryFilter===c.id} onClick={()=>setCategoryFilter(c.id)}>{c.name}</button>)}</div>
                 <div className="product-list glass-product-grid">
                   {matchingProducts.map(row => <button className="product-option" key={row.id} onClick={() => addProduct(row)}>
@@ -255,7 +276,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
                 {cartError && <div className="cart-error" role="alert">{cartError}</div>}
                 <div className="cart-lines">
                   {cart.length === 0 ? <div className="empty-cart"><ShoppingCart size={32}/><strong>Seu carrinho está vazio</strong><p>Selecione um produto para começar.</p></div> :
-                    cart.map(line => <div className="cart-line" key={line.id}><div className="cart-line-top"><div><strong>{line.name}</strong><span>{money(line.priceCents)} / {line.unit}</span></div><button className="icon-btn" title="Remover do carrinho" aria-label={'Remover '+line.name} onClick={() => setCart(old => old.filter(item => item.id !== line.id))}><X size={17}/></button></div>
+                    cart.map(line => <div className="cart-line" key={line.id}><div className="cart-line-top"><div><strong>{line.name}</strong><span>{money(line.priceCents)} / {line.unit}{line.batchId?' · Lote físico '+(line.batchCode||line.batchId.slice(0,8)):''}</span></div><button className="icon-btn" title="Remover do carrinho" aria-label={'Remover '+line.name} onClick={() => setCart(old => old.filter(item => item.id !== line.id))}><X size={17}/></button></div>
                       <div className="cart-line-bottom"><div className="stepper"><button aria-label={'Diminuir '+line.name} onClick={() => changeQuantity(line,-(line.unit === 'KG' ? 100 : 1000))}><Minus size={15}/></button><span>{(line.quantityMilli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {line.unit}</span><button aria-label={'Aumentar '+line.name} onClick={() => changeQuantity(line,line.unit === 'KG' ? 100 : 1000)}><Plus size={15}/></button></div><strong>{money(lineTotalCents(line.priceCents,line.quantityMilli))}</strong></div>
                       {line.unit==='KG'&&<button className="plain" disabled={readingScale} onClick={()=>void weighItem(line)}>Ler balança para {line.name}</button>}
                     </div>)}
