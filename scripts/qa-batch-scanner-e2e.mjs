@@ -39,6 +39,7 @@ try{
  await nav('Frente de caixa').click();
  const search=page.getByRole('textbox',{name:'Pesquisar ou ler código de barras'});
  await search.waitFor();
+ await page.locator('.product-list').getByText('Café teste 250g').waitFor();
  await search.fill(createBatchLabel(a.code,batchB.code));
  await search.press('Enter');
  await page.locator('.cart-line').filter({hasText:'Lote físico TESTE-FISICO'}).waitFor({timeout:20000});
@@ -47,8 +48,10 @@ try{
  await page.locator('.cart-panel').getByRole('button',{name:'Receber e concluir venda'}).click();
  const dlg=page.getByRole('dialog',{name:'Receber venda'});
  await dlg.waitFor();
- await dlg.locator('label').filter({hasText:'Total com desconto'}).locator('input').first().waitFor();
- assert.match(await dlg.locator('label').filter({hasText:'Total com desconto'}).locator('input').first().inputValue(),/18,00/);
+ await page.waitForFunction(()=>{
+   return [...document.querySelectorAll('.glass-payment label')].some(label=>
+     label.textContent?.includes('Total com desconto')&&label.querySelector('input')?.value.includes('18,00'));
+ },null,{timeout:15000});
  await dlg.getByRole('combobox',{name:'Forma de pagamento 1'}).selectOption('pix');
  await dlg.getByRole('textbox',{name:'Valor de pagamento 1'}).fill('18,00');
  await dlg.getByRole('button',{name:'Confirmar e concluir venda'}).click();
