@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openCatalog } from '../electron/db.mjs';
+import { normalizeSqliteError } from '../electron/sqlite-errors.mjs';
 
 test('NEX-R01: SQLite ocupado retorna erro controlado sem gravar parcialmente e recupera',()=>{
   const dir=mkdtempSync(join(tmpdir(),'nex-sqlite-busy-'));
@@ -63,4 +64,35 @@ test('NEX-R03: SQLite persistido passa quick_check na nova abertura e preserva v
       assert.equal(store.listSales().length,1);
     }finally{store.close();}
   }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('NEX-R04: erros de disco cheio e banco bloqueado mostram mensagem operacional segura',()=>{
+ assert.match(normalizeSqliteError(new Error('SQLITE_FULL: database or disk is full')).message,/espaço|disco|armazenamento/i);
+ assert.match(normalizeSqliteError(new Error('SQLITE_BUSY: database is locked')).message,/ocupado|bloqueado/i);
+ assert.match(normalizeSqliteError(new Error('SQLITE_CORRUPT: database disk image is malformed')).message,/corrompid|integridade/i);
+});
+
+test('NEX-R05: lock durante checkout nao confirma venda parcial e retorna erro controlado',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'nex-checkout-busy-'));
+  const path=join(dir,'dados.sqlite');
+  let store,holder;
+  try{
+    store=openCatalog(path,{busyTimeoutMs:25});
+    const p=store.save('products',{name:'Feijao QA',code:'QA-LOCK-SALE',unit:'UN',sale_price_cents:'5,00',stock_milli:'3'});
+    store.openSession({openingCashCents:0});
+    holder=new DatabaseSync(path);
+    holder.exec('PRAGMA busy_timeout=25; BEGIN IMMEDIATE');
+    const input={key:'nex-locked-checkout',items:[{id:p.id,quantityMilli:1000}],payments:[{method:'cash',amountCents:500}]};
+    assert.throws(()=>store.checkout(input),/ocupado|bloqueado|tente novamente/i);
+    holder.exec('ROLLBACK'); holder.close(); holder=null;
+    assert.equal(store.listSales().length,0);
+    assert.equal(store.list('products')[0].stock_milli,3000);
+    const confirmed=store.checkout(input);
+    assert.equal(confirmed.total_cents,500);
+    assert.equal(store.listSales().length,1);
+  }finally{
+    try{holder?.exec('ROLLBACK');holder?.close();}catch{}
+    try{store?.close();}catch{}
+    rmSync(dir,{recursive:true,force:true});
+  }
 });
