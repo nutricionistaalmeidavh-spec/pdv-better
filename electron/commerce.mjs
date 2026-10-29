@@ -238,9 +238,11 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     if(draft.discountCents>subtotal-promotionDiscount)throw new Error('Desconto não pode ultrapassar o subtotal.');
     const total=subtotal-promotionDiscount-draft.discountCents;
     if(total<=0)throw new Error('Total deve ser positivo.');
+    const discounts=allocateDiscounts(snapshots.map(s=>s.line),draft.discountCents+promotionDiscount);
     return {subtotal_cents:subtotal,promotion_discount_cents:promotionDiscount,
       manual_discount_cents:draft.discountCents,total_cents:total,
-      lines:snapshots.map(s=>({product_id:s.id,gross_cents:s.line,promotion_discount_cents:s.promoDiscount}))};
+      lines:snapshots.map((s,i)=>({product_id:s.id,gross_cents:s.line,
+        promotion_discount_cents:s.promoDiscount,net_cents:s.line-discounts[i]}))};
   }
   function allocateBatches(product,quantity,batchId,saleId,saleItemId){
     const lots=listBatches(product.id);
