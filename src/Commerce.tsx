@@ -5,6 +5,7 @@ import { reportRows } from '../shared/report.mjs';
 import { paymentPreview } from '../shared/payment-preview.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
 import { SaleReceipt } from './Receipt';
+import { buildLabeledSaleItems } from '../shared/batch-label.mjs';
 type R=Record<string,any>;
 const methodLabel=(id:string)=>paymentMethods.find(x=>x.id===id)?.label||id;
 const errorMessage=(error:any)=>String(error?.message||error||'Não foi possível concluir').replace(/^Error invoking remote method.*?: Error: /,'');
@@ -26,7 +27,8 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
   const [quote,setQuote]=useState<R|null>(null);
   const [quoteError,setQuoteError]=useState('');
   const [batches,setBatches]=useState<R[]>([]);
-  const [selectedBatches,setSelectedBatches]=useState<Record<string,string>>({});
+  const [selectedBatches,setSelectedBatches]=useState<Record<string,string>>(()=>
+    Object.fromEntries(cart.filter(row=>row.batchId).map(row=>[row.id,row.batchId])));
   useEffect(()=>{let mounted=true;
     window.pdv?.batchesList().then(rows=>{if(mounted)setBatches(rows);}).catch(()=>{});
     return ()=>{mounted=false;};
@@ -40,11 +42,11 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
   useEffect(()=>{let mounted=true;
     if(discountError){setQuote(null);setQuoteError(discountError);return ()=>{mounted=false;};}
     setQuote(null);setQuoteError('');
-    window.pdv?.quoteSale({items:cart.map(row=>({id:row.id,quantityMilli:row.quantityMilli,batchId:selectedBatches[row.id]||undefined})),discountCents})
+    window.pdv?.quoteSale({items:buildLabeledSaleItems(cart,selectedBatches),discountCents})
       .then(result=>{if(mounted){setQuote(result);setQuoteError('');}})
       .catch(err=>{if(mounted){setQuoteError(errorMessage(err));setQuote(null);}});
     return ()=>{mounted=false;};
-  },[cart,discountCents,discountError]);
+  },[cart,discountCents,discountError,selectedBatches]);
   total=quote?.total_cents??total;
   const payment=paymentPreview(total,payments);
   const updatePayment=(i:number,key:string,value:string)=>setPayments(rows=>rows.map((r,index)=>i===index?{...r,[key]:value}:r));
@@ -55,7 +57,7 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
     try{
       const result=await window.pdv.checkout({
         key:operationKey,
-        items:cart.map(row=>({id:row.id,quantityMilli:row.quantityMilli})),
+        items:buildLabeledSaleItems(cart,selectedBatches),
         customerId:customerId||null,discountCents,
         payments:payments.map(p=>({method:p.method,amountCents:parseFixed(p.amount,2,'Pagamento')}))
       });
@@ -140,6 +142,13 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [promotionQuantity,setPromotionQuantity]=useState('2');
   const [promotionPrice,setPromotionPrice]=useState('20,00');
   const [promotions,setPromotions]=useState<R[]>([]);
+  const [bundles,setBundles]=useState<R[]>([]);
+  const [bundleName,setBundleName]=useState('');
+  const [bundleA,setBundleA]=useState('');
+  const [bundleB,setBundleB]=useState('');
+  const [bundleQtyA,setBundleQtyA]=useState('1,000');
+  const [bundleQtyB,setBundleQtyB]=useState('1,000');
+  const [bundlePrice,setBundlePrice]=useState('20,00');
   const [reportFrom,setReportFrom]=useState('');
   const [reportTo,setReportTo]=useState('');
   const [reportProduct,setReportProduct]=useState('');
@@ -152,13 +161,13 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     if(!api){setError('Abra pelo aplicativo Electron.');return;}
     try{
       const manager=role!=='Caixa';
-      const [s,sl,pr,m,fin,r,other,lots,priceRules]=await Promise.all([
+      const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules]=await Promise.all([
         api.sessionCurrent(),api.salesList(),api.list('products'),manager?api.stockHistory():Promise.resolve([]),
         manager?api.financeList():Promise.resolve([]),manager?api.report():Promise.resolve({}),
         manager?api.sessionsList():Promise.resolve([]),
-        manager?api.batchesList():Promise.resolve([]),manager?api.promotionsList():Promise.resolve([])
+        manager?api.batchesList():Promise.resolve([]),manager?api.promotionsList():Promise.resolve([]),manager?api.bundleList():Promise.resolve([])
       ]);
-      setSession(s);setSales(sl);setProducts(pr);setMovements(m);setFinance(fin);setSummary(r);setOtherSessions(other);setBatches(lots);setPromotions(priceRules);setError('');
+      setSession(s);setSales(sl);setProducts(pr);setMovements(m);setFinance(fin);setSummary(r);setOtherSessions(other);setBatches(lots);setPromotions(priceRules);setBundles(groupRules);setError('');
       if(s)setCounted((s.expected_cash_cents/100).toFixed(2));
     }catch(err){setError(errorMessage(err));}
   }
@@ -175,6 +184,17 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     setBusy(true);setError('');setSuccess('');
     try{const result=await api.reportExport(format);if(!result.cancelled)setSuccess('Relatório '+format.toUpperCase()+' exportado.');}
     catch(err){setError(errorMessage(err));}finally{setBusy(false);}
+  }
+  async function exportItemReport(format:'pdf'|'xlsx'|'csv'){
+    if(busy||!api)return;
+    setBusy(true);setError('');setSuccess('');
+    try{
+      const result=await api.reportItemsExport({format,filters:{
+        from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined
+      }});
+      if(!result.cancelled)setSuccess('Relatório por item '+format.toUpperCase()+' exportado com os filtros selecionados.');
+    }catch(err){setError(errorMessage(err));}
+    finally{setBusy(false);}
   }
   const title:Record<string,string>={cash:'Controle de caixa',sales:'Vendas realizadas',inventory:'Movimentações de estoque',finance:'Financeiro',reports:'Relatórios e indicadores'};
   return <div className="commerce-screen">
@@ -232,8 +252,8 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
           <label>Quantidade<input required inputMode="decimal" value={batchQuantity} onChange={e=>setBatchQuantity(e.target.value)}/></label>
           <button type="submit" className="primary" disabled={busy||!productId}>Receber lote</button>
         </form>
-        <div className="commerce-table"><table><thead><tr><th>Produto</th><th>Lote</th><th>Validade</th><th>Saldo</th></tr></thead><tbody>
-          {batches.slice(0,300).map(b=><tr key={b.id}><td>{products.find(p=>p.id===b.product_id)?.name||b.product_id.slice(0,8)}</td><td>{b.code}</td><td>{b.expires_on}</td><td>{b.remaining_milli/1000}</td></tr>)}
+        <div className="commerce-table"><table><thead><tr><th>Produto</th><th>Lote</th><th>Validade</th><th>Saldo</th><th>Etiqueta</th></tr></thead><tbody>
+          {batches.slice(0,300).map(b=><tr key={b.id}><td>{products.find(p=>p.id===b.product_id)?.name||b.product_id.slice(0,8)}</td><td>{b.code}</td><td>{b.expires_on}</td><td>{b.remaining_milli/1000}</td><td><button type="button" className="secondary" disabled={busy} onClick={()=>void action(()=>api!.devicePrint({kind:'batch-label',productId:b.product_id,batchId:b.id}),'Etiqueta Code128 enviada para a impressora.')}>Imprimir lote</button></td></tr>)}
         </tbody></table>{!batches.length&&<p className="commerce-empty">Nenhum lote registrado.</p>}</div>
       </div>
       <div className="panel commerce-section"><h2>Combos por quantidade</h2><p>Preço promocional automático para produto por unidade. A cotação e a cobrança usam o mesmo cálculo.</p>
@@ -247,6 +267,26 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         </form>
         <div className="commerce-table"><table><thead><tr><th>Produto</th><th>Quantidade</th><th>Preço do combo</th></tr></thead><tbody>
         {promotions.map(p=><tr key={p.id}><td>{products.find(x=>x.id===p.product_id)?.name||p.product_id.slice(0,8)}</td><td>{p.quantity_milli/1000} UN</td><td>{money(p.bundle_price_cents)}</td></tr>)}
+        </tbody></table></div>
+      </div>
+      <div className="panel commerce-section"><h2>Kits entre SKUs diferentes</h2>
+        <p>Configure duas mercadorias distintas. O PDV compara esse kit com descontos por SKU e utiliza o menor preço, sem aplicar o mesmo item em dois kits.</p>
+        <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.bundleSet({
+          name:bundleName,bundlePriceCents:bundlePrice,
+          items:[{productId:bundleA,quantityMilli:parseFixed(bundleQtyA,3,'Quantidade')},
+                 {productId:bundleB,quantityMilli:parseFixed(bundleQtyB,3,'Quantidade')}]
+        }),'Kit promocional de duas SKUs registrado.');}}>
+          <label>Nome do kit<input required maxLength={100} value={bundleName} onChange={e=>setBundleName(e.target.value)} placeholder="Ex.: café + biscoito"/></label>
+          <label>Produto A<select required value={bundleA} onChange={e=>setBundleA(e.target.value)}><option value="">Selecione</option>{products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+          <label>Quantidade A<input required inputMode="decimal" value={bundleQtyA} onChange={e=>setBundleQtyA(e.target.value)}/></label>
+          <label>Produto B<select required value={bundleB} onChange={e=>setBundleB(e.target.value)}><option value="">Selecione</option>{products.filter(p=>p.id!==bundleA).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+          <label>Quantidade B<input required inputMode="decimal" value={bundleQtyB} onChange={e=>setBundleQtyB(e.target.value)}/></label>
+          <label>Valor do kit (R$)<input required inputMode="decimal" value={bundlePrice} onChange={e=>setBundlePrice(e.target.value)}/></label>
+          <button type="submit" className="primary" disabled={busy||!bundleA||!bundleB||bundleA===bundleB}>Salvar kit</button>
+        </form>
+        <div className="commerce-table"><table><thead><tr><th>Kit</th><th>Itens</th><th>Preço</th><th>Ação</th></tr></thead><tbody>
+          {bundles.map(b=><tr key={b.id}><td>{b.name}</td><td>{b.items.map((i:R)=>String(i.quantity_milli/1000)+' × '+(products.find(p=>p.id===i.product_id)?.name||i.product_id.slice(0,8))).join(' + ')}</td><td>{money(b.bundle_price_cents)}</td>
+            <td><button className="secondary" type="button" disabled={busy} onClick={()=>{if(window.confirm('Desativar este kit promocional?'))void action(()=>api!.bundleArchive(b.id),'Kit desativado.');}}>Desativar</button></td></tr>)}
         </tbody></table></div>
       </div>
       <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.slice(0,300).map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div></div></>}
@@ -275,6 +315,8 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
           <label>Produto<select value={reportProduct} onChange={e=>setReportProduct(e.target.value)}><option value="">Todos os produtos</option>{products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
           <button className="primary" type="submit" disabled={busy}>Consultar itens</button>
         </form>
+        <div className="report-actions" aria-label="Exportação detalhada">{(['csv','xlsx','pdf'] as const).map(format=>
+          <button type="button" className="secondary" key={format} disabled={busy} onClick={()=>void exportItemReport(format)}>Exportar itens {format.toUpperCase()}</button>)}</div>
         {itemReport&&<><p>Itens encontrados: {itemReport.rows?.length||0} · Total líquido: {money(itemReport.summary?.net_total_cents||0)}</p>
           <div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Quantidade</th><th>Bruto</th><th>Desconto</th><th>Líquido</th><th>Pagamento</th></tr></thead><tbody>
             {(itemReport.rows||[]).slice(0,500).map((row:R,i:number)=><tr key={row.sale_id+'-'+row.product_id+'-'+i}>
