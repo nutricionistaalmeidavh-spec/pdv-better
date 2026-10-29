@@ -14,10 +14,10 @@ test('NEX-R01: SQLite ocupado retorna erro controlado sem gravar parcialmente e 
     const original=openCatalog(path);
     const p=original.save('products',{name:'Cafe QA',code:'QA-BUSY',unit:'UN',sale_price_cents:'12,50',stock_milli:'4'});
     original.close();
+    second=openCatalog(path,{busyTimeoutMs:25});
     holder=new DatabaseSync(path);
     holder.exec('PRAGMA busy_timeout=25; BEGIN IMMEDIATE');
     holder.prepare('UPDATE products SET name=? WHERE id=?').run('Transacao ainda nao confirmada',p.id);
-    second=openCatalog(path,{busyTimeoutMs:25});
     const start=Date.now();
     assert.throws(()=>second.save('products',{name:'Produto no lock',code:'QA-LOCK',unit:'UN',sale_price_cents:'3,50',stock_milli:'1'}),/ocupado|bloqueado|tente novamente/i);
     assert.ok(Date.now()-start<1200,'timeout configurado deve ser respeitado');
