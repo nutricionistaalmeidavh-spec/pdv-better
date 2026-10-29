@@ -15,7 +15,7 @@ test('EXPORT-01: CSV, HTML/PDF e XLSX partem das mesmas linhas com saldo exato',
   assert.match(html,/Relatório detalhado por item/);
   assert.equal(sheets.rows.length,2);
   assert.equal(sheets.rows.reduce((n,r)=>n+r.net_cents,0),1555);
-  assert.equal(report.summary.net_total_cents,1545);
+  assert.equal(report.summary.net_total_cents,1555);
  }finally{f.cleanup();}
 });
 
