@@ -6,7 +6,7 @@ import { assertDeviceAddress } from '../shared/peripherals.mjs';
 export const ALLOWED_RPC=Object.freeze([
   'list','save','archive','overview','getCurrentSession','openSession','closeSession',
   'moveCash','checkout','quoteSale','listSales','getSale','cancelSale','moveStock',
-  'listStockMovements','receiveBatch','listBatches','setPromotion','listPromotions','reportItems','createFinance','listFinance','settleFinance','report','listOpenSessions',
+  'listStockMovements','receiveBatch','listBatches','setPromotion','listPromotions','setBundlePromotion','listBundlePromotions','archiveBundlePromotion','reportItems','createFinance','listFinance','settleFinance','report','listOpenSessions',
   'authStatus','authBootstrap','authLogin','authLogout','setPassword'
 ]);
 export function validateToken(token){
