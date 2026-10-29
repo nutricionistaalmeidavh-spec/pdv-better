@@ -4,11 +4,15 @@ import {
   validateSaleInput, inventoryDelta, cashDelta, financeInput, lineTotalCents, methodIds
 } from '../shared/commerce.mjs';
 import {bestPromotionPrice,localBusinessDate,strictDate} from './nexus-features.mjs';
+import {normalizeSqliteError} from './sqlite-errors.mjs';
 const now=()=>new Date().toISOString();
 function atomic(db,fn) {
-  db.exec('BEGIN IMMEDIATE');
-  try {const result=fn();db.exec('COMMIT');return result;}
-  catch(error){db.exec('ROLLBACK');throw error;}
+  try{db.exec('BEGIN IMMEDIATE');}catch(error){throw normalizeSqliteError(error);}
+  try{const result=fn();db.exec('COMMIT');return result;}
+  catch(error){
+    try{db.exec('ROLLBACK');}catch{}
+    throw normalizeSqliteError(error);
+  }
 }
 function createTables(db){
   const old=db.prepare('PRAGMA user_version').get().user_version;
