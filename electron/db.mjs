@@ -5,6 +5,7 @@ import { normalizeRecord } from '../shared/domain.mjs';
 import { createCommerce } from './commerce.mjs';
 import {migrateAccess,createAccess} from './access.mjs';
 import {migrateNexusFeatures} from './nexus-features.mjs';
+import {migrateCrossSku} from './cross-sku.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
 export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}) {
@@ -37,6 +38,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   const commerce = createCommerce(db,{defaultTerminalId:terminalId});
   migrateAccess(db,terminalId);
   migrateNexusFeatures(db);
+  migrateCrossSku(db);
   const access=createAccess(db);
   function list(kind, search = '') {
     const schema = assertEntity(kind);
