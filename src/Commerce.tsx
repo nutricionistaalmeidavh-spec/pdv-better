@@ -14,14 +14,15 @@ const statusText:Record<string,string>={...commerceLabels.status,...commerceLabe
 function Message({error,success}:{error:string;success:string}){
   return <>{error && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}</div>}{success && <div className="notice success" role="status"><Check size={17}/>{success}</div>}</>;
 }
-export function PaymentModal({cart,products,customers,onClose,onDone}:{
-  cart:any[];products:R[];customers:R[];onClose:()=>void;onDone:(sale:R)=>void;
+export function PaymentModal({cart,products,customers,role,onClose,onDone}:{
+  cart:any[];products:R[];customers:R[];role:string;onClose:()=>void;onDone:(sale:R)=>void;
 }){
   const subtotal=cart.reduce((sum,row)=>sum+Math.round(row.priceCents*row.quantityMilli/1000),0);
   const [discount,setDiscount]=useState('0,00');
   const [customerId,setCustomerId]=useState('');
   const [payments,setPayments]=useState([{method:'cash',amount:'0,00'}]);
   const [itemMethods,setItemMethods]=useState<Record<string,string>>({});
+  const [training,setTraining]=useState(false);
   const [pending,setPending]=useState(false);
   const [error,setError]=useState('');
   const [operationKey]=useState(()=>crypto.randomUUID());
@@ -67,7 +68,7 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
       const result=await window.pdv.checkout({
         key:operationKey,
         items:buildLabeledSaleItems(cart,selectedBatches),
-        customerId:customerId||null,discountCents,
+        customerId:customerId||null,discountCents,training,
         payments:payments.map(p=>({method:p.method,amountCents:parseFixed(p.amount,2,'Pagamento')})),
         ...(fullAssignment?{itemPayments:explicitItems.map((line:R)=>({
           productId:line.product_id,method:itemMethods[line.product_id],amountCents:line.net_cents
@@ -86,6 +87,10 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
           <label className="form-field"><span>Desconto em reais</span><input value={discount} inputMode="decimal" onChange={e=>setDiscount(e.target.value)}/></label>
           <label className="form-field"><span>Promoções automáticas</span><input value={money(quote?.promotion_discount_cents??0)} readOnly/></label>
           <label className="form-field"><span>Total com desconto</span><input value={money(total)} readOnly/></label>
+          {role!=='Caixa'&&<label className="form-field">
+            <span>Venda de treinamento — simulação sem estoque, caixa ou faturamento</span>
+            <input type="checkbox" checked={training} onChange={e=>setTraining(e.target.checked)}/>
+          </label>}
           <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{customers.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
         </div>
         {(discountError||quoteError)&&<div className="form-error" role="alert">{discountError||quoteError}</div>}
@@ -132,10 +137,11 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
             {payment.canSubmit?'Valores conferidos. Confirme o recebimento externo antes de concluir.':
               payment.remainingCents>0?'Faltam '+money(payment.remainingCents)+' para concluir. '+payment.error:payment.error}
           </p>
+          {training&&<p role="status" className="commerce-warning">SIMULAÇÃO: nenhuma cobrança será registrada no caixa, nenhum estoque será baixado e nenhum fiado será lançado.</p>}
           <p className="commerce-warning">Pix e cartão são registrados manualmente. Confirme o recebimento no aplicativo do banco ou na maquininha antes de concluir. Este comprovante não é fiscal.</p>
         </div>
         {error && <div className="form-error" role="alert">{error}</div>}
-        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||!cart.length||total<=0||!!discountError||!!quoteError||!!assignmentError||!quote||!payment.canSubmit} type="submit">{pending?'Registrando…':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
+        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||!cart.length||total<=0||!!discountError||!!quoteError||!!assignmentError||!quote||!payment.canSubmit} type="submit">{pending?'Registrando…':training?'Registrar simulação sem movimento real':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
       </form>
     </section>
   </div>;
@@ -181,6 +187,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [reportBrand,setReportBrand]=useState('');
   const [reportProducer,setReportProducer]=useState('');
   const [reportVariant,setReportVariant]=useState('');
+  const [reportTraining,setReportTraining]=useState<'exclude'|'only'|'include'>('exclude');
   const [itemReport,setItemReport]=useState<R|null>(null);
   const [financeType,setFinanceType]=useState('payable');
   const [description,setDescription]=useState('');
@@ -220,7 +227,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     try{
       const result=await api.reportItemsExport({format,filters:{
         from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined,
-        brand:reportBrand||undefined,producer:reportProducer||undefined,variantGroup:reportVariant||undefined
+        brand:reportBrand||undefined,producer:reportProducer||undefined,variantGroup:reportVariant||undefined,training:reportTraining,training:reportTraining
       }});
       if(!result.cancelled)setSuccess('Relatório por item '+format.toUpperCase()+' exportado com os filtros selecionados.');
     }catch(err){setError(errorMessage(err));}
@@ -256,7 +263,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       </div>
       {session&&<div className="panel commerce-section commerce-wide"><h2>Histórico do turno</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Operação</th><th>Valor</th><th>Motivo</th></tr></thead><tbody>{session.movements?.map((m:R)=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{m.kind}</td><td>{money(m.delta_cents)}</td><td>{m.note}</td></tr>)}</tbody></table>{!session.movements?.length&&<p className="commerce-empty">Nenhuma movimentação neste turno.</p>}</div></div>}
     </div>}
-    {view==='sales'&&<div className="panel commerce-section"><h2>Histórico de vendas</h2><p>O cancelamento só é permitido no mesmo turno aberto e atualiza os movimentos locais. Estornos de Pix/cartão devem ser realizados externamente.</p><div className="commerce-table"><table><thead><tr><th>Data</th><th>Venda</th><th>Cliente</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{sales.map(s=><tr key={s.id}><td>{pretty(s.created_at)}</td><td title={s.id}>{s.id.slice(0,8)}</td><td>{s.customer_id?.slice(0,8)||'Consumidor final'}</td><td>{money(s.total_cents)}</td><td>{statusText[s.status]}</td><td><button className="secondary" type="button" disabled={busy} onClick={async()=>{try{setReceipt(await api!.saleGet(s.id));setError('');}catch(err){setError(errorMessage(err));}}}>Comprovante</button> {s.status==='completed'&&<button disabled={busy||session?.id!==s.session_id} className="secondary button-danger" onClick={()=>{
+    {view==='sales'&&<div className="panel commerce-section"><h2>Histórico de vendas</h2><p>O cancelamento só é permitido no mesmo turno aberto e atualiza os movimentos locais. Estornos de Pix/cartão devem ser realizados externamente.</p><div className="commerce-table"><table><thead><tr><th>Data</th><th>Venda</th><th>Cliente</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{sales.map(s=><tr key={s.id}><td>{pretty(s.created_at)}</td><td title={s.id}>{s.id.slice(0,8)}</td><td>{s.customer_id?.slice(0,8)||'Consumidor final'}</td><td>{money(s.total_cents)}</td><td>{s.is_training?'TREINAMENTO — '+statusText[s.status]:statusText[s.status]}</td><td><button className="secondary" type="button" disabled={busy} onClick={async()=>{try{setReceipt(await api!.saleGet(s.id));setError('');}catch(err){setError(errorMessage(err));}}}>Comprovante</button> {s.status==='completed'&&<button disabled={busy||session?.id!==s.session_id} className="secondary button-danger" onClick={()=>{
             if(window.confirm('Cancelar venda? Estoque e registros locais serão revertidos. Pix e cartão exigem reembolso externo manual.')) void action(()=>api!.salesCancel(s.id),'Venda cancelada e estoque restaurado.',true);
           }}>Cancelar venda</button>}</td></tr>)}</tbody></table>{sales.length===0&&<p className="commerce-empty">Nenhuma venda foi realizada ainda.</p>}</div></div>}
     {view==='inventory'&&<><div className="panel commerce-section"><h2>Movimentar estoque</h2><p>Entradas e ajustes registrados no histórico. O saldo do cadastro não pode ser alterado diretamente.</p>
@@ -347,6 +354,11 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
           <label>Marca<input value={reportBrand} onChange={e=>setReportBrand(e.target.value)} placeholder="Todas as marcas"/></label>
           <label>Produtor<input value={reportProducer} onChange={e=>setReportProducer(e.target.value)} placeholder="Todos os produtores"/></label>
           <label>Grupo de variantes<input value={reportVariant} onChange={e=>setReportVariant(e.target.value)} placeholder="Todos os grupos"/></label>
+          <label>Treinamento<select value={reportTraining} onChange={e=>setReportTraining(e.target.value as 'exclude'|'only'|'include')}>
+            <option value="exclude">Excluir treinamento (faturamento)</option>
+            <option value="only">Somente treinamento</option>
+            <option value="include">Todas (inclui simulações)</option>
+          </select></label>
           <button className="primary" type="submit" disabled={busy}>Consultar itens</button>
         </form>
         <div className="report-actions" aria-label="Exportação detalhada">{(['csv','xlsx','pdf'] as const).map(format=>
