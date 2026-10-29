@@ -7,7 +7,7 @@ async function start() {
   const { openCatalog } = await import('./db.mjs');
   const { apiChannels } = await import('../shared/contract.mjs');
   const { reportRows, reportCsv, reportHtml } = await import('../shared/report.mjs');
-  const { itemReportCsv, itemReportHtml, itemReportSheetRows } = await import('../shared/item-report-export.mjs');
+  const { renderItemReportWorker } = await import('./report-worker-client.mjs');
   const { createBatchLabel } = await import('../shared/batch-label.mjs');
   const { renderPhysicalBatchLabel } = require('./physical-label.cjs');
   const { safeStorage } = require('electron');
@@ -126,22 +126,19 @@ async function start() {
       filters:[{name:format.toUpperCase(),extensions:[format]}]
     });
     if(selected.canceled||!selected.filePath)return {cancelled:true};
-    if(format==='csv')fs.writeFileSync(selected.filePath,itemReportCsv(details),'utf8');
+    if(format==='csv'){
+      const data=await renderItemReportWorker('csv',details);
+      fs.writeFileSync(selected.filePath,data,'utf8');
+    }
     if(format==='xlsx'){
-      const ExcelJS=require('exceljs');
-      const book=new ExcelJS.Workbook();
-      const sheet=book.addWorksheet('Itens vendidos');
-      const exportData=itemReportSheetRows(details);
-      sheet.columns=exportData.columns.map(c=>({header:c.label,key:c.key,width:c.key==='product_name'?34:22}));
-      sheet.getRow(1).font={bold:true};
-      for(const row of exportData.rows)sheet.addRow(row);
-      sheet.views=[{state:'frozen',ySplit:1}];
-      await book.xlsx.writeFile(selected.filePath);
+      const bytes=await renderItemReportWorker('xlsx',details);
+      fs.writeFileSync(selected.filePath,Buffer.from(bytes));
     }
     if(format==='pdf'){
+      const html=await renderItemReportWorker('html',details);
       const printWindow=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true}});
       try{
-        await printWindow.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(itemReportHtml(details)));
+        await printWindow.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(html));
         const pdf=await printWindow.webContents.printToPDF({pageSize:'A4',landscape:true,printBackground:true});
         fs.writeFileSync(selected.filePath,pdf);
       }finally{if(!printWindow.isDestroyed())printWindow.destroy();}
