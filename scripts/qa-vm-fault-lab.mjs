@@ -3,6 +3,7 @@ import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {tmpdir,release} from 'node:os';
 import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {mkdtempSync,rmSync,mkdirSync,writeFileSync,readdirSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {openCatalog} from '../electron/db.mjs';
@@ -31,7 +32,7 @@ async function scenario(id,description,fn){
 }
 async function runChild(mode,database,productId){
  const script=new URL('./qa-vm-sqlite-child.mjs',import.meta.url);
- const child=spawn(process.execPath,[script.pathname,mode,database,productId],{
+ const child=spawn(process.execPath,[fileURLToPath(script),mode,database,productId],{
   stdio:['ignore','pipe','pipe'],windowsHide:true
  });
  let stderr='';
