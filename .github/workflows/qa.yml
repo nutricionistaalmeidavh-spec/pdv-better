@@ -3,7 +3,12 @@ on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
+concurrency:
+  group: pdv-qa-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
@@ -17,7 +22,8 @@ jobs:
         with:
           node-version: '22'
       - name: Instalar dependências
-        run: npm install --no-audit --no-fund
+        shell: pwsh
+        run: ./scripts/ci-install.ps1
       - name: Compilar aplicativo e preload
         run: npm run build
       - name: Testar F01–F06 em Electron real com SQLite fictício isolado
@@ -46,7 +52,8 @@ jobs:
         with:
           node-version: '22'
       - name: Instalar dependências
-        run: npm install --no-audit --no-fund
+        shell: pwsh
+        run: ./scripts/ci-install.ps1
       - name: Compilar Electron, React e preload
         run: npm run build
       - name: Executar jornadas completas independentes
@@ -74,7 +81,8 @@ jobs:
         with:
           node-version: '22'
       - name: Instalar dependências
-        run: npm install --no-audit --no-fund
+        shell: pwsh
+        run: ./scripts/ci-install.ps1
       - name: Testar domínio, migrações e transações
         run: npm test
       - name: Compilar React e IPC canônico
@@ -125,9 +133,8 @@ jobs:
         with:
           node-version: '22'
       - name: Instalar dependencias gratuitas
-        run: |
-          npm install --no-audit --no-fund
-          npm install --no-save --no-audit --no-fund pdf-lib
+        shell: pwsh
+        run: ./scripts/ci-install.ps1 -WithPdfTools
       - name: Compilar aplicacao Electron
         run: npm run build
       - name: Gerar imagens reais e PDF com dados ficticios
