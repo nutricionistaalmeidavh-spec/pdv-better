@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   list: (kind, search) => ipcRenderer.invoke(apiChannels.list, kind, search),
   save: (kind, input) => ipcRenderer.invoke(apiChannels.save, kind, input),
   archive: (kind, id) => ipcRenderer.invoke(apiChannels.archive, kind, id),
+  catalogCsvPreview: input => ipcRenderer.invoke(apiChannels.catalogCsvPreview,input),
+  catalogCsvImport: input => ipcRenderer.invoke(apiChannels.catalogCsvImport,input),
   overview: () => ipcRenderer.invoke(apiChannels.overview),
   sessionCurrent: () => ipcRenderer.invoke(apiChannels.sessionCurrent),
   sessionOpen: (input) => ipcRenderer.invoke(apiChannels.sessionOpen, input),
