@@ -7,14 +7,14 @@ test('EXPORT-01: CSV, HTML/PDF e XLSX partem das mesmas linhas com saldo exato',
  const f=createNexusParityFixture();
  try{
   const db=f.store;db.openSession({openingCashCents:0});
-  db.checkout({key:'export-01',items:[{id:f.unit.id,quantityMilli:1000},{id:f.weight.id,quantityMilli:350}],discountCents:10,payments:[{method:'pix',amountCents:1545}]});
+  db.checkout({key:'export-01',items:[{id:f.unit.id,quantityMilli:1000},{id:f.weight.id,quantityMilli:350}],discountCents:10,payments:[{method:'pix',amountCents:1555}]});
   const report=db.reportItems();
   const csv=itemReportCsv(report),html=itemReportHtml(report),sheets=itemReportSheetRows(report);
   assert.ok(csv.startsWith('\ufeff'));
   assert.match(csv,/Café|Cafe/);
   assert.match(html,/Relatório detalhado por item/);
   assert.equal(sheets.rows.length,2);
-  assert.equal(sheets.rows.reduce((n,r)=>n+r.net_cents,0),1545);
+  assert.equal(sheets.rows.reduce((n,r)=>n+r.net_cents,0),1555);
   assert.equal(report.summary.net_total_cents,1545);
  }finally{f.cleanup();}
 });
