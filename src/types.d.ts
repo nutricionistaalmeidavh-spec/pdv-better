@@ -28,6 +28,7 @@ interface PdvBridge {
   financeSettle(input: any): Promise<any>;
   report(): Promise<any>;
   reportItems(filters?:any): Promise<any>;
+  reportCompare(input:{from:string;to:string;comparisonFrom:string;comparisonTo:string}): Promise<any>;
   reportItemsExport(input:{format:'csv'|'pdf'|'xlsx';filters?:any}):Promise<{cancelled:boolean;format?:string}>;
   authStatus(): Promise<{setupRequired:boolean;operators:Array<{id:string;name:string;role:string}>}>;
   authBootstrap(input:{name:string;password:string}): Promise<{id:string;name:string;role:string}>;
