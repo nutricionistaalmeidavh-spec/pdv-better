@@ -339,3 +339,36 @@ select option { color: #f5f6f7; background: #202224; }
   .receipt-content,.receipt-content * { background:#fff!important;color:#111!important;box-shadow:none!important; }
   .receipt-items th,.receipt-items td { background:#fff!important;color:#111!important;border-color:#ccc!important; }
 }
+/* Acessibilidade: mantém a paleta Graphite Glass, mas respeita alto contraste e zoom. */
+@media (prefers-contrast: more) {
+  .glass-panel,.panel,.dialog,.settings-block,.sidebar,.topbar {
+    border:2px solid currentColor!important;
+    box-shadow:none!important;
+  }
+  .primary,.secondary,.nav-item,.icon-btn { border:1px solid currentColor!important; }
+  .muted-hint,.settings-tip,.receipt-disclaimer { opacity:1!important; }
+}
+@media (forced-colors: active) {
+  .glass-panel,.panel,.dialog,.stat,.quick,.settings-block,.sidebar,.topbar {
+    forced-color-adjust:auto;
+    border:1px solid CanvasText!important;
+    background:Canvas!important;
+    color:CanvasText!important;
+  }
+  .primary,.secondary,.nav-item,.icon-btn { border:1px solid ButtonText!important; }
+  :is(button,input,select,textarea,a):focus-visible {outline:3px solid Highlight!important;outline-offset:3px!important;}
+}
+@media (prefers-reduced-motion: reduce) {
+  *,*::before,*::after {
+    animation-duration:0.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:0.01ms!important;
+    scroll-behavior:auto!important;
+  }
+}
+@media (max-width:1150px) {
+  .commerce-inline-form { flex-wrap:wrap; }
+  .commerce-table { overflow-x:auto; }
+  .payment-row { min-width:0; }
+  .form-field input,.form-field select,.settings-label input { max-width:100%; }
+}

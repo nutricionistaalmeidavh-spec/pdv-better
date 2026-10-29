@@ -7,13 +7,14 @@ async function start() {
   const { openCatalog } = await import('./db.mjs');
   const { apiChannels } = await import('../shared/contract.mjs');
   const { reportRows, reportCsv, reportHtml } = await import('../shared/report.mjs');
-  const { itemReportCsv, itemReportHtml, itemReportSheetRows } = await import('../shared/item-report-export.mjs');
+  const { renderItemReportWorker } = await import('./report-worker-client.mjs');
   const { createBatchLabel } = await import('../shared/batch-label.mjs');
   const { renderPhysicalBatchLabel } = require('./physical-label.cjs');
   const { safeStorage } = require('electron');
   const { createRuntime } = await import('./runtime.mjs');
   const { applyPendingRestore,verifyDatabase,scheduleRestore } = await import('./backup.mjs');
   const { renderPrintDocument } = await import('./printing.mjs');
+  const {openPrintQueue} = await import('./print-queue.mjs');
   const { sendTcp, readScale } = await import('./peripherals.mjs');
   const { makeReceipt,drawerPulse,assertDeviceAddress } = await import('../shared/peripherals.mjs');
   if(process.env.PDV_TEST_SMOKE==='1' && process.env.PDV_TEST_USER_DATA) {
@@ -23,6 +24,11 @@ async function start() {
   }
   const folder = app.getPath('userData');
   fs.mkdirSync(folder, { recursive: true });
+  let printQueue=null,printQueueError=null;
+  try{printQueue=openPrintQueue(folder);}catch(error){
+    printQueueError=error;
+    console.error('Fila de impressão inválida; vendas continuam locais:',error.message);
+  }
   const databaseFile=path.join(folder,'pdv-better.sqlite');
   applyPendingRestore(databaseFile);
   const terminalFile=path.join(folder,'terminal-id.txt');
@@ -66,6 +72,7 @@ async function start() {
   ipcMain.handle(apiChannels.financeSettle, (_event, input) => domain('settleFinance',input));
   ipcMain.handle(apiChannels.report, (_event) => domain('report'));
   ipcMain.handle(apiChannels.reportItems, (_event, filters) => domain('reportItems',filters));
+  ipcMain.handle(apiChannels.reportCompare, (_event, input) => domain('compareReportPeriods',input));
   const window = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1024, minHeight: 660,
     backgroundColor: '#f5f6fb', show: false,
@@ -120,22 +127,19 @@ async function start() {
       filters:[{name:format.toUpperCase(),extensions:[format]}]
     });
     if(selected.canceled||!selected.filePath)return {cancelled:true};
-    if(format==='csv')fs.writeFileSync(selected.filePath,itemReportCsv(details),'utf8');
+    if(format==='csv'){
+      const data=await renderItemReportWorker('csv',details);
+      fs.writeFileSync(selected.filePath,data,'utf8');
+    }
     if(format==='xlsx'){
-      const ExcelJS=require('exceljs');
-      const book=new ExcelJS.Workbook();
-      const sheet=book.addWorksheet('Itens vendidos');
-      const exportData=itemReportSheetRows(details);
-      sheet.columns=exportData.columns.map(c=>({header:c.label,key:c.key,width:c.key==='product_name'?34:22}));
-      sheet.getRow(1).font={bold:true};
-      for(const row of exportData.rows)sheet.addRow(row);
-      sheet.views=[{state:'frozen',ySplit:1}];
-      await book.xlsx.writeFile(selected.filePath);
+      const bytes=await renderItemReportWorker('xlsx',details);
+      fs.writeFileSync(selected.filePath,Buffer.from(bytes));
     }
     if(format==='pdf'){
+      const html=await renderItemReportWorker('html',details);
       const printWindow=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true}});
       try{
-        await printWindow.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(itemReportHtml(details)));
+        await printWindow.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(html));
         const pdf=await printWindow.webContents.printToPDF({pageSize:'A4',landscape:true,printBackground:true});
         fs.writeFileSync(selected.filePath,pdf);
       }finally{if(!printWindow.isDestroyed())printWindow.destroy();}
@@ -180,13 +184,13 @@ async function start() {
     if(!target)throw new Error('Configure primeiro a balança TCP nas configurações.');
     return readScale(target);
   });
-  ipcMain.handle(apiChannels.devicePrint,async(_evt,input)=>{
-    runtime.authorize('devicePrint');
+  async function performPrint(input){
     const kind=input?.kind;
     if(kind==='receipt-tcp'){
       const prefs=readDevice(),target=deviceTarget(prefs.printerHost,prefs.printerPort);
       if(!target)throw new Error('Impressora ESC/POS TCP não configurada.');
       const sale=await domain('getSale',String(input.saleId||''));
+      if(sale.is_training)throw new Error('Simulação de treinamento não pode gerar comprovante de venda.');
       return sendTcp(target,makeReceipt(sale));
     }
     if(!['receipt','label','batch-label'].includes(kind))throw new Error('Tipo de impressão inválido.');
@@ -194,6 +198,7 @@ async function start() {
       ? await domain('getSale',String(input.saleId||''))
       : (await domain('list','products')).find(p=>p.id===input.productId);
     if(!record)throw new Error('Registro não encontrado para impressão.');
+    if(kind==='receipt'&&record.is_training)throw new Error('Simulação de treinamento não pode gerar comprovante de venda.');
     let document;
     if(kind==='batch-label'){
       const batch=(await domain('listBatches',record.id)).find(b=>b.id===input.batchId);
@@ -214,6 +219,36 @@ async function start() {
         silent:!!requested,deviceName:requested,printBackground:false,usePrinterDefaultPageSize:true
       },(ok,reason)=>ok?resolve({printed:true}):reject(new Error('Impressão não concluída: '+reason))));
     }finally{if(!printWindow.isDestroyed())printWindow.destroy();}
+  }
+  ipcMain.handle(apiChannels.devicePrint,async(_evt,input)=>{
+    runtime.authorize('devicePrint');
+    try{return await performPrint(input);}
+    catch(error){
+      if(!printQueue||!['receipt','receipt-tcp','label','batch-label'].includes(input?.kind))throw error;
+      let job;
+      try{
+        job=printQueue.enqueue(input);
+        printQueue.markFailed(job.id,error);
+      }catch(queueError){
+        throw new Error('Impressão falhou, mas o registro na fila também falhou: '+String(queueError.message||queueError),{cause:error});
+      }
+      throw new Error('Impressora não concluiu o envio: '+String(error?.message||error).slice(0,130)+'. Tentativa registrada na fila local ('+job.id.slice(0,8)+'). Confira o dispositivo antes de reenviar.',{cause:error});
+    }
+  });
+  ipcMain.handle(apiChannels.printQueueList,()=>{
+    runtime.authorize('printQueueList');
+    if(!printQueue)throw printQueueError||new Error('Fila de impressão indisponível.');
+    return printQueue.list();
+  });
+  ipcMain.handle(apiChannels.printQueueRetry,async(_evt,id)=>{
+    runtime.authorize('printQueueRetry');
+    if(!printQueue)throw printQueueError||new Error('Fila de impressão indisponível.');
+    return printQueue.retry(String(id||''),performPrint);
+  });
+  ipcMain.handle(apiChannels.printQueuePurge,()=>{
+    runtime.authorize('printQueuePurge');
+    if(!printQueue)throw printQueueError||new Error('Fila de impressão indisponível.');
+    return printQueue.purgePrinted();
   });
   ipcMain.handle(apiChannels.backupCreate,async()=>{
     runtime.authorize('backupCreate');

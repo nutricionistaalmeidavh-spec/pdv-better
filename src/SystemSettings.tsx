@@ -7,6 +7,8 @@ export function SystemSettings(){
   const [lan,setLan]=useState<Any>({});
   const [device,setDevice]=useState<Any>({printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001});
   const [printers,setPrinters]=useState<Any[]>([]);
+  const [printJobs,setPrintJobs]=useState<Any[]>([]);
+  const [printQueueError,setPrintQueueError]=useState('');
   const [address,setAddress]=useState('http://192.168.1.10:48791/');
   const [secret,setSecret]=useState('');
   const [port,setPort]=useState('48791');
@@ -17,8 +19,11 @@ export function SystemSettings(){
   async function reload(){
     if(!api)return;
     try{
-      const [status,prefs,list]=await Promise.all([api.lanStatus(),api.deviceGet(),api.devicePrinters()]);
-      setLan(status);setDevice(prefs);setPrinters(list);setError('');
+      const [status,prefs,list,jobs]=await Promise.all([
+        api.lanStatus(),api.deviceGet(),api.devicePrinters(),
+        api.printQueueList().catch(e=>{setPrintQueueError(errText(e));return [];})
+      ]);
+      setLan(status);setDevice(prefs);setPrinters(list);setPrintJobs(jobs);setError('');
     }catch(e){setError(errText(e));}
   }
   useEffect(()=>{void reload();},[]);
@@ -68,6 +73,25 @@ export function SystemSettings(){
         <label className="settings-label">Porta TCP<input type="number" min="1" max="65535" value={device.printerPort||9100} onChange={e=>setDevice((p:Any)=>({...p,printerPort:Number(e.target.value)}))}/></label>
         <p className="settings-tip">Abertura de gaveta: somente ao tocar no botão. Requer gaveta ligada à impressora ESC/POS de rede.</p>
         <button className="secondary" disabled={pending||!device.printerHost} onClick={()=>void run(()=>api!.drawerOpen(),'Pulso enviado à gaveta de dinheiro.',false)}>Testar gaveta</button>
+      </div>
+      <div className="panel settings-block">
+        <h2><Printer size={19}/> Fila de trabalhos pendentes</h2>
+        <p>Falhas permanecem registradas neste computador, inclusive após reinício. Antes de reenviar, confirme que a impressão anterior não saiu: um desligamento pode ocorrer após a impressora receber os dados.</p>
+        {printQueueError&&<p className="form-error" role="alert">{printQueueError}</p>}
+        {printJobs.length===0&&<p>Não há trabalhos na fila.</p>}
+        {printJobs.slice(0,30).map(job=><div className="settings-info" key={job.id}>
+          <strong>{job.payload.kind} · {job.status==='printed'?'Concluído':job.status==='failed'?'Falhou':'Pendente'}</strong>
+          <div>Tentativas: {job.attempts} · {job.created_at?.slice(0,19)}</div>
+          {job.last_error&&<small role="status">{job.last_error}</small>}
+          {job.status!=='printed'&&<button className="secondary" disabled={pending} onClick={()=>{
+            if(window.confirm('Confirme que não houve impressão física antes de reenviar. Continuar?'))
+              void run(()=>api!.printQueueRetry(job.id),'Impressão reenviada; retorno do dispositivo registrado.');
+          }}>Tentar novamente</button>}
+        </div>)}
+        <button className="plain" disabled={pending||!printJobs.some(x=>x.status==='printed')} onClick={()=>{
+          if(window.confirm('Remover apenas os trabalhos já concluídos da fila?'))
+            void run(()=>api!.printQueuePurge(),'Itens concluídos removidos da fila.');
+        }}>Limpar impressões concluídas</button>
       </div>
       <div className="panel settings-block"><h2><Scale size={19}/> Balança de rede</h2>
         <p>Leitura TCP de peso estável em quilogramas. O PDV rejeita leituras negativas ou instáveis.</p>

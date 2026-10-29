@@ -4,7 +4,7 @@ const columns=[
  ['brand','Marca'],['producer','Produtor'],['variant_group','Grupo de variantes'],['variant_label','Variante'],
  ['code','SKU'],['quantity_milli','Quantidade (milésimos)'],
  ['gross_cents','Bruto (centavos)'],['discount_cents','Desconto (centavos)'],
- ['net_cents','Líquido (centavos)'],['payment_method','Pagamento'],['status','Situação'],
+ ['net_cents','Líquido (centavos)'],['payment_method','Pagamento'],['status','Situação'],['is_training','Treinamento (1/0)'],
  ['operator_id','Operador'],['terminal_id','Terminal']
 ];
 function rows(report){

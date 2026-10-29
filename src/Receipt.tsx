@@ -15,13 +15,13 @@ export function SaleReceipt({sale,onClose}:{sale:any;onClose:()=>void}){
   }
   return <div className="modal-backdrop" role="presentation">
     <section className="dialog receipt-dialog glass-payment" role="dialog" aria-modal="true" aria-label="Comprovante não fiscal da venda">
-      <header className="dialog-head receipt-actions"><div><div className="eyebrow">VENDA CONCLUÍDA</div><h2>Comprovante</h2></div><button className="secondary" onClick={onClose} aria-label="Fechar comprovante"><X size={16}/>Fechar</button></header>
+      <header className="dialog-head receipt-actions"><div><div className="eyebrow">{sale.is_training?'SIMULAÇÃO DE TREINAMENTO':'VENDA CONCLUÍDA'}</div><h2>Comprovante</h2></div><button className="secondary" onClick={onClose} aria-label="Fechar comprovante"><X size={16}/>Fechar</button></header>
       <div className="receipt-content">
-        <div className="receipt-brand"><ReceiptText size={23}/><h3>PDV Better</h3><p>Comprovante de venda não fiscal</p></div>
+        <div className="receipt-brand"><ReceiptText size={23}/><h3>PDV Better</h3><p>{sale.is_training?'SIMULAÇÃO — SEM VALOR FISCAL OU FINANCEIRO':'Comprovante de venda não fiscal'}</p></div>
         <div className="receipt-sep"/>
         <p><strong>Venda:</strong> {sale.id}</p>
         <p><strong>Data:</strong> {new Date(sale.created_at).toLocaleString('pt-BR')}</p>
-        <p><strong>Situação:</strong> {sale.status==='cancelled'?'CANCELADA':'CONCLUÍDA'}</p>
+        <p><strong>Situação:</strong> {sale.is_training?'TREINAMENTO — ':''}{sale.status==='cancelled'?'CANCELADA':'CONCLUÍDA'}</p>
         <div className="receipt-sep"/>
         <table className="receipt-items"><thead><tr><th>Produto</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>
           {(sale.items||[]).map((item:any)=><tr key={item.id}><td>{item.name}<small>{money(item.unit_price_cents)}/{item.unit}</small></td><td>{(item.quantity_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {item.unit}</td><td>{money(item.line_total_cents)}</td></tr>)}
@@ -35,10 +35,10 @@ export function SaleReceipt({sale,onClose}:{sale:any;onClose:()=>void}){
         {(sale.payments||[]).map((p:any)=><div className="receipt-sum" key={p.id}><span>{method(p.method)}</span><span>{money(p.amount_cents)}</span></div>)}
         {sale.change_cents>0&&<div className="receipt-sum"><span>Troco</span><strong>{money(sale.change_cents)}</strong></div>}
         <div className="receipt-sep"/>
-        <p className="receipt-disclaimer">NÃO É DOCUMENTO FISCAL. Pix e cartão foram registrados manualmente no estabelecimento. Este comprovante não substitui NFC-e, SAT ou cupom fiscal.</p>
+        <p className="receipt-disclaimer">{sale.is_training?'SIMULAÇÃO DE TREINAMENTO: não houve pagamento, estoque ou faturamento real. ':''}NÃO É DOCUMENTO FISCAL. Pix e cartão foram registrados manualmente no estabelecimento. Este comprovante não substitui NFC-e, SAT ou cupom fiscal.</p>
       </div>
       {error&&<div className="form-error" role="alert">{error}</div>}
-      <footer className="dialog-footer receipt-actions"><button className="secondary" onClick={onClose}>Concluir</button><button className="secondary" disabled={busy} onClick={()=>void print('receipt-tcp')}>ESC/POS rede</button><button className="primary" disabled={busy} onClick={()=>void print('receipt')}><Printer size={16}/>Imprimir no Windows</button></footer>
+      <footer className="dialog-footer receipt-actions"><button className="secondary" onClick={onClose}>Concluir</button><button className="secondary" disabled={busy||!!sale.is_training} onClick={()=>void print('receipt-tcp')}>ESC/POS rede</button><button className="primary" disabled={busy||!!sale.is_training} onClick={()=>void print('receipt')}><Printer size={16}/>Imprimir no Windows</button></footer>
     </section>
   </div>;
 }

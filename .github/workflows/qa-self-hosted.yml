@@ -1,0 +1,46 @@
+name: QA opcional — runner Windows autogerido
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-self-hosted:
+    # Requer runner Windows x64 instalado e mantido pelo estabelecimento.
+    # Não é obrigatório nem substitui os cinco gates do CI regular.
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependências
+        shell: pwsh
+        run: ./scripts/ci-install.ps1
+      - name: Testes de domínio e migrações
+        run: npm test
+      - name: Compilar Electron + React
+        run: npm run build
+      - name: Smoke Electron local real
+        run: npm run test:desktop
+      - name: Validar jornadas críticas
+        run: |
+          npm run test:flows:f15-f30
+          npm run test:flows:f31-f40
+          npm run test:flows:e01-e12
+      - name: Gerar instalador NSIS
+        run: npm run dist:win
+      - name: Validar checksum do instalador
+        shell: pwsh
+        run: |
+          $installer=Get-ChildItem release -Filter '*Setup*.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'Instalador NSIS ausente' }
+          $hash=Get-FileHash $installer.FullName -Algorithm SHA256
+          "$($hash.Hash)  $($installer.Name)" | Set-Content 'release/SHA256SUMS.txt'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdv-plus-self-hosted-windows
+          path: |
+            release/*Setup*.exe
+            release/SHA256SUMS.txt
+          if-no-files-found: error

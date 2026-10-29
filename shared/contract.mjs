@@ -1,5 +1,5 @@
 // Modelo canônico de entidades: formulário, validação, SQLite e lista usam este arquivo.
-export const CONTRACT_VERSION = 8;
+export const CONTRACT_VERSION = 9;
 export const roleNames = Object.freeze(['Caixa','Gerente','Administrador']);
 export const entityOrder = ['products', 'categories', 'customers', 'suppliers', 'operators'];
 export const entities = {
@@ -87,10 +87,10 @@ export const apiChannels = Object.freeze({
   promotionSet: 'pdv:products:promotion-set', promotionsList: 'pdv:products:promotions',
   bundleSet: 'pdv:products:bundle-set', bundleList: 'pdv:products:bundles', bundleArchive: 'pdv:products:bundle-archive', stockHistory: 'pdv:stock:history',
   financeCreate: 'pdv:finance:create', financeList: 'pdv:finance:list', financeSettle: 'pdv:finance:settle',
-  report: 'pdv:report:summary', reportItems: 'pdv:report:items', reportItemsExport: 'pdv:report:items-export', reportExport: 'pdv:report:export',
+  report: 'pdv:report:summary', reportItems: 'pdv:report:items', reportCompare: 'pdv:report:compare', reportItemsExport: 'pdv:report:items-export', reportExport: 'pdv:report:export',
   lanStatus: 'pdv:lan:status', lanHost: 'pdv:lan:host', lanJoin: 'pdv:lan:join', lanLocal: 'pdv:lan:local',
   deviceGet: 'pdv:device:get', deviceSet: 'pdv:device:set', devicePrinters: 'pdv:device:printers',
-  devicePrint: 'pdv:device:print', drawerOpen: 'pdv:drawer:open', scaleRead: 'pdv:scale:read',
+  devicePrint: 'pdv:device:print', printQueueList: 'pdv:device:print-jobs', printQueueRetry: 'pdv:device:print-retry', printQueuePurge: 'pdv:device:print-purge', drawerOpen: 'pdv:drawer:open', scaleRead: 'pdv:scale:read',
   backupCreate: 'pdv:backup:create', backupRestore: 'pdv:backup:restore',
   authStatus: 'pdv:auth:status', authBootstrap: 'pdv:auth:bootstrap', authLogin: 'pdv:auth:login', authLogout: 'pdv:auth:logout', authSetPassword: 'pdv:auth:set-password',
   sessionsList: 'pdv:sessions:list'

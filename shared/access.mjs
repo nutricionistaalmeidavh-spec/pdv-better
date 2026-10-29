@@ -1,7 +1,7 @@
 // Única fonte de verdade das permissões (UI, IPC, LAN e testes).
 import {roleNames} from './contract.mjs';
-const cashActions=['list','overview','getCurrentSession','openSession','closeSession','checkout','quoteSale','listBatches','listSales','getSale','devicePrint','devicePrinters','scaleRead','drawerOpen'];
-const managerActions=['save','archive','previewCatalogCsv','importCatalogCsv','moveCash','cancelSale','moveStock','listStockMovements','receiveBatch','listBatches','setPromotion','listPromotions','setBundlePromotion','listBundlePromotions','archiveBundlePromotion','reportItems','createFinance','listFinance','settleFinance','report','reportExport','listOpenSessions','deviceGet','deviceSet','backupCreate'];
+const cashActions=['list','overview','getCurrentSession','openSession','closeSession','checkout','quoteSale','listBatches','listSales','getSale','devicePrint','printQueueList','printQueueRetry','devicePrinters','scaleRead','drawerOpen'];
+const managerActions=['save','archive','previewCatalogCsv','importCatalogCsv','moveCash','cancelSale','moveStock','listStockMovements','receiveBatch','listBatches','setPromotion','listPromotions','setBundlePromotion','listBundlePromotions','archiveBundlePromotion','reportItems','compareReportPeriods','createFinance','listFinance','settleFinance','report','reportExport','listOpenSessions','deviceGet','deviceSet','backupCreate','printQueuePurge'];
 const adminActions=['setPassword','lanStatus','lanHost','lanJoin','lanLocal','backupRestore'];
 export const permissions=Object.freeze({
  Caixa:Object.freeze([...cashActions,'saveCustomer','listCustomer']),
