@@ -50,6 +50,8 @@ export function normalizePayments(input,totalCents) {
 export function validateSaleInput(input) {
   if(!input || typeof input!=='object') throw new Error('Venda inválida.');
   const key=assertLabel(input.key,'Identificador da operação',128);
+  if(input.training!==undefined&&typeof input.training!=='boolean')throw new Error('Modo de treinamento inválido.');
+  const training=input.training===true;
   if(!Array.isArray(input.items) || !input.items.length || input.items.length>200) throw new Error('Inclua de 1 a 200 produtos na venda.');
   const unique=new Set();
   const items=input.items.map(row=>{
@@ -66,7 +68,7 @@ export function validateSaleInput(input) {
   if(normalizedItemPayments?.some(x=>x.amountCents<=0))throw new Error('Pagamento por produto deve ser positivo.');
   const customerId=input.customerId || null;
   if(customerId!==null && (typeof customerId!=='string'||customerId.length>64)) throw new Error('Cliente inválido.');
-  return {key,items,discountCents,customerId,payments:input.payments,itemPayments:normalizedItemPayments};
+  return {key,items,discountCents,customerId,payments:input.payments,itemPayments:normalizedItemPayments,training};
 }
 export function inventoryDelta(kind,quantityMilli) {
   assertChoice(kind,inventoryKinds,'Movimento de estoque');
