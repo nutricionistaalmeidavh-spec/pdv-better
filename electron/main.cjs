@@ -7,6 +7,9 @@ async function start() {
   const { openCatalog } = await import('./db.mjs');
   const { apiChannels } = await import('../shared/contract.mjs');
   const { reportRows, reportCsv, reportHtml } = await import('../shared/report.mjs');
+  const { itemReportCsv, itemReportHtml, itemReportSheetRows } = await import('../shared/item-report-export.mjs');
+  const { createBatchLabel } = await import('../shared/batch-label.mjs');
+  const { renderPhysicalBatchLabel } = require('./physical-label.cjs');
   const { safeStorage } = require('electron');
   const { createRuntime } = await import('./runtime.mjs');
   const { applyPendingRestore,verifyDatabase,scheduleRestore } = await import('./backup.mjs');
@@ -53,6 +56,9 @@ async function start() {
   ipcMain.handle(apiChannels.batchesList, (_event, id) => domain('listBatches',id));
   ipcMain.handle(apiChannels.promotionSet, (_event, input) => domain('setPromotion',input));
   ipcMain.handle(apiChannels.promotionsList, (_event, id) => domain('listPromotions',id));
+  ipcMain.handle(apiChannels.bundleSet, (_event, input) => domain('setBundlePromotion',input));
+  ipcMain.handle(apiChannels.bundleList, () => domain('listBundlePromotions'));
+  ipcMain.handle(apiChannels.bundleArchive, (_event, id) => domain('archiveBundlePromotion',id));
   ipcMain.handle(apiChannels.financeCreate, (_event, input) => domain('createFinance',input));
   ipcMain.handle(apiChannels.financeList, (_event) => domain('listFinance'));
   ipcMain.handle(apiChannels.financeSettle, (_event, input) => domain('settleFinance',input));
@@ -97,6 +103,40 @@ async function start() {
         const buffer=await printWindow.webContents.printToPDF({pageSize:'A4',printBackground:true});
         fs.writeFileSync(selected.filePath,buffer);
       } finally {printWindow.destroy();}
+    }
+    return {cancelled:false,format};
+  });
+
+  ipcMain.handle(apiChannels.reportItemsExport, async (_event,input)=>{
+    runtime.authorize('reportItems');
+    const format=input?.format;
+    if(!['csv','pdf','xlsx'].includes(format))throw new Error('Formato de exportação inválido.');
+    const details=await domain('reportItems',input?.filters||{});
+    const selected=await dialog.showSaveDialog(window,{
+      title:'Exportar relatório detalhado por item',
+      defaultPath:'PDV-Plus-Itens.'+format,
+      filters:[{name:format.toUpperCase(),extensions:[format]}]
+    });
+    if(selected.canceled||!selected.filePath)return {cancelled:true};
+    if(format==='csv')fs.writeFileSync(selected.filePath,itemReportCsv(details),'utf8');
+    if(format==='xlsx'){
+      const ExcelJS=require('exceljs');
+      const book=new ExcelJS.Workbook();
+      const sheet=book.addWorksheet('Itens vendidos');
+      const exportData=itemReportSheetRows(details);
+      sheet.columns=exportData.columns.map(c=>({header:c.label,key:c.key,width:c.key==='product_name'?34:22}));
+      sheet.getRow(1).font={bold:true};
+      for(const row of exportData.rows)sheet.addRow(row);
+      sheet.views=[{state:'frozen',ySplit:1}];
+      await book.xlsx.writeFile(selected.filePath);
+    }
+    if(format==='pdf'){
+      const printWindow=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true}});
+      try{
+        await printWindow.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(itemReportHtml(details)));
+        const pdf=await printWindow.webContents.printToPDF({pageSize:'A4',landscape:true,printBackground:true});
+        fs.writeFileSync(selected.filePath,pdf);
+      }finally{if(!printWindow.isDestroyed())printWindow.destroy();}
     }
     return {cancelled:false,format};
   });
@@ -147,12 +187,19 @@ async function start() {
       const sale=await domain('getSale',String(input.saleId||''));
       return sendTcp(target,makeReceipt(sale));
     }
-    if(!['receipt','label'].includes(kind))throw new Error('Tipo de impressão inválido.');
+    if(!['receipt','label','batch-label'].includes(kind))throw new Error('Tipo de impressão inválido.');
     const record=kind==='receipt'
       ? await domain('getSale',String(input.saleId||''))
       : (await domain('list','products')).find(p=>p.id===input.productId);
     if(!record)throw new Error('Registro não encontrado para impressão.');
-    const document=renderPrintDocument(kind==='receipt'?{kind,sale:record}:{kind,product:record});
+    let document;
+    if(kind==='batch-label'){
+      const batch=(await domain('listBatches',record.id)).find(b=>b.id===input.batchId);
+      if(!batch)throw new Error('Lote da etiqueta não encontrado.');
+      if(!record.code)throw new Error('Produto sem SKU; cadastre o código antes de imprimir lote.');
+      const payload=createBatchLabel(record.code,batch.code);
+      document=renderPhysicalBatchLabel({payload,product:record,batch});
+    }else document=renderPrintDocument(kind==='receipt'?{kind,sale:record}:{kind,product:record});
     const requested=String(input.printer||'');
     if(requested) {
       const names=(await window.webContents.getPrintersAsync()).map(p=>p.name);

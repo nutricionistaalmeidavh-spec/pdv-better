@@ -18,11 +18,15 @@ interface PdvBridge {
   batchesList(productId?: string): Promise<any[]>;
   promotionSet(input: any): Promise<any>;
   promotionsList(productId?: string): Promise<any[]>;
+  bundleSet(input:any):Promise<any>;
+  bundleList():Promise<any[]>;
+  bundleArchive(id:string):Promise<any>;
   financeCreate(input: any): Promise<any>;
   financeList(): Promise<any[]>;
   financeSettle(input: any): Promise<any>;
   report(): Promise<any>;
   reportItems(filters?:any): Promise<any>;
+  reportItemsExport(input:{format:'csv'|'pdf'|'xlsx';filters?:any}):Promise<{cancelled:boolean;format?:string}>;
   authStatus(): Promise<{setupRequired:boolean;operators:Array<{id:string;name:string;role:string}>}>;
   authBootstrap(input:{name:string;password:string}): Promise<{id:string;name:string;role:string}>;
   authLogin(input:{operatorId:string;password:string}): Promise<{id:string;name:string;role:string}>;

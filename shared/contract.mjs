@@ -1,5 +1,5 @@
 // Modelo canônico de entidades: formulário, validação, SQLite e lista usam este arquivo.
-export const CONTRACT_VERSION = 5;
+export const CONTRACT_VERSION = 6;
 export const roleNames = Object.freeze(['Caixa','Gerente','Administrador']);
 export const entityOrder = ['products', 'categories', 'customers', 'suppliers', 'operators'];
 export const entities = {
@@ -79,9 +79,10 @@ export const apiChannels = Object.freeze({
   sessionCurrent: 'pdv:session:current', sessionOpen: 'pdv:session:open', sessionClose: 'pdv:session:close', cashMove: 'pdv:cash:move',
   checkout: 'pdv:checkout:commit', quoteSale: 'pdv:checkout:quote', salesList: 'pdv:sales:list', saleGet: 'pdv:sales:get', salesCancel: 'pdv:sales:cancel',
   stockMove: 'pdv:stock:move', batchReceive: 'pdv:stock:batch-receive', batchesList: 'pdv:stock:batches',
-  promotionSet: 'pdv:products:promotion-set', promotionsList: 'pdv:products:promotions', stockHistory: 'pdv:stock:history',
+  promotionSet: 'pdv:products:promotion-set', promotionsList: 'pdv:products:promotions',
+  bundleSet: 'pdv:products:bundle-set', bundleList: 'pdv:products:bundles', bundleArchive: 'pdv:products:bundle-archive', stockHistory: 'pdv:stock:history',
   financeCreate: 'pdv:finance:create', financeList: 'pdv:finance:list', financeSettle: 'pdv:finance:settle',
-  report: 'pdv:report:summary', reportItems: 'pdv:report:items', reportExport: 'pdv:report:export',
+  report: 'pdv:report:summary', reportItems: 'pdv:report:items', reportItemsExport: 'pdv:report:items-export', reportExport: 'pdv:report:export',
   lanStatus: 'pdv:lan:status', lanHost: 'pdv:lan:host', lanJoin: 'pdv:lan:join', lanLocal: 'pdv:lan:local',
   deviceGet: 'pdv:device:get', deviceSet: 'pdv:device:set', devicePrinters: 'pdv:device:printers',
   devicePrint: 'pdv:device:print', drawerOpen: 'pdv:drawer:open', scaleRead: 'pdv:scale:read',
