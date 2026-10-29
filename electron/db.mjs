@@ -5,17 +5,11 @@ import { normalizeRecord } from '../shared/domain.mjs';
 import { createCommerce } from './commerce.mjs';
 import {migrateAccess,createAccess} from './access.mjs';
 import {migrateNexusFeatures} from './nexus-features.mjs';
+import {normalizeSqliteError} from './sqlite-errors.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
 export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}) {
   const timeout=Number.isSafeInteger(busyTimeoutMs)&&busyTimeoutMs>=0&&busyTimeoutMs<=30000?busyTimeoutMs:5000;
-  const storageError=(error)=>{
-    const message=String(error?.message||error);
-    if(/SQLITE_BUSY|SQLITE_LOCKED|database is locked|database is busy/i.test(message))
-      return new Error('O banco SQLite está ocupado ou bloqueado. Aguarde e tente novamente.');
-    if(/file is not a database|database disk image is malformed|SQLITE_CORRUPT|malformed database schema|integridade/i.test(message))
-      return new Error('Integridade do banco SQLite inválida ou dados corrompidos. Banco original preservado.');
-    return error;
-  };
+  const storageError=normalizeSqliteError;
   let db;
   try {
   db = new DatabaseSync(filename);
