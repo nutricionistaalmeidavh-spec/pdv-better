@@ -43,15 +43,21 @@ async function start() {
   ipcMain.handle(apiChannels.sessionClose, (_event, input) => domain('closeSession',input));
   ipcMain.handle(apiChannels.cashMove, (_event, input) => domain('moveCash',input));
   ipcMain.handle(apiChannels.checkout, (_event, input) => domain('checkout',input));
+  ipcMain.handle(apiChannels.quoteSale, (_event, input) => domain('quoteSale',input));
   ipcMain.handle(apiChannels.salesList, (_event) => domain('listSales'));
   ipcMain.handle(apiChannels.saleGet, (_event, id) => domain('getSale',id));
   ipcMain.handle(apiChannels.salesCancel, (_event, id) => domain('cancelSale',id));
   ipcMain.handle(apiChannels.stockMove, (_event, input) => domain('moveStock',input));
   ipcMain.handle(apiChannels.stockHistory, (_event, id) => domain('listStockMovements',id));
+  ipcMain.handle(apiChannels.batchReceive, (_event, input) => domain('receiveBatch',input));
+  ipcMain.handle(apiChannels.batchesList, (_event, id) => domain('listBatches',id));
+  ipcMain.handle(apiChannels.promotionSet, (_event, input) => domain('setPromotion',input));
+  ipcMain.handle(apiChannels.promotionsList, (_event, id) => domain('listPromotions',id));
   ipcMain.handle(apiChannels.financeCreate, (_event, input) => domain('createFinance',input));
   ipcMain.handle(apiChannels.financeList, (_event) => domain('listFinance'));
   ipcMain.handle(apiChannels.financeSettle, (_event, input) => domain('settleFinance',input));
   ipcMain.handle(apiChannels.report, (_event) => domain('report'));
+  ipcMain.handle(apiChannels.reportItems, (_event, filters) => domain('reportItems',filters));
   const window = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1024, minHeight: 660,
     backgroundColor: '#f5f6fb', show: false,

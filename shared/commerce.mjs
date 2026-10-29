@@ -56,7 +56,8 @@ export function validateSaleInput(input) {
     const id=assertLabel(row?.id,'Produto',64);
     if(unique.has(id)) throw new Error('Produto duplicado na venda.');
     unique.add(id);
-    return {id,quantityMilli:assertMilli(row?.quantityMilli)};
+    const batchId=row?.batchId===undefined||row.batchId===null||row.batchId===''?null:assertLabel(row.batchId,'Lote físico',64);
+    return {id,quantityMilli:assertMilli(row?.quantityMilli),batchId};
   });
   const discountCents=assertCents(input.discountCents??0,'Desconto');
   const customerId=input.customerId || null;

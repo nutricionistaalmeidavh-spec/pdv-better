@@ -3,11 +3,16 @@ import {
   assertCents, assertMilli, assertChoice, assertLabel, normalizePayments,
   validateSaleInput, inventoryDelta, cashDelta, financeInput, lineTotalCents, methodIds
 } from '../shared/commerce.mjs';
+import {bestPromotionPrice,localBusinessDate,strictDate} from './nexus-features.mjs';
+import {normalizeSqliteError} from './sqlite-errors.mjs';
 const now=()=>new Date().toISOString();
 function atomic(db,fn) {
-  db.exec('BEGIN IMMEDIATE');
-  try {const result=fn();db.exec('COMMIT');return result;}
-  catch(error){db.exec('ROLLBACK');throw error;}
+  try{db.exec('BEGIN IMMEDIATE');}catch(error){throw normalizeSqliteError(error);}
+  try{const result=fn();db.exec('COMMIT');return result;}
+  catch(error){
+    try{db.exec('ROLLBACK');}catch{}
+    throw normalizeSqliteError(error);
+  }
 }
 function createTables(db){
   const old=db.prepare('PRAGMA user_version').get().user_version;
@@ -119,12 +124,119 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     run('INSERT INTO stock_movements(id,product_id,delta_milli,kind,reason,sale_id,created_at) VALUES(?,?,?,?,?,?,?)',
       randomUUID(),productId,delta,kind,reason,saleId,now());
   }
+
+  function listBatches(productId=null){
+    if(productId!==null){
+      const id=assertLabel(productId,'Produto',64);
+      return all('SELECT * FROM product_batches WHERE product_id=? ORDER BY expires_on,code',id);
+    }
+    return all('SELECT * FROM product_batches ORDER BY expires_on,product_id,code');
+  }
+  function receiveBatch(input){
+    return atomic(db,()=>{
+      const productId=assertLabel(input?.productId,'Produto',64);
+      const code=assertLabel(input?.code,'Código do lote',64);
+      const expiresOn=strictDate(input?.expiresOn,'Validade');
+      const quantity=assertMilli(input?.quantityMilli);
+      const p=row('SELECT * FROM products WHERE id=? AND active=1',productId);
+      if(!p)throw new Error('Produto do lote não encontrado.');
+      if(p.unit==='UN'&&quantity%1000!==0)throw new Error('Lote de unidade exige quantidade inteira.');
+      const existing=row('SELECT * FROM product_batches WHERE product_id=? AND code=?',productId,code);
+      if(existing&&existing.expires_on!==expiresOn)throw new Error('Lote já cadastrado com outra validade.');
+      recordStock(productId,quantity,'batch_receipt','Entrada do lote '+code);
+      if(existing){
+        run('UPDATE product_batches SET remaining_milli=remaining_milli+? WHERE id=?',quantity,existing.id);
+        return row('SELECT * FROM product_batches WHERE id=?',existing.id);
+      }
+      const id=randomUUID();
+      run('INSERT INTO product_batches(id,product_id,code,expires_on,remaining_milli,created_at) VALUES(?,?,?,?,?,?)',id,productId,code,expiresOn,quantity,now());
+      return row('SELECT * FROM product_batches WHERE id=?',id);
+    });
+  }
+  function listPromotions(productId=null){
+    if(productId!==null)return all('SELECT * FROM product_promotions WHERE product_id=? ORDER BY quantity_milli',assertLabel(productId,'Produto',64));
+    return all('SELECT * FROM product_promotions ORDER BY product_id,quantity_milli');
+  }
+  function setPromotion(input){
+    return atomic(db,()=>{
+      const productId=assertLabel(input?.productId,'Produto',64);
+      const p=row('SELECT * FROM products WHERE id=? AND active=1',productId);
+      if(!p)throw new Error('Produto da promoção não encontrado.');
+      if(p.unit!=='UN')throw new Error('Promoção por quantidade exige produto por unidade, não KG.');
+      const qty=assertMilli(input?.quantityMilli);
+      if(qty<2000||qty%1000!==0)throw new Error('Promoção por unidade exige quantidade inteira de 2 ou mais.');
+      const price=assertCents(input?.bundlePriceCents,'Preço promocional');
+      const full=lineTotalCents(p.sale_price_cents,qty);
+      if(price>full)throw new Error('Preço promocional não pode ser maior que preço normal.');
+      const existing=row('SELECT id FROM product_promotions WHERE product_id=? AND quantity_milli=?',productId,qty);
+      const id=existing?.id||randomUUID();
+      run('INSERT INTO product_promotions(id,product_id,quantity_milli,bundle_price_cents) VALUES(?,?,?,?) ON CONFLICT(product_id,quantity_milli) DO UPDATE SET bundle_price_cents=excluded.bundle_price_cents',id,productId,qty,price);
+      return row('SELECT * FROM product_promotions WHERE product_id=? AND quantity_milli=?',productId,qty);
+    });
+  }
+  function calculateLines(items){
+    let subtotal=0,promotionDiscount=0;
+    const snapshots=items.map(item=>{
+      const product=row('SELECT * FROM products WHERE id=? AND active=1',item.id);
+      if(!product)throw new Error('Produto inativo ou não encontrado.');
+      if(product.unit==='UN'&&item.quantityMilli%1000!==0)throw new Error('Produto por unidade exige quantidade inteira.');
+      if(product.stock_milli<item.quantityMilli)throw new Error('Estoque insuficiente: '+product.name);
+      const line=lineTotalCents(product.sale_price_cents,item.quantityMilli);
+      const rules=product.unit==='UN'?listPromotions(item.id):[];
+      const promoNet=rules.length?bestPromotionPrice(product.sale_price_cents,item.quantityMilli,rules):line;
+      subtotal+=line;promotionDiscount+=line-promoNet;
+      if(!Number.isSafeInteger(subtotal)||!Number.isSafeInteger(promotionDiscount))throw new Error('Total da venda excede o limite.');
+      return {...item,product,line,promoDiscount:line-promoNet};
+    });
+    return {subtotal,promotionDiscount,snapshots};
+  }
+  function quoteSale(input){
+    const draft=validateSaleInput({...input,key:'quote-only',payments:[]});
+    const {subtotal,promotionDiscount,snapshots}=calculateLines(draft.items);
+    if(draft.discountCents>subtotal-promotionDiscount)throw new Error('Desconto não pode ultrapassar o subtotal.');
+    const total=subtotal-promotionDiscount-draft.discountCents;
+    if(total<=0)throw new Error('Total deve ser positivo.');
+    return {subtotal_cents:subtotal,promotion_discount_cents:promotionDiscount,
+      manual_discount_cents:draft.discountCents,total_cents:total,
+      lines:snapshots.map(s=>({product_id:s.id,gross_cents:s.line,promotion_discount_cents:s.promoDiscount}))};
+  }
+  function allocateBatches(product,quantity,batchId,saleId,saleItemId){
+    const lots=listBatches(product.id);
+    if(!lots.length && !batchId)return;
+    const tracked=lots.reduce((sum,b)=>sum+b.remaining_milli,0);
+    const untracked=product.stock_milli-tracked;
+    if(untracked<0)throw new Error('Saldo de lotes excede estoque; concilie o inventário.');
+    const valid=lots.filter(b=>b.remaining_milli>0&&b.expires_on>=localBusinessDate());
+    let chosen=[];
+    if(batchId){
+      const batch=lots.find(b=>b.id===batchId);
+      if(!batch)throw new Error('Lote físico não encontrado para este produto.');
+      if(batch.expires_on<localBusinessDate())throw new Error('Lote físico vencido. Venda bloqueada.');
+      if(batch.remaining_milli<quantity)throw new Error('Saldo insuficiente no lote físico informado.');
+      chosen=[[batch,quantity]];
+    }else{
+      let left=quantity;
+      for(const lot of valid){
+        if(left<=0)break;
+        const take=Math.min(left,lot.remaining_milli);
+        if(take>0){chosen.push([lot,take]);left-=take;}
+      }
+      if(left>untracked)throw new Error('Estoque válido insuficiente: lotes vencidos não podem ser vendidos.');
+    }
+    for(const [lot,take] of chosen){
+      const updated=run('UPDATE product_batches SET remaining_milli=remaining_milli-? WHERE id=? AND remaining_milli>=?',take,lot.id,take);
+      if(updated.changes!==1)throw new Error('Concorrência na baixa do lote; tente novamente.');
+      run('INSERT INTO sale_batch_allocations(id,sale_id,sale_item_id,batch_id,quantity_milli) VALUES(?,?,?,?,?)',randomUUID(),saleId,saleItemId,lot.id,take);
+    }
+  }
+
   function getSale(id){
     const sale=row('SELECT * FROM sales WHERE id=?',id);
     if(!sale)throw new Error('Venda não encontrada.');
     return {...sale,
       items:all('SELECT * FROM sale_items WHERE sale_id=? ORDER BY rowid',id),
-      payments:all('SELECT * FROM sale_payments WHERE sale_id=? ORDER BY rowid',id)};
+      payments:all('SELECT * FROM sale_payments WHERE sale_id=? ORDER BY rowid',id),
+      batch_allocations:all('SELECT * FROM sale_batch_allocations WHERE sale_id=? ORDER BY rowid',id)};
   }
   function getCurrentSession(ctx){
     const session=openRow(ctx);
@@ -172,19 +284,9 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
         return getSale(previous.id);
       }
       const session=requireOpen(ctx);
-      let subtotal=0;
-      const snapshots=draft.items.map(item=>{
-        const product=row('SELECT * FROM products WHERE id=? AND active=1',item.id);
-        if(!product)throw new Error('Produto inativo ou não encontrado.');
-        if(product.unit==='UN' && item.quantityMilli%1000!==0)throw new Error('Produto por unidade exige quantidade inteira.');
-        if(product.stock_milli<item.quantityMilli)throw new Error('Estoque insuficiente: '+product.name);
-        const line=lineTotalCents(product.sale_price_cents,item.quantityMilli);
-        subtotal+=line;
-        if(!Number.isSafeInteger(subtotal))throw new Error('Total da venda excede o limite.');
-        return {...item,product,line};
-      });
-      if(draft.discountCents>subtotal)throw new Error('Desconto não pode ultrapassar o subtotal.');
-      const total=subtotal-draft.discountCents;
+      const {subtotal,promotionDiscount,snapshots}=calculateLines(draft.items);
+      if(draft.discountCents>subtotal-promotionDiscount)throw new Error('Desconto não pode ultrapassar o subtotal.');
+      const total=subtotal-promotionDiscount-draft.discountCents;
       if(total<=0)throw new Error('Total deve ser positivo.');
       const computed=normalizePayments(draft.payments,total);
       if(computed.payments.some(p=>p.method==='credit')){
@@ -195,11 +297,13 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       }
       const saleId=randomUUID();
       run("INSERT INTO sales(id,idempotency_key,request_hash,session_id,customer_id,subtotal_cents,discount_cents,total_cents,change_cents,operator_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,'completed',?)",
-        saleId,draft.key,hash,session.id,draft.customerId,subtotal,draft.discountCents,total,computed.change_cents,ctx?.operatorId||null,now());
+              saleId,draft.key,hash,session.id,draft.customerId,subtotal,draft.discountCents+promotionDiscount,total,computed.change_cents,ctx?.operatorId||null,now());
       for(const item of snapshots){
-        run('INSERT INTO sale_items(id,sale_id,product_id,name,code,unit,quantity_milli,unit_price_cents,line_total_cents,unit_cost_cents) VALUES(?,?,?,?,?,?,?,?,?,?)',
-          randomUUID(),saleId,item.id,item.product.name,item.product.code,item.product.unit,item.quantityMilli,
-          item.product.sale_price_cents,item.line,item.product.cost_price_cents);
+        const saleItemId=randomUUID();
+        run('INSERT INTO sale_items(id,sale_id,product_id,name,code,unit,quantity_milli,unit_price_cents,line_total_cents,unit_cost_cents,promotion_discount_cents) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+          saleItemId,saleId,item.id,item.product.name,item.product.code,item.product.unit,item.quantityMilli,
+          item.product.sale_price_cents,item.line,item.product.cost_price_cents,item.promoDiscount);
+        allocateBatches(item.product,item.quantityMilli,item.batchId,saleId,saleItemId);
         recordStock(item.id,-item.quantityMilli,'sale','Venda '+saleId,saleId);
       }
       for(const payment of computed.payments){
@@ -223,6 +327,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       if(row("SELECT COUNT(*) AS n FROM financial_entries WHERE sale_id=? AND status='settled'",id).n)
         throw new Error('Recebimento do fiado já liquidado. Resolva o recebimento antes de cancelar.');
       for(const item of sale.items)recordStock(item.product_id,item.quantity_milli,'sale_cancel','Cancelamento da venda '+id,id);
+      for(const allocation of sale.batch_allocations)
+        run('UPDATE product_batches SET remaining_milli=remaining_milli+? WHERE id=?',allocation.quantity_milli,allocation.batch_id);
       const cash=sale.payments.filter(p=>p.method==='cash').reduce((sum,p)=>sum+p.amount_cents,0);
       if(cash)recordCash(session,'sale_cancel',-cash,'Estorno local da venda '+id,id,null,ctx?.operatorId||null);
       run("UPDATE financial_entries SET status='cancelled' WHERE sale_id=? AND status='open'",id);
@@ -246,6 +352,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       const p=row('SELECT * FROM products WHERE id=? AND active=1',id);
       if(!p)throw new Error('Produto não encontrado ou desativado.');
       if(p.unit==='UN' && delta%1000!==0)throw new Error('Produto por unidade exige quantidade inteira.');
+      const tracked=row('SELECT COALESCE(SUM(remaining_milli),0) AS total FROM product_batches WHERE product_id=?',id).total;
+      if(p.stock_milli+delta>=0&&p.stock_milli+delta<tracked)throw new Error('Ajuste de estoque reduziria saldo abaixo dos lotes fisicamente rastreados.');
       recordStock(id,delta,input.kind,reason);
       return row('SELECT * FROM products WHERE id=?',id);
     });
@@ -293,6 +401,46 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       cancelled_count:row("SELECT COUNT(*) AS n FROM sales WHERE status='cancelled'").n
     };
   }
+
+  function reportItems(filters={}){
+    const status=filters?.status||'completed';
+    if(!['completed','cancelled','all'].includes(status))throw new Error('Situação de relatório inválida.');
+    const from=filters?.from?strictDate(filters.from,'Data inicial'):null;
+    const to=filters?.to?strictDate(filters.to,'Data final'):null;
+    if(from&&to&&from>to)throw new Error('Período inválido.');
+    const productId=filters?.productId?assertLabel(filters.productId,'Produto',64):null;
+    const operatorId=filters?.operatorId?assertLabel(filters.operatorId,'Operador',64):null;
+    const sales=all("SELECT s.*,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id ORDER BY s.created_at,s.id");
+    if(sales.length>10000)throw new Error('Período muito grande; reduza os filtros do relatório.');
+    const rows=[];
+    for(const s of sales){
+      if(status!=='all'&&s.status!==status)continue;
+      const day=s.created_at?.slice(0,10);
+      if((from&&day<from)||(to&&day>to)||(operatorId&&s.operator_id!==operatorId))continue;
+      const items=all('SELECT * FROM sale_items WHERE sale_id=? ORDER BY rowid',s.id);
+      const amount=s.discount_cents;
+      const total=items.reduce((sum,x)=>sum+x.line_total_cents,0);
+      const discounts=items.map(x=>total>0?Number(BigInt(amount)*BigInt(x.line_total_cents)/BigInt(total)):0);
+      let left=amount-discounts.reduce((sum,x)=>sum+x,0);
+      const ranking=items.map((x,i)=>({i,rest:total>0?(BigInt(amount)*BigInt(x.line_total_cents))%BigInt(total):0n}));
+      ranking.sort((a,b)=>a.rest===b.rest?a.i-b.i:a.rest>b.rest?-1:1);
+      for(const x of ranking){if(!left)break;if(discounts[x.i]<items[x.i].line_total_cents){discounts[x.i]++;left--;}}
+      if(left)throw new Error('Falha de conciliação de desconto no relatório.');
+      const methods=all('SELECT method FROM sale_payments WHERE sale_id=?',s.id);
+      const method=methods.length===1?methods[0].method:'mixed_unallocated';
+      items.forEach((item,i)=>{
+        if(productId&&item.product_id!==productId)return;
+        rows.push({sale_id:s.id,product_id:item.product_id,product_name:item.name,code:item.code,
+          quantity_milli:item.quantity_milli,unit_price_cents:item.unit_price_cents,
+          gross_cents:item.line_total_cents,discount_cents:discounts[i],
+          net_cents:item.line_total_cents-discounts[i],status:s.status,payment_method:method,
+          customer_id:s.customer_id,operator_id:s.operator_id,terminal_id:s.terminal_id,created_at:s.created_at});
+      });
+    }
+    return {rows,summary:{items_count:rows.length,
+      net_total_cents:rows.filter(x=>x.status==='completed').reduce((sum,x)=>sum+x.net_cents,0)}};
+  }
+
   function recordInitialStock(productId,quantityMilli){
     if(!quantityMilli)return;
     run('INSERT INTO stock_movements(id,product_id,delta_milli,kind,reason,created_at) VALUES(?,?,?,?,?,?)',
@@ -300,6 +448,7 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
   }
   return {
     openSession,getCurrentSession,closeSession,moveCash,checkout,getSale,cancelSale,listSales,listOpenSessions,
-    moveStock,listStockMovements,createFinance,settleFinance,listFinance,report,recordInitialStock
+    moveStock,listStockMovements,receiveBatch,listBatches,setPromotion,listPromotions,quoteSale,reportItems,
+    createFinance,settleFinance,listFinance,report,recordInitialStock
   };
 }
