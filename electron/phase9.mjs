@@ -1,6 +1,6 @@
 export function migratePhase9(db){
  const version=db.prepare('PRAGMA user_version').get().user_version;
- if(version===9)return;
+ if(version>=9)return;
  if(version!==8)throw new Error('Migração de vendas de treinamento requer banco v8.');
  db.exec('BEGIN IMMEDIATE');
  try{
