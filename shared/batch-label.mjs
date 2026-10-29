@@ -41,6 +41,6 @@ export function resolveBatchScan(raw,products,batches,today){
 export function buildLabeledSaleItems(cart,batchIds={}){
  if(!Array.isArray(cart))throw new Error('Carrinho inválido.');
  return cart.map(x=>({
-   id:x.id,quantityMilli:x.quantityMilli,batchId:batchIds[x.id]||null
+   id:x.id,quantityMilli:x.quantityMilli,batchId:Object.prototype.hasOwnProperty.call(batchIds,x.id)?(batchIds[x.id]||null):(x.batchId||null)
  }));
 }
