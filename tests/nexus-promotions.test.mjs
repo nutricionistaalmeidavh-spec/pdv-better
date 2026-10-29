@@ -27,8 +27,8 @@ test('NEX-PROMO-02: plano escolhe menor composicao de faixas e nunca aumenta pre
    db.setPromotion({productId:f.unit.id,quantityMilli:2000,bundlePriceCents:2200});
    db.setPromotion({productId:f.unit.id,quantityMilli:3000,bundlePriceCents:3600});
    const quote=db.quoteSale({items:[{id:f.unit.id,quantityMilli:5000}]});
-   assert.equal(quote.total_cents,5800);
-   assert.equal(quote.promotion_discount_cents,450);
+   assert.equal(quote.total_cents,5650);
+   assert.equal(quote.promotion_discount_cents,600);
    assert.equal(db.listPromotions(f.unit.id).length,2);
  }finally{f.cleanup();}
 });
