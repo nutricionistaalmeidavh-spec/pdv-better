@@ -89,7 +89,7 @@ test('backup usa snapshot SQLite consistente e restauração rejeita arquivo cor
    const corrupt=join(dir,'corrupt.sqlite');writeFileSync(corrupt,'not a SQLite database');
    assert.throws(()=>stageRestore(corrupt,source),/inválid|corrompid/i);
    const staged=stageRestore(backup,source);
-   assert.ok(existsSync(staged.stagedPath));assert.equal(staged.version,6);
+   assert.ok(existsSync(staged.stagedPath));assert.equal(staged.version,7);
    assert.equal(store.list('products').length,1);
  }finally{store.close();rmSync(dir,{recursive:true,force:true});}
 });
@@ -107,7 +107,7 @@ test('restauração agendada troca banco íntegro e preserva cópia de seguranç
     assert.equal(scheduleRestore(source,active).pending,true);
     const result=applyPendingRestore(active);
     assert.equal(result.restored,true);
-    assert.equal(verifyDatabase(result.previous).version,6);
+    assert.equal(verifyDatabase(result.previous).version,7);
     store=openCatalog(active);
     assert.equal(store.list('products')[0].name,'Restaurado');
     store.close();
