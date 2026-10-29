@@ -9,6 +9,7 @@ import { entities, entityOrder } from '../shared/contract.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
 import { filterCheckoutProducts } from '../shared/catalog.mjs';
 import { resolveBatchScan,parseBatchLabel } from '../shared/batch-label.mjs';
+import {applyManualWeight} from '../shared/manual-weight.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
 import { SaleReceipt } from './Receipt';
 import { SystemSettings } from './SystemSettings';
@@ -68,6 +69,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [paymentOpen,setPaymentOpen] = useState(false);
   const [receipt,setReceipt] = useState<Row|null>(null);
   const [readingScale,setReadingScale] = useState(false);
+  const [manualWeight,setManualWeight] = useState<Record<string,string>>({});
   const [passwordTarget,setPasswordTarget] = useState<Row|null>(null);
   const [operatorPassword,setOperatorPassword] = useState('');
   const [repeatPassword,setRepeatPassword] = useState('');
@@ -278,7 +280,18 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
                   {cart.length === 0 ? <div className="empty-cart"><ShoppingCart size={32}/><strong>Seu carrinho está vazio</strong><p>Selecione um produto para começar.</p></div> :
                     cart.map(line => <div className="cart-line" key={line.id}><div className="cart-line-top"><div><strong>{line.name}</strong><span>{money(line.priceCents)} / {line.unit}{line.batchId?' · Lote físico '+(line.batchCode||line.batchId.slice(0,8)):''}</span></div><button className="icon-btn" title="Remover do carrinho" aria-label={'Remover '+line.name} onClick={() => setCart(old => old.filter(item => item.id !== line.id))}><X size={17}/></button></div>
                       <div className="cart-line-bottom"><div className="stepper"><button aria-label={'Diminuir '+line.name} onClick={() => changeQuantity(line,-(line.unit === 'KG' ? 100 : 1000))}><Minus size={15}/></button><span>{(line.quantityMilli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {line.unit}</span><button aria-label={'Aumentar '+line.name} onClick={() => changeQuantity(line,line.unit === 'KG' ? 100 : 1000)}><Plus size={15}/></button></div><strong>{money(lineTotalCents(line.priceCents,line.quantityMilli))}</strong></div>
-                      {line.unit==='KG'&&<button className="plain" disabled={readingScale} onClick={()=>void weighItem(line)}>Ler balança para {line.name}</button>}
+                      {line.unit==='KG'&&<div className="commerce-inline-form">
+                        <label>Peso manual (kg) — {line.name}
+                          <input aria-label={'Peso manual de '+line.name} inputMode="decimal" placeholder="0,350"
+                            value={manualWeight[line.id]||''}
+                            onChange={e=>setManualWeight(old=>({...old,[line.id]:e.target.value}))}/>
+                        </label>
+                        <button className="secondary" type="button" onClick={()=>{
+                          try{setCart(old=>applyManualWeight(old,line.id,manualWeight[line.id]||''));setCartError('');}
+                          catch(err){setCartError(friendlyError(err));}
+                        }}>Aplicar peso</button>
+                        <button className="plain" disabled={readingScale} onClick={()=>void weighItem(line)}>Ler balança para {line.name}</button>
+                      </div>}
                     </div>)}
                 </div>
                 <div className="cart-footer">

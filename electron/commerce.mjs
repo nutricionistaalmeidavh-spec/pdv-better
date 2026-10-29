@@ -6,6 +6,7 @@ import {
 import {bestPromotionPrice,localBusinessDate,strictDate} from './nexus-features.mjs';
 import {optimizeCrossSkuDiscounts} from './cross-sku.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
+import {allocateDiscounts} from '../shared/item-allocation.mjs';
 const now=()=>new Date().toISOString();
 function atomic(db,fn) {
   try{db.exec('BEGIN IMMEDIATE');}catch(error){throw normalizeSqliteError(error);}
@@ -237,9 +238,11 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     if(draft.discountCents>subtotal-promotionDiscount)throw new Error('Desconto não pode ultrapassar o subtotal.');
     const total=subtotal-promotionDiscount-draft.discountCents;
     if(total<=0)throw new Error('Total deve ser positivo.');
+    const discounts=allocateDiscounts(snapshots.map(s=>s.line),draft.discountCents+promotionDiscount);
     return {subtotal_cents:subtotal,promotion_discount_cents:promotionDiscount,
       manual_discount_cents:draft.discountCents,total_cents:total,
-      lines:snapshots.map(s=>({product_id:s.id,gross_cents:s.line,promotion_discount_cents:s.promoDiscount}))};
+      lines:snapshots.map((s,i)=>({product_id:s.id,gross_cents:s.line,
+        promotion_discount_cents:s.promoDiscount,net_cents:s.line-discounts[i]}))};
   }
   function allocateBatches(product,quantity,batchId,saleId,saleItemId){
     const lots=listBatches(product.id);
@@ -277,7 +280,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     return {...sale,
       items:all('SELECT * FROM sale_items WHERE sale_id=? ORDER BY rowid',id),
       payments:all('SELECT * FROM sale_payments WHERE sale_id=? ORDER BY rowid',id),
-      batch_allocations:all('SELECT * FROM sale_batch_allocations WHERE sale_id=? ORDER BY rowid',id)};
+      batch_allocations:all('SELECT * FROM sale_batch_allocations WHERE sale_id=? ORDER BY rowid',id),
+      item_payments:all("SELECT x.id,x.sale_item_id,x.sale_payment_id,x.amount_cents,i.product_id,p.method FROM sale_item_payments x JOIN sale_items i ON i.id=x.sale_item_id JOIN sale_payments p ON p.id=x.sale_payment_id WHERE x.sale_id=? ORDER BY x.rowid",id)};
   }
   function getCurrentSession(ctx){
     const session=openRow(ctx);
@@ -315,7 +319,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
   function checkout(input,ctx){
     const draft=validateSaleInput(input);
     const hash=createHash('sha256').update(JSON.stringify({
-      items:draft.items,customerId:draft.customerId,discountCents:draft.discountCents,payments:draft.payments
+      items:draft.items,customerId:draft.customerId,discountCents:draft.discountCents,payments:draft.payments,
+      ...(draft.itemPayments?{itemPayments:draft.itemPayments}:{})
     })).digest('hex');
     return atomic(db,()=>{
       const previous=row('SELECT s.id,s.request_hash,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id WHERE s.idempotency_key=?',draft.key);
@@ -330,6 +335,24 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       const total=subtotal-promotionDiscount-draft.discountCents;
       if(total<=0)throw new Error('Total deve ser positivo.');
       const computed=normalizePayments(draft.payments,total);
+      // Atribuições só são aceitas quando todos os itens e todas as formas de pagamento
+      // conciliam com o valor líquido. Nenhum valor misto é inventado.
+      const itemDiscounts=allocateDiscounts(snapshots.map(s=>s.line),draft.discountCents+promotionDiscount);
+      if(draft.itemPayments){
+        const sumsByProduct=new Map();
+        const sumsByMethod=new Map();
+        const productTotals=new Map(snapshots.map((s,i)=>[s.id,s.line-itemDiscounts[i]]));
+        for(const a of draft.itemPayments){
+          if(!productTotals.has(a.productId))throw new Error('Pagamento por produto inexistente na venda.');
+          sumsByProduct.set(a.productId,(sumsByProduct.get(a.productId)||0)+a.amountCents);
+          sumsByMethod.set(a.method,(sumsByMethod.get(a.method)||0)+a.amountCents);
+        }
+        if([...productTotals].some(([id,net])=>sumsByProduct.get(id)!==net))
+          throw new Error('Pagamento por produto não concilia com seu valor líquido.');
+        if(computed.payments.some(p=>sumsByMethod.get(p.method)!==p.amount_cents)
+          || [...sumsByMethod.keys()].some(method=>!computed.payments.some(p=>p.method===method)))
+          throw new Error('Atribuição por produto não concilia com as formas de pagamento.');
+      }
       if(computed.payments.some(p=>p.method==='credit')){
         if(!draft.customerId)throw new Error('Venda fiado exige cliente cadastrado.');
         if(!row('SELECT id FROM customers WHERE id=? AND active=1',draft.customerId))throw new Error('Cliente do fiado não encontrado ou inativo.');
@@ -339,22 +362,31 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       const saleId=randomUUID();
       run("INSERT INTO sales(id,idempotency_key,request_hash,session_id,customer_id,subtotal_cents,discount_cents,total_cents,change_cents,operator_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,'completed',?)",
               saleId,draft.key,hash,session.id,draft.customerId,subtotal,draft.discountCents+promotionDiscount,total,computed.change_cents,ctx?.operatorId||null,now());
+      const saleItemIds=new Map();
       for(const item of snapshots){
         const saleItemId=randomUUID();
+        saleItemIds.set(item.id,saleItemId);
         run('INSERT INTO sale_items(id,sale_id,product_id,name,code,unit,quantity_milli,unit_price_cents,line_total_cents,unit_cost_cents,promotion_discount_cents) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
           saleItemId,saleId,item.id,item.product.name,item.product.code,item.product.unit,item.quantityMilli,
           item.product.sale_price_cents,item.line,item.product.cost_price_cents,item.promoDiscount);
         allocateBatches(item.product,item.quantityMilli,item.batchId,saleId,saleItemId);
         recordStock(item.id,-item.quantityMilli,'sale','Venda '+saleId,saleId);
       }
+      const salePaymentIds=new Map();
       for(const payment of computed.payments){
+        const paymentId=randomUUID();
+        salePaymentIds.set(payment.method,paymentId);
         run('INSERT INTO sale_payments(id,sale_id,method,amount_cents,tendered_cents) VALUES(?,?,?,?,?)',
-          randomUUID(),saleId,payment.method,payment.amount_cents,payment.tendered_cents);
+          paymentId,saleId,payment.method,payment.amount_cents,payment.tendered_cents);
         if(payment.method==='cash')recordCash(session,'sale',payment.amount_cents,'Venda '+saleId,saleId,null,ctx?.operatorId||null);
         if(payment.method==='credit'){
           run("INSERT INTO financial_entries(id,type,description,amount_cents,customer_id,sale_id,status,created_at) VALUES(?,'receivable',?,?,?,?,'open',?)",
             randomUUID(),'Venda fiado '+saleId,payment.amount_cents,draft.customerId,saleId,now());
         }
+      }
+      if(draft.itemPayments)for(const allocation of draft.itemPayments){
+        run('INSERT INTO sale_item_payments(id,sale_id,sale_item_id,sale_payment_id,amount_cents) VALUES(?,?,?,?,?)',
+          randomUUID(),saleId,saleItemIds.get(allocation.productId),salePaymentIds.get(allocation.method),allocation.amountCents);
       }
       return getSale(saleId);
     });
@@ -459,22 +491,19 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       const day=s.created_at?.slice(0,10);
       if((from&&day<from)||(to&&day>to)||(operatorId&&s.operator_id!==operatorId))continue;
       const items=all('SELECT * FROM sale_items WHERE sale_id=? ORDER BY rowid',s.id);
-      const amount=s.discount_cents;
-      const total=items.reduce((sum,x)=>sum+x.line_total_cents,0);
-      const discounts=items.map(x=>total>0?Number(BigInt(amount)*BigInt(x.line_total_cents)/BigInt(total)):0);
-      let left=amount-discounts.reduce((sum,x)=>sum+x,0);
-      const ranking=items.map((x,i)=>({i,rest:total>0?(BigInt(amount)*BigInt(x.line_total_cents))%BigInt(total):0n}));
-      ranking.sort((a,b)=>a.rest===b.rest?a.i-b.i:a.rest>b.rest?-1:1);
-      for(const x of ranking){if(!left)break;if(discounts[x.i]<items[x.i].line_total_cents){discounts[x.i]++;left--;}}
-      if(left)throw new Error('Falha de conciliação de desconto no relatório.');
+      const discounts=allocateDiscounts(items.map(x=>x.line_total_cents),s.discount_cents);
       const methods=all('SELECT method FROM sale_payments WHERE sale_id=?',s.id);
-      const method=methods.length===1?methods[0].method:'mixed_unallocated';
+      const defaultMethod=methods.length===1?methods[0].method:'mixed_unallocated';
+      const attributes=all("SELECT x.sale_item_id,p.method,x.amount_cents FROM sale_item_payments x JOIN sale_payments p ON p.id=x.sale_payment_id WHERE x.sale_id=?",s.id);
       items.forEach((item,i)=>{
         if(productId&&item.product_id!==productId)return;
+        const assigned=attributes.filter(a=>a.sale_item_id===item.id);
+        const method=assigned.length?(new Set(assigned.map(a=>a.method)).size===1?assigned[0].method:'mixed_allocated'):defaultMethod;
         rows.push({sale_id:s.id,product_id:item.product_id,product_name:item.name,code:item.code,
           quantity_milli:item.quantity_milli,unit_price_cents:item.unit_price_cents,
           gross_cents:item.line_total_cents,discount_cents:discounts[i],
           net_cents:item.line_total_cents-discounts[i],status:s.status,payment_method:method,
+          payment_allocations:assigned.map(a=>({method:a.method,amount_cents:a.amount_cents})),
           customer_id:s.customer_id,operator_id:s.operator_id,terminal_id:s.terminal_id,created_at:s.created_at});
       });
     }
