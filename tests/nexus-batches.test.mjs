@@ -61,3 +61,15 @@ test('NEX-FEFO-04: migrar banco com vendas nao altera saldo ou historico, e batc
    assert.equal(reopened.listStockMovements(f.unit.id).reduce((sum,x)=>sum+x.delta_milli,0),before+1000);
  }finally{f.cleanup();}
 });
+
+test('NEX-FEFO-05: ajuste nao pode reduzir saldo global abaixo de lotes rastreados',()=>{
+ const f=createNexusParityFixture();
+ try{
+  const db=f.store;
+  db.receiveBatch({productId:f.weight.id,code:'RESERVA-FISICA',expiresOn:'2099-12-01',quantityMilli:900});
+  const previous=db.list('products').find(x=>x.id===f.weight.id).stock_milli;
+  assert.throws(()=>db.moveStock({productId:f.weight.id,kind:'adjustment',quantityMilli:-4300,reason:'Inventario inconsistente'}),/lote|rastreado|saldo/i);
+  assert.equal(db.list('products').find(x=>x.id===f.weight.id).stock_milli,previous);
+  assert.equal(db.listBatches(f.weight.id)[0].remaining_milli,900);
+ }finally{f.cleanup();}
+});
