@@ -37,3 +37,10 @@ export function resolveBatchScan(raw,products,batches,today){
   if(batch.remaining_milli<=0)throw new Error('Lote sem saldo para venda.');
   return {product,batch};
 }
+
+export function buildLabeledSaleItems(cart,batchIds={}){
+ if(!Array.isArray(cart))throw new Error('Carrinho inválido.');
+ return cart.map(x=>({
+   id:x.id,quantityMilli:x.quantityMilli,batchId:batchIds[x.id]||null
+ }));
+}
