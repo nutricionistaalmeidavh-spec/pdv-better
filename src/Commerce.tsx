@@ -133,6 +133,17 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [stockKind,setStockKind]=useState('receipt');
   const [stockDirection,setStockDirection]=useState('positive');
   const [stockQuantity,setStockQuantity]=useState('1,000');
+  const [batchCode,setBatchCode]=useState('');
+  const [batchExpires,setBatchExpires]=useState('');
+  const [batchQuantity,setBatchQuantity]=useState('1,000');
+  const [batches,setBatches]=useState<R[]>([]);
+  const [promotionQuantity,setPromotionQuantity]=useState('2');
+  const [promotionPrice,setPromotionPrice]=useState('20,00');
+  const [promotions,setPromotions]=useState<R[]>([]);
+  const [reportFrom,setReportFrom]=useState('');
+  const [reportTo,setReportTo]=useState('');
+  const [reportProduct,setReportProduct]=useState('');
+  const [itemReport,setItemReport]=useState<R|null>(null);
   const [financeType,setFinanceType]=useState('payable');
   const [description,setDescription]=useState('');
   const [dueOn,setDueOn]=useState('');
@@ -141,12 +152,13 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     if(!api){setError('Abra pelo aplicativo Electron.');return;}
     try{
       const manager=role!=='Caixa';
-      const [s,sl,pr,m,fin,r,other]=await Promise.all([
+      const [s,sl,pr,m,fin,r,other,lots,priceRules]=await Promise.all([
         api.sessionCurrent(),api.salesList(),api.list('products'),manager?api.stockHistory():Promise.resolve([]),
         manager?api.financeList():Promise.resolve([]),manager?api.report():Promise.resolve({}),
-        manager?api.sessionsList():Promise.resolve([])
+        manager?api.sessionsList():Promise.resolve([]),
+        manager?api.batchesList():Promise.resolve([]),manager?api.promotionsList():Promise.resolve([])
       ]);
-      setSession(s);setSales(sl);setProducts(pr);setMovements(m);setFinance(fin);setSummary(r);setOtherSessions(other);setError('');
+      setSession(s);setSales(sl);setProducts(pr);setMovements(m);setFinance(fin);setSummary(r);setOtherSessions(other);setBatches(lots);setPromotions(priceRules);setError('');
       if(s)setCounted((s.expected_cash_cents/100).toFixed(2));
     }catch(err){setError(errorMessage(err));}
   }
@@ -210,6 +222,33 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         <label>Motivo<input required value={reason} onChange={e=>setReason(e.target.value)} placeholder="Compra, inventário…"/></label>
         <button disabled={busy||!productId} className="primary" type="submit">Registrar estoque</button>
       </form></div>
+      <div className="panel commerce-section"><h2>Entrada rastreada por lote</h2><p>O lote registrado passa a ser considerado na ordem FEFO. Etiquetas físicas podem ser escolhidas na venda.</p>
+        <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.batchReceive({
+          productId,code:batchCode,expiresOn:batchExpires,quantityMilli:parseFixed(batchQuantity,3,'Quantidade')
+        }),'Lote recebido com rastreabilidade e estoque atualizado.',true);}}>
+          <label>Produto<select required value={productId} onChange={e=>setProductId(e.target.value)}><option value="">Selecione</option>{products.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
+          <label>Código do lote<input required value={batchCode} onChange={e=>setBatchCode(e.target.value)} placeholder="Ex.: LOTE-2026-A"/></label>
+          <label>Validade<input type="date" required value={batchExpires} onChange={e=>setBatchExpires(e.target.value)}/></label>
+          <label>Quantidade<input required inputMode="decimal" value={batchQuantity} onChange={e=>setBatchQuantity(e.target.value)}/></label>
+          <button type="submit" className="primary" disabled={busy||!productId}>Receber lote</button>
+        </form>
+        <div className="commerce-table"><table><thead><tr><th>Produto</th><th>Lote</th><th>Validade</th><th>Saldo</th></tr></thead><tbody>
+          {batches.slice(0,300).map(b=><tr key={b.id}><td>{products.find(p=>p.id===b.product_id)?.name||b.product_id.slice(0,8)}</td><td>{b.code}</td><td>{b.expires_on}</td><td>{b.remaining_milli/1000}</td></tr>)}
+        </tbody></table>{!batches.length&&<p className="commerce-empty">Nenhum lote registrado.</p>}</div>
+      </div>
+      <div className="panel commerce-section"><h2>Combos por quantidade</h2><p>Preço promocional automático para produto por unidade. A cotação e a cobrança usam o mesmo cálculo.</p>
+        <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.promotionSet({
+          productId,quantityMilli:parseFixed(promotionQuantity,3,'Quantidade'),bundlePriceCents:promotionPrice
+        }),'Promoção de quantidade cadastrada.');}}>
+          <label>Produto<select required value={productId} onChange={e=>setProductId(e.target.value)}><option value="">Selecione</option>{products.filter(p=>p.unit==='UN').map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
+          <label>Quantidade (UN)<input required inputMode="numeric" value={promotionQuantity} onChange={e=>setPromotionQuantity(e.target.value)}/></label>
+          <label>Preço do combo (R$)<input required inputMode="decimal" value={promotionPrice} onChange={e=>setPromotionPrice(e.target.value)}/></label>
+          <button type="submit" className="primary" disabled={busy||!productId}>Salvar combo</button>
+        </form>
+        <div className="commerce-table"><table><thead><tr><th>Produto</th><th>Quantidade</th><th>Preço do combo</th></tr></thead><tbody>
+        {promotions.map(p=><tr key={p.id}><td>{products.find(x=>x.id===p.product_id)?.name||p.product_id.slice(0,8)}</td><td>{p.quantity_milli/1000} UN</td><td>{money(p.bundle_price_cents)}</td></tr>)}
+        </tbody></table></div>
+      </div>
       <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.slice(0,300).map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div></div></>}
     {view==='finance'&&<><div className="panel commerce-section"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn}), 'Lançamento registrado.');}}>
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
@@ -227,6 +266,24 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         <div className="report-actions">{(['pdf','csv','xlsx'] as const).map(format=><button key={format} className="secondary" disabled={busy} onClick={()=>void exportReport(format)}>Exportar {format.toUpperCase()}</button>)}</div>
       </div>
       <div className="report-grid">{reportRows(summary).map(row=><div className="stat" key={row.key}><span className="report-label">{row.label}</span><strong className="report-number">{row.type==='money'?money(row.raw):row.value}</strong><span className="stat-bottom">Acumulado local</span></div>)}</div>
+      <div className="panel commerce-section"><h2>Relatório detalhado por item vendido</h2>
+        <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(async()=>{setItemReport(await api!.reportItems({
+          from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined
+        }));},'Detalhamento consultado.');}}>
+          <label>Início<input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label>
+          <label>Fim<input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label>
+          <label>Produto<select value={reportProduct} onChange={e=>setReportProduct(e.target.value)}><option value="">Todos os produtos</option>{products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+          <button className="primary" type="submit" disabled={busy}>Consultar itens</button>
+        </form>
+        {itemReport&&<><p>Itens encontrados: {itemReport.rows?.length||0} · Total líquido: {money(itemReport.summary?.net_total_cents||0)}</p>
+          <div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Quantidade</th><th>Bruto</th><th>Desconto</th><th>Líquido</th><th>Pagamento</th></tr></thead><tbody>
+            {(itemReport.rows||[]).slice(0,500).map((row:R,i:number)=><tr key={row.sale_id+'-'+row.product_id+'-'+i}>
+              <td>{pretty(row.created_at)}</td><td>{row.product_name}</td><td>{row.quantity_milli/1000}</td><td>{money(row.gross_cents)}</td><td>{money(row.discount_cents)}</td><td>{money(row.net_cents)}</td>
+              <td>{row.payment_method==='mixed_unallocated'?'Misto: não atribuído por item':methodLabel(row.payment_method)}</td>
+            </tr>)}
+          </tbody></table>{itemReport.rows?.length>500&&<p>Mostrando os primeiros 500 itens. Refine o período para visualizar os demais.</p>}</div>
+        </>}
+      </div>
       <div className="info-bar"><AlertTriangle size={19}/><p>Relatório acumulado no banco local. Os valores de Pix e cartão refletem confirmações manuais, não consultas bancárias. Vendas canceladas não integram o faturamento.</p></div>
     </>}
   </div>;
