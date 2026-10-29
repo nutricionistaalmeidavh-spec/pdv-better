@@ -1,5 +1,5 @@
 // Modelo canônico de entidades: formulário, validação, SQLite e lista usam este arquivo.
-export const CONTRACT_VERSION = 7;
+export const CONTRACT_VERSION = 8;
 export const roleNames = Object.freeze(['Caixa','Gerente','Administrador']);
 export const entityOrder = ['products', 'categories', 'customers', 'suppliers', 'operators'];
 export const entities = {
@@ -8,6 +8,10 @@ export const entities = {
     fields: [
       { key: 'name', label: 'Nome do produto', type: 'text', required: true },
       { key: 'code', label: 'Código de barras / SKU', type: 'text' },
+      { key: 'brand', label: 'Marca', type: 'text' },
+      { key: 'producer', label: 'Produtor', type: 'text' },
+      { key: 'variant_group', label: 'Família de variantes', type: 'text' },
+      { key: 'variant_label', label: 'Variante (tamanho/sabor)', type: 'text' },
       { key: 'category_id', label: 'Categoria', type: 'reference', entity: 'categories' },
       { key: 'unit', label: 'Unidade', type: 'select', values: ['UN', 'KG'], required: true, default: 'UN' },
       { key: 'sale_price_cents', label: 'Preço de venda (R$)', type: 'money', required: true, default: 0 },
@@ -75,6 +79,7 @@ export const reportFields = Object.freeze([
 ]);
 export const apiChannels = Object.freeze({
   list: 'pdv:catalog:list', save: 'pdv:catalog:save', archive: 'pdv:catalog:archive',
+  catalogCsvPreview:'pdv:catalog:csv-preview', catalogCsvImport:'pdv:catalog:csv-import',
   overview: 'pdv:overview',
   sessionCurrent: 'pdv:session:current', sessionOpen: 'pdv:session:open', sessionClose: 'pdv:session:close', cashMove: 'pdv:cash:move',
   checkout: 'pdv:checkout:commit', quoteSale: 'pdv:checkout:quote', salesList: 'pdv:sales:list', saleGet: 'pdv:sales:get', salesCancel: 'pdv:sales:cancel',

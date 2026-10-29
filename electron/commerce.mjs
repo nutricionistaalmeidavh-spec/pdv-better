@@ -366,9 +366,10 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       for(const item of snapshots){
         const saleItemId=randomUUID();
         saleItemIds.set(item.id,saleItemId);
-        run('INSERT INTO sale_items(id,sale_id,product_id,name,code,unit,quantity_milli,unit_price_cents,line_total_cents,unit_cost_cents,promotion_discount_cents) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+        run('INSERT INTO sale_items(id,sale_id,product_id,name,code,unit,quantity_milli,unit_price_cents,line_total_cents,unit_cost_cents,promotion_discount_cents,brand,producer,variant_group,variant_label) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           saleItemId,saleId,item.id,item.product.name,item.product.code,item.product.unit,item.quantityMilli,
-          item.product.sale_price_cents,item.line,item.product.cost_price_cents,item.promoDiscount);
+          item.product.sale_price_cents,item.line,item.product.cost_price_cents,item.promoDiscount,
+          item.product.brand||null,item.product.producer||null,item.product.variant_group||null,item.product.variant_label||null);
         allocateBatches(item.product,item.quantityMilli,item.batchId,saleId,saleItemId);
         recordStock(item.id,-item.quantityMilli,'sale','Venda '+saleId,saleId);
       }
@@ -483,6 +484,9 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     if(from&&to&&from>to)throw new Error('Período inválido.');
     const productId=filters?.productId?assertLabel(filters.productId,'Produto',64):null;
     const operatorId=filters?.operatorId?assertLabel(filters.operatorId,'Operador',64):null;
+    const brand=filters?.brand?assertLabel(filters.brand,'Marca',200):null;
+    const producer=filters?.producer?assertLabel(filters.producer,'Produtor',200):null;
+    const variantGroup=filters?.variantGroup?assertLabel(filters.variantGroup,'Família de variantes',200):null;
     const sales=all("SELECT s.*,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id ORDER BY s.created_at,s.id");
     if(sales.length>10000)throw new Error('Período muito grande; reduza os filtros do relatório.');
     const rows=[];
@@ -497,9 +501,13 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       const attributes=all("SELECT x.sale_item_id,p.method,x.amount_cents FROM sale_item_payments x JOIN sale_payments p ON p.id=x.sale_payment_id WHERE x.sale_id=?",s.id);
       items.forEach((item,i)=>{
         if(productId&&item.product_id!==productId)return;
+        if(brand&&item.brand!==brand)return;
+        if(producer&&item.producer!==producer)return;
+        if(variantGroup&&item.variant_group!==variantGroup)return;
         const assigned=attributes.filter(a=>a.sale_item_id===item.id);
         const method=assigned.length?(new Set(assigned.map(a=>a.method)).size===1?assigned[0].method:'mixed_allocated'):defaultMethod;
         rows.push({sale_id:s.id,product_id:item.product_id,product_name:item.name,code:item.code,
+          brand:item.brand,producer:item.producer,variant_group:item.variant_group,variant_label:item.variant_label,
           quantity_milli:item.quantity_milli,unit_price_cents:item.unit_price_cents,
           gross_cents:item.line_total_cents,discount_cents:discounts[i],
           net_cents:item.line_total_cents-discounts[i],status:s.status,payment_method:method,

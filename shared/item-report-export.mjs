@@ -1,6 +1,7 @@
 // Exportação offline com a mesma lista de linhas para CSV, XLSX e PDF.
 const columns=[
  ['created_at','Data'],['sale_id','Venda'],['product_name','Produto'],
+ ['brand','Marca'],['producer','Produtor'],['variant_group','Grupo de variantes'],['variant_label','Variante'],
  ['code','SKU'],['quantity_milli','Quantidade (milésimos)'],
  ['gross_cents','Bruto (centavos)'],['discount_cents','Desconto (centavos)'],
  ['net_cents','Líquido (centavos)'],['payment_method','Pagamento'],['status','Situação'],

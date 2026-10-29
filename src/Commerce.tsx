@@ -178,6 +178,9 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [reportFrom,setReportFrom]=useState('');
   const [reportTo,setReportTo]=useState('');
   const [reportProduct,setReportProduct]=useState('');
+  const [reportBrand,setReportBrand]=useState('');
+  const [reportProducer,setReportProducer]=useState('');
+  const [reportVariant,setReportVariant]=useState('');
   const [itemReport,setItemReport]=useState<R|null>(null);
   const [financeType,setFinanceType]=useState('payable');
   const [description,setDescription]=useState('');
@@ -216,7 +219,8 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     setBusy(true);setError('');setSuccess('');
     try{
       const result=await api.reportItemsExport({format,filters:{
-        from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined
+        from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined,
+        brand:reportBrand||undefined,producer:reportProducer||undefined,variantGroup:reportVariant||undefined
       }});
       if(!result.cancelled)setSuccess('Relatório por item '+format.toUpperCase()+' exportado com os filtros selecionados.');
     }catch(err){setError(errorMessage(err));}
@@ -334,11 +338,15 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       <div className="report-grid">{reportRows(summary).map(row=><div className="stat" key={row.key}><span className="report-label">{row.label}</span><strong className="report-number">{row.type==='money'?money(row.raw):row.value}</strong><span className="stat-bottom">Acumulado local</span></div>)}</div>
       <div className="panel commerce-section"><h2>Relatório detalhado por item vendido</h2>
         <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(async()=>{setItemReport(await api!.reportItems({
-          from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined
+          from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined,
+          brand:reportBrand||undefined,producer:reportProducer||undefined,variantGroup:reportVariant||undefined
         }));},'Detalhamento consultado.');}}>
           <label>Início<input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label>
           <label>Fim<input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label>
           <label>Produto<select value={reportProduct} onChange={e=>setReportProduct(e.target.value)}><option value="">Todos os produtos</option>{products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+          <label>Marca<input value={reportBrand} onChange={e=>setReportBrand(e.target.value)} placeholder="Todas as marcas"/></label>
+          <label>Produtor<input value={reportProducer} onChange={e=>setReportProducer(e.target.value)} placeholder="Todos os produtores"/></label>
+          <label>Grupo de variantes<input value={reportVariant} onChange={e=>setReportVariant(e.target.value)} placeholder="Todos os grupos"/></label>
           <button className="primary" type="submit" disabled={busy}>Consultar itens</button>
         </form>
         <div className="report-actions" aria-label="Exportação detalhada">{(['csv','xlsx','pdf'] as const).map(format=>

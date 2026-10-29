@@ -32,10 +32,11 @@ export function stageRestore(source,currentDatabase){
   return {stagedPath:staged,version:verified.version};
 }
 export function scheduleRestore(source,currentDatabase){
-  const staged=stageRestore(source,currentDatabase);
   const marker=currentDatabase+'.restore-pending.json';
   if(existsSync(marker))throw new Error('Já existe uma restauração agendada.');
-  writeFileSync(marker,JSON.stringify({staged:staged.stagedPath,target:resolve(currentDatabase)}),{flag:'wx',mode:0o600});
+  const staged=stageRestore(source,currentDatabase);
+  try{writeFileSync(marker,JSON.stringify({staged:staged.stagedPath,target:resolve(currentDatabase)}),{flag:'wx',mode:0o600});}
+  catch(error){try{unlinkSync(staged.stagedPath);}catch{}throw error;}
   return {pending:true,version:staged.version};
 }
 export function applyPendingRestore(currentDatabase){
@@ -58,7 +59,11 @@ export function applyPendingRestore(currentDatabase){
     unlinkSync(marker);
     return {restored:true,previous:retained};
   }catch(error){
-    if(existsSync(retained)&&!existsSync(currentDatabase))renameSync(retained,currentDatabase);
+    if(existsSync(retained)){
+      // O novo arquivo pode existir e estar corrompido: nunca o preferir à versão anterior.
+      if(existsSync(currentDatabase))try{unlinkSync(currentDatabase);}catch{}
+      if(!existsSync(currentDatabase))renameSync(retained,currentDatabase);
+    }
     throw new Error('Restaurar falhou; original preservado: '+String(error.message||error));
   }
 }
