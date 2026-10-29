@@ -47,7 +47,7 @@ export async function startVirtualEscPosPrinter(){
   await endpoint.close();
  }};
 }
-export async function startVirtualScale({reply='ST,GS,0.350kg\\r\\n'}={}){
+export async function startVirtualScale({reply='ST,GS,0.350kg\r\n'}={}){
  return listen(socket=>{
   if(reply!==null)socket.end(reply,'ascii');
   // reply:null deixa a conexão aberta até o timeout do cliente (balança sem resposta).
