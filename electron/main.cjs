@@ -14,6 +14,7 @@ async function start() {
   const { createRuntime } = await import('./runtime.mjs');
   const { applyPendingRestore,verifyDatabase,scheduleRestore } = await import('./backup.mjs');
   const { renderPrintDocument } = await import('./printing.mjs');
+  const {openPrintQueue} = await import('./print-queue.mjs');
   const { sendTcp, readScale } = await import('./peripherals.mjs');
   const { makeReceipt,drawerPulse,assertDeviceAddress } = await import('../shared/peripherals.mjs');
   if(process.env.PDV_TEST_SMOKE==='1' && process.env.PDV_TEST_USER_DATA) {
@@ -23,6 +24,11 @@ async function start() {
   }
   const folder = app.getPath('userData');
   fs.mkdirSync(folder, { recursive: true });
+  let printQueue=null,printQueueError=null;
+  try{printQueue=openPrintQueue(folder);}catch(error){
+    printQueueError=error;
+    console.error('Fila de impressão inválida; vendas continuam locais:',error.message);
+  }
   const databaseFile=path.join(folder,'pdv-better.sqlite');
   applyPendingRestore(databaseFile);
   const terminalFile=path.join(folder,'terminal-id.txt');
@@ -180,8 +186,7 @@ async function start() {
     if(!target)throw new Error('Configure primeiro a balança TCP nas configurações.');
     return readScale(target);
   });
-  ipcMain.handle(apiChannels.devicePrint,async(_evt,input)=>{
-    runtime.authorize('devicePrint');
+  async function performPrint(input){
     const kind=input?.kind;
     if(kind==='receipt-tcp'){
       const prefs=readDevice(),target=deviceTarget(prefs.printerHost,prefs.printerPort);
@@ -214,6 +219,36 @@ async function start() {
         silent:!!requested,deviceName:requested,printBackground:false,usePrinterDefaultPageSize:true
       },(ok,reason)=>ok?resolve({printed:true}):reject(new Error('Impressão não concluída: '+reason))));
     }finally{if(!printWindow.isDestroyed())printWindow.destroy();}
+  }
+  ipcMain.handle(apiChannels.devicePrint,async(_evt,input)=>{
+    runtime.authorize('devicePrint');
+    try{return await performPrint(input);}
+    catch(error){
+      if(!printQueue||!['receipt','receipt-tcp','label','batch-label'].includes(input?.kind))throw error;
+      let job;
+      try{
+        job=printQueue.enqueue(input);
+        printQueue.markFailed(job.id,error);
+      }catch(queueError){
+        throw new Error('Impressão falhou, mas o registro na fila também falhou: '+String(queueError.message||queueError),{cause:error});
+      }
+      throw new Error('Impressão não concluída. Tentativa registrada na fila local ('+job.id.slice(0,8)+'). Confira o dispositivo antes de reenviar.',{cause:error});
+    }
+  });
+  ipcMain.handle(apiChannels.printQueueList,()=>{
+    runtime.authorize('printQueueList');
+    if(!printQueue)throw printQueueError||new Error('Fila de impressão indisponível.');
+    return printQueue.list();
+  });
+  ipcMain.handle(apiChannels.printQueueRetry,async(_evt,id)=>{
+    runtime.authorize('printQueueRetry');
+    if(!printQueue)throw printQueueError||new Error('Fila de impressão indisponível.');
+    return printQueue.retry(String(id||''),performPrint);
+  });
+  ipcMain.handle(apiChannels.printQueuePurge,()=>{
+    runtime.authorize('printQueuePurge');
+    if(!printQueue)throw printQueueError||new Error('Fila de impressão indisponível.');
+    return printQueue.purgePrinted();
   });
   ipcMain.handle(apiChannels.backupCreate,async()=>{
     runtime.authorize('backupCreate');
