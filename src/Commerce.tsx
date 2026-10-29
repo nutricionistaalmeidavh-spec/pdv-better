@@ -227,7 +227,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     try{
       const result=await api.reportItemsExport({format,filters:{
         from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined,
-        brand:reportBrand||undefined,producer:reportProducer||undefined,variantGroup:reportVariant||undefined,training:reportTraining,training:reportTraining
+        brand:reportBrand||undefined,producer:reportProducer||undefined,variantGroup:reportVariant||undefined,training:reportTraining
       }});
       if(!result.cancelled)setSuccess('Relatório por item '+format.toUpperCase()+' exportado com os filtros selecionados.');
     }catch(err){setError(errorMessage(err));}
@@ -346,7 +346,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       <div className="panel commerce-section"><h2>Relatório detalhado por item vendido</h2>
         <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(async()=>{setItemReport(await api!.reportItems({
           from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined,
-          brand:reportBrand||undefined,producer:reportProducer||undefined,variantGroup:reportVariant||undefined
+          brand:reportBrand||undefined,producer:reportProducer||undefined,variantGroup:reportVariant||undefined,training:reportTraining
         }));},'Detalhamento consultado.');}}>
           <label>Início<input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label>
           <label>Fim<input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label>
