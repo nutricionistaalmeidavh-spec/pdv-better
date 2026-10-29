@@ -1,7 +1,7 @@
 // Campos opcionais de marca/produtor e variantes físicas (cada SKU preserva estoque próprio).
 export function migratePhase8(db){
  const version=db.prepare('PRAGMA user_version').get().user_version;
- if(version===8)return;
+ if(version>=8)return;
  if(version!==7)throw new Error('Migração de catálogo v8 requer banco v7.');
  db.exec('BEGIN IMMEDIATE');
  try{
