@@ -40,6 +40,8 @@ async function start() {
   ipcMain.handle(apiChannels.list, (_evt, kind, search) => domain('list',kind, search));
   ipcMain.handle(apiChannels.save, (_evt, kind, record) => domain('save',kind, record));
   ipcMain.handle(apiChannels.archive, (_evt, kind, id) => domain('archive',kind, id));
+  ipcMain.handle(apiChannels.catalogCsvPreview,(_evt,input)=>domain('previewCatalogCsv',input));
+  ipcMain.handle(apiChannels.catalogCsvImport,(_evt,input)=>domain('importCatalogCsv',input));
   ipcMain.handle(apiChannels.overview, () => domain('overview'));
   ipcMain.handle(apiChannels.sessionCurrent, (_event) => domain('getCurrentSession'));
   ipcMain.handle(apiChannels.sessionOpen, (_event, input) => domain('openSession',input));
