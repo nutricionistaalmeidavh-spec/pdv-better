@@ -86,6 +86,47 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     }
     return db.prepare('SELECT * FROM "' + kind + '" WHERE id = ?').get(id);
   }
+
+  function previewCatalogCsv(input){
+    const rows=parseCatalogCsv(input?.csv);
+    const normalized=rows.map(row=>normalizeRecord('products',row));
+    for(const value of normalized){
+      if(!value.code)throw new Error('Código obrigatório em todos os itens do CSV.');
+      if(value.unit==='UN'&&value.stock_milli%1000!==0)
+        throw new Error('Estoque de produto UN exige quantidade inteira: '+value.code);
+      if(db.prepare('SELECT id FROM products WHERE code=?').get(value.code))
+        throw new Error('Código já cadastrado no banco: '+value.code);
+      if(value.category_id&&!db.prepare('SELECT id FROM categories WHERE id=? AND active=1').get(value.category_id))
+        throw new Error('Categoria inexistente no CSV: '+value.code);
+    }
+    return {count:normalized.length,rows:normalized.slice(0,10).map(x=>({
+      name:x.name,code:x.code,unit:x.unit,sale_price_cents:x.sale_price_cents,stock_milli:x.stock_milli,
+      brand:x.brand,producer:x.producer,variant_group:x.variant_group,variant_label:x.variant_label
+    })),normalized};
+  }
+  function importCatalogCsv(input){
+    let inTransaction=false;
+    try{
+      db.exec('BEGIN IMMEDIATE');inTransaction=true;
+      const result=previewCatalogCsv(input);
+      const columns=entities.products.fields.map(x=>x.key);
+      const sql='INSERT INTO products (id,created_at,updated_at,active,'+columns.map(x=>'"'+x+'"').join(',')+
+        ') VALUES ('+['?','?','?','?'].concat(columns.map(()=>'?')).join(',')+')';
+      const statement=db.prepare(sql);
+      for(const record of result.normalized){
+        const id=randomUUID(),now=new Date().toISOString();
+        statement.run(id,now,now,1,...columns.map(key=>record[key]===''&&key==='code'?null:record[key]));
+        if(record.stock_milli>0)commerce.recordInitialStock(id,record.stock_milli);
+      }
+      db.exec('COMMIT');inTransaction=false;
+      return {imported:result.count};
+    }catch(error){
+      if(inTransaction)try{db.exec('ROLLBACK');}catch{}
+      if(String(error).includes('UNIQUE'))throw new Error('Código duplicado no catálogo.');
+      throw storageError(error);
+    }
+  }
+
   function archive(kind, id) {
     assertEntity(kind);
     if (typeof id !== 'string') throw new Error('Identificador inválido.');
@@ -100,7 +141,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   function overview() {
     return Object.fromEntries(entityOrder.map(kind => [kind, db.prepare('SELECT COUNT(*) AS n FROM "' + kind + '" WHERE active=1').get().n]));
   }
-  const operations={list,save,archive,overview,...commerce};
+  const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce};
   const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales']);
   const noArgs=new Set(['getCurrentSession','listSales','listOpenSessions','report','overview','listFinance']);
   function secureCall(method,args=[],ctx={}){
