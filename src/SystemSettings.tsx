@@ -75,7 +75,7 @@ export function SystemSettings(){
         <button className="secondary" disabled={pending||!device.printerHost} onClick={()=>void run(()=>api!.drawerOpen(),'Pulso enviado à gaveta de dinheiro.',false)}>Testar gaveta</button>
       </div>
       <div className="panel settings-block">
-        <h2><Printer size={19}/> Fila local de impressão</h2>
+        <h2><Printer size={19}/> Fila de trabalhos pendentes</h2>
         <p>Falhas permanecem registradas neste computador, inclusive após reinício. Antes de reenviar, confirme que a impressão anterior não saiu: um desligamento pode ocorrer após a impressora receber os dados.</p>
         {printQueueError&&<p className="form-error" role="alert">{printQueueError}</p>}
         {printJobs.length===0&&<p>Não há trabalhos na fila.</p>}
