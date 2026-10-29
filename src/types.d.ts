@@ -43,6 +43,9 @@ interface PdvBridge {
   deviceSet(input: any): Promise<any>;
   devicePrinters(): Promise<Array<{name:string;displayName:string;isDefault:boolean}>>;
   devicePrint(input: any): Promise<any>;
+  printQueueList(): Promise<any[]>;
+  printQueueRetry(id:string): Promise<any>;
+  printQueuePurge(): Promise<{removed:number}>;
   drawerOpen(): Promise<any>;
   scaleRead(): Promise<number>;
   backupCreate(): Promise<any>;
