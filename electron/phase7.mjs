@@ -1,6 +1,6 @@
 export function migratePhase7(db){
  const version=db.prepare('PRAGMA user_version').get().user_version;
- if(version===7)return;
+ if(version>=7)return;
  if(version!==6)throw new Error('Migração financeira v7 requer base v6.');
  db.exec('BEGIN IMMEDIATE');
  try{
