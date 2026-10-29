@@ -21,4 +21,6 @@ test('LABEL-04: cotacao e confirmacao compartilham o lote escaneado',()=>{
  const items=buildLabeledSaleItems(cart,{prod:'batch-exato'});
  assert.deepEqual(items,[{id:'prod',quantityMilli:1000,batchId:'batch-exato'}]);
  assert.equal(buildLabeledSaleItems(cart,{})[0].batchId,null);
+ assert.equal(buildLabeledSaleItems([{...cart[0],batchId:'lote-escaneado'}],{})[0].batchId,'lote-escaneado');
+ assert.equal(buildLabeledSaleItems([{...cart[0],batchId:'lote-escaneado'}],{prod:''})[0].batchId,null);
 });
