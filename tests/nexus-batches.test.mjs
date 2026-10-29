@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNexusParityFixture } from './fixtures/nexus-parity.mjs';
+import { DatabaseSync } from 'node:sqlite';
+import { createCommerce } from '../electron/commerce.mjs';
+import { migrateAccess } from '../electron/access.mjs';
+import { migrateNexusFeatures } from '../electron/nexus-features.mjs';
 
 test('NEX-FEFO-01: lote com validade mais proxima sai primeiro e cancelamento restaura lote exato',()=>{
  const f=createNexusParityFixture();
@@ -72,4 +76,22 @@ test('NEX-FEFO-05: ajuste nao pode reduzir saldo global abaixo de lotes rastread
   assert.equal(db.list('products').find(x=>x.id===f.weight.id).stock_milli,previous);
   assert.equal(db.listBatches(f.weight.id)[0].remaining_milli,900);
  }finally{f.cleanup();}
+});
+
+test('NEX-MIG-01: migracao real v4 para v5 e idempotente e preserva produtos',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  db.exec("PRAGMA foreign_keys=ON; CREATE TABLE products(id TEXT PRIMARY KEY,stock_milli INTEGER NOT NULL); CREATE TABLE operators(id TEXT PRIMARY KEY,name TEXT,role TEXT,active INTEGER NOT NULL); PRAGMA user_version=1;");
+  db.prepare('INSERT INTO products(id,stock_milli) VALUES(?,?)').run('old-sku',7000);
+  createCommerce(db);
+  migrateAccess(db,'loja-legada');
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version,4);
+  migrateNexusFeatures(db);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version,5);
+  assert.equal(db.prepare('SELECT stock_milli FROM products WHERE id=?').get('old-sku').stock_milli,7000);
+  migrateNexusFeatures(db);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='product_batches'").get().n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='product_promotions'").get().n,1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM stock_movements').get().n,1);
+ }finally{db.close();}
 });
