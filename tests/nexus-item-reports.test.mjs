@@ -7,13 +7,13 @@ test('NEX-REP-01: descontos em centavos conciliam entre itens sem duplicar pagam
  try{
   const db=f.store;
   db.openSession({openingCashCents:0});
-  db.checkout({key:'report-mixed',items:[{id:f.unit.id,quantityMilli:1000},{id:f.weight.id,quantityMilli:350}],discountCents:10,payments:[{method:'pix',amountCents:500},{method:'cash',amountCents:1555}]});
+  db.checkout({key:'report-mixed',items:[{id:f.unit.id,quantityMilli:1000},{id:f.weight.id,quantityMilli:350}],discountCents:10,payments:[{method:'pix',amountCents:500},{method:'cash',amountCents:1055}]});
   const report=db.reportItems();
   assert.equal(report.rows.length,2);
-  assert.equal(report.rows.reduce((s,x)=>s+x.net_cents,0),2055);
+  assert.equal(report.rows.reduce((s,x)=>s+x.net_cents,0),1555);
   assert.equal(report.rows.reduce((s,x)=>s+x.discount_cents,0),10);
   assert.ok(report.rows.every(r=>r.payment_method==='mixed_unallocated'));
-  assert.equal(db.report().sales_total_cents,2055);
+  assert.equal(db.report().sales_total_cents,1555);
  }finally{f.cleanup();}
 });
 
