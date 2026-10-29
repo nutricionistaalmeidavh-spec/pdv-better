@@ -529,6 +529,25 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       net_total_cents:rows.filter(x=>x.status==='completed'&&!x.is_training).reduce((sum,x)=>sum+x.net_cents,0)}};
   }
 
+  function compareReportPeriods(input){
+    const from=strictDate(input?.from,'Início do primeiro período');
+    const to=strictDate(input?.to,'Fim do primeiro período');
+    const comparisonFrom=strictDate(input?.comparisonFrom,'Início do segundo período');
+    const comparisonTo=strictDate(input?.comparisonTo,'Fim do segundo período');
+    if(from>to||comparisonFrom>comparisonTo)throw new Error('Período de comparação inválido.');
+    const aggregate=(start,end)=>{
+      const rows=reportItems({from:start,to:end}).rows;
+      return {from:start,to:end,total_cents:rows.reduce((sum,x)=>sum+x.net_cents,0),
+        sales_count:new Set(rows.map(x=>x.sale_id)).size,items_count:rows.length};
+    };
+    const previous=aggregate(from,to),current=aggregate(comparisonFrom,comparisonTo);
+    const delta=current.total_cents-previous.total_cents;
+    const basis=previous.total_cents>0?Math.round(delta*10000/previous.total_cents):null;
+    if(!Number.isSafeInteger(delta)||(basis!==null&&!Number.isSafeInteger(basis)))
+      throw new Error('Comparativo excedeu o limite de cálculo.');
+    return {previous,current,delta_cents:delta,delta_basis_points:basis};
+  }
+
   function recordInitialStock(productId,quantityMilli){
     if(!quantityMilli)return;
     run('INSERT INTO stock_movements(id,product_id,delta_milli,kind,reason,created_at) VALUES(?,?,?,?,?,?)',
@@ -537,7 +556,7 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
   return {
     openSession,getCurrentSession,closeSession,moveCash,checkout,getSale,cancelSale,listSales,listOpenSessions,
     moveStock,listStockMovements,receiveBatch,listBatches,setPromotion,listPromotions,
-    setBundlePromotion,listBundlePromotions,archiveBundlePromotion,quoteSale,reportItems,
+    setBundlePromotion,listBundlePromotions,archiveBundlePromotion,quoteSale,reportItems,compareReportPeriods,
     createFinance,settleFinance,listFinance,report,recordInitialStock
   };
 }
