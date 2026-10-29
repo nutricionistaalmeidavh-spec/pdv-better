@@ -7,6 +7,8 @@ import {migrateAccess,createAccess} from './access.mjs';
 import {migrateNexusFeatures} from './nexus-features.mjs';
 import {migrateCrossSku} from './cross-sku.mjs';
 import {migratePhase7} from './phase7.mjs';
+import {migratePhase8} from './phase8.mjs';
+import {parseCatalogCsv} from '../shared/catalog-import.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
 export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}) {
@@ -41,6 +43,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   migrateNexusFeatures(db);
   migrateCrossSku(db);
   migratePhase7(db);
+  migratePhase8(db);
   const access=createAccess(db);
   function list(kind, search = '') {
     const schema = assertEntity(kind);
