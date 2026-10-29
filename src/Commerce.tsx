@@ -21,6 +21,7 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
   const [discount,setDiscount]=useState('0,00');
   const [customerId,setCustomerId]=useState('');
   const [payments,setPayments]=useState([{method:'cash',amount:'0,00'}]);
+  const [itemMethods,setItemMethods]=useState<Record<string,string>>({});
   const [pending,setPending]=useState(false);
   const [error,setError]=useState('');
   const [operationKey]=useState(()=>crypto.randomUUID());
@@ -49,17 +50,28 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
   },[cart,discountCents,discountError,selectedBatches]);
   total=quote?.total_cents??total;
   const payment=paymentPreview(total,payments);
+  const selectedAssignments=Object.values(itemMethods).filter(Boolean).length;
+  const explicitItems=quote?.lines||[];
+  const fullAssignment=selectedAssignments>0&&explicitItems.every((line:R)=>!!itemMethods[line.product_id]);
+  const assignmentError=selectedAssignments>0&&!fullAssignment
+    ?'Atribua uma forma de pagamento a todos os produtos ou remova as atribuições.'
+    :fullAssignment&&explicitItems.some((line:R)=>!payments.some(p=>p.method===itemMethods[line.product_id]))
+      ?'A forma atribuída deve estar entre os pagamentos informados.':'';
+
   const updatePayment=(i:number,key:string,value:string)=>setPayments(rows=>rows.map((r,index)=>i===index?{...r,[key]:value}:r));
   const send=async(ev:React.FormEvent)=>{
     ev.preventDefault();if(pending || !window.pdv)return;
-    if(discountError || quoteError || !quote || !payment.canSubmit){setError(discountError || quoteError || payment.error || 'Aguarde a cotação e confira os pagamentos.');return;}
+    if(discountError || quoteError || assignmentError || !quote || !payment.canSubmit){setError(discountError || quoteError || assignmentError || payment.error || 'Aguarde a cotação e confira os pagamentos.');return;}
     setPending(true);setError('');
     try{
       const result=await window.pdv.checkout({
         key:operationKey,
         items:buildLabeledSaleItems(cart,selectedBatches),
         customerId:customerId||null,discountCents,
-        payments:payments.map(p=>({method:p.method,amountCents:parseFixed(p.amount,2,'Pagamento')}))
+        payments:payments.map(p=>({method:p.method,amountCents:parseFixed(p.amount,2,'Pagamento')})),
+        ...(fullAssignment?{itemPayments:explicitItems.map((line:R)=>({
+          productId:line.product_id,method:itemMethods[line.product_id],amountCents:line.net_cents
+        }))}:{})
       });
       onDone(result);
     }catch(err){setError(errorMessage(err));}
@@ -85,6 +97,20 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
                 <option key={b.id} value={b.id}>{b.code} — validade {b.expires_on} — saldo {b.remaining_milli/1000}</option>)}
             </select>
           </label>)}
+        {payments.length>1&&quote&&<div className="payment-inputs">
+          <h3>Pagamento por produto (opcional)</h3>
+          <p>Atribua cada produto a uma das formas listadas abaixo. Para dividir um mesmo produto entre duas formas, mantenha sem atribuição: o total continuará conciliado, sem inventar rateio.</p>
+          {explicitItems.map((line:R)=><label key={line.product_id} className="form-field">
+            {cart.find(row=>row.id===line.product_id)?.name||'Produto'} — líquido {money(line.net_cents)}
+            <select aria-label={'Forma de pagamento do produto '+(cart.find(row=>row.id===line.product_id)?.name||line.product_id)}
+              value={itemMethods[line.product_id]||''}
+              onChange={e=>setItemMethods(old=>({...old,[line.product_id]:e.target.value}))}>
+              <option value="">Não atribuir por item</option>
+              {payments.map(p=><option key={p.method} value={p.method}>{methodLabel(p.method)}</option>)}
+            </select>
+          </label>)}
+          {assignmentError&&<p className="form-error" role="alert">{assignmentError}</p>}
+        </div>}
         <div className="payment-inputs"><h3>Formas de pagamento</h3><p>Informe o valor de cada forma. No dinheiro, informe quanto recebeu para calcular o troco.</p>
           {payments.map((p,i)=><div className="payment-row" key={i}>
             <select aria-label={'Forma de pagamento '+(i+1)} value={p.method} onChange={e=>updatePayment(i,'method',e.target.value)}>
@@ -109,7 +135,7 @@ export function PaymentModal({cart,products,customers,onClose,onDone}:{
           <p className="commerce-warning">Pix e cartão são registrados manualmente. Confirme o recebimento no aplicativo do banco ou na maquininha antes de concluir. Este comprovante não é fiscal.</p>
         </div>
         {error && <div className="form-error" role="alert">{error}</div>}
-        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||!cart.length||total<=0||!!discountError||!!quoteError||!quote||!payment.canSubmit} type="submit">{pending?'Registrando…':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
+        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||!cart.length||total<=0||!!discountError||!!quoteError||!!assignmentError||!quote||!payment.canSubmit} type="submit">{pending?'Registrando…':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
       </form>
     </section>
   </div>;
@@ -321,7 +347,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
           <div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Quantidade</th><th>Bruto</th><th>Desconto</th><th>Líquido</th><th>Pagamento</th></tr></thead><tbody>
             {(itemReport.rows||[]).slice(0,500).map((row:R,i:number)=><tr key={row.sale_id+'-'+row.product_id+'-'+i}>
               <td>{pretty(row.created_at)}</td><td>{row.product_name}</td><td>{row.quantity_milli/1000}</td><td>{money(row.gross_cents)}</td><td>{money(row.discount_cents)}</td><td>{money(row.net_cents)}</td>
-              <td>{row.payment_method==='mixed_unallocated'?'Misto: não atribuído por item':methodLabel(row.payment_method)}</td>
+              <td>{row.payment_method==='mixed_unallocated'?'Misto: não atribuído por item':row.payment_method==='mixed_allocated'?'Misto: atribuído por item':methodLabel(row.payment_method)}</td>
             </tr>)}
           </tbody></table>{itemReport.rows?.length>500&&<p>Mostrando os primeiros 500 itens. Refine o período para visualizar os demais.</p>}</div>
         </>}
