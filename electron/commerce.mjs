@@ -318,9 +318,12 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
   }
   function checkout(input,ctx){
     const draft=validateSaleInput(input);
+    if(draft.training&&ctx?.role&&ctx.role!=='Gerente'&&ctx.role!=='Administrador')
+      throw new Error('Permissão insuficiente: treinamento reservado a gerente/administrador.');
     const hash=createHash('sha256').update(JSON.stringify({
       items:draft.items,customerId:draft.customerId,discountCents:draft.discountCents,payments:draft.payments,
-      ...(draft.itemPayments?{itemPayments:draft.itemPayments}:{})
+      ...(draft.itemPayments?{itemPayments:draft.itemPayments}:{}),
+      ...(draft.training?{training:true}:{})
     })).digest('hex');
     return atomic(db,()=>{
       const previous=row('SELECT s.id,s.request_hash,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id WHERE s.idempotency_key=?',draft.key);
@@ -360,8 +363,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
         throw new Error('Cliente não encontrado ou inativo.');
       }
       const saleId=randomUUID();
-      run("INSERT INTO sales(id,idempotency_key,request_hash,session_id,customer_id,subtotal_cents,discount_cents,total_cents,change_cents,operator_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,'completed',?)",
-              saleId,draft.key,hash,session.id,draft.customerId,subtotal,draft.discountCents+promotionDiscount,total,computed.change_cents,ctx?.operatorId||null,now());
+      run("INSERT INTO sales(id,idempotency_key,request_hash,session_id,customer_id,subtotal_cents,discount_cents,total_cents,change_cents,operator_id,status,created_at,is_training) VALUES(?,?,?,?,?,?,?,?,?,?,'completed',?,?)",
+              saleId,draft.key,hash,session.id,draft.customerId,subtotal,draft.discountCents+promotionDiscount,total,computed.change_cents,ctx?.operatorId||null,now(),draft.training?1:0);
       const saleItemIds=new Map();
       for(const item of snapshots){
         const saleItemId=randomUUID();
@@ -370,8 +373,10 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
           saleItemId,saleId,item.id,item.product.name,item.product.code,item.product.unit,item.quantityMilli,
           item.product.sale_price_cents,item.line,item.product.cost_price_cents,item.promoDiscount,
           item.product.brand||null,item.product.producer||null,item.product.variant_group||null,item.product.variant_label||null);
-        allocateBatches(item.product,item.quantityMilli,item.batchId,saleId,saleItemId);
-        recordStock(item.id,-item.quantityMilli,'sale','Venda '+saleId,saleId);
+        if(!draft.training){
+          allocateBatches(item.product,item.quantityMilli,item.batchId,saleId,saleItemId);
+          recordStock(item.id,-item.quantityMilli,'sale','Venda '+saleId,saleId);
+        }
       }
       const salePaymentIds=new Map();
       for(const payment of computed.payments){
@@ -379,8 +384,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
         salePaymentIds.set(payment.method,paymentId);
         run('INSERT INTO sale_payments(id,sale_id,method,amount_cents,tendered_cents) VALUES(?,?,?,?,?)',
           paymentId,saleId,payment.method,payment.amount_cents,payment.tendered_cents);
-        if(payment.method==='cash')recordCash(session,'sale',payment.amount_cents,'Venda '+saleId,saleId,null,ctx?.operatorId||null);
-        if(payment.method==='credit'){
+        if(!draft.training&&payment.method==='cash')recordCash(session,'sale',payment.amount_cents,'Venda '+saleId,saleId,null,ctx?.operatorId||null);
+        if(!draft.training&&payment.method==='credit'){
           run("INSERT INTO financial_entries(id,type,description,amount_cents,customer_id,sale_id,status,created_at) VALUES(?,'receivable',?,?,?,?,'open',?)",
             randomUUID(),'Venda fiado '+saleId,payment.amount_cents,draft.customerId,saleId,now());
         }
@@ -400,11 +405,13 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       if(sale.session_id!==session.id)throw new Error('Somente vendas do turno aberto podem ser canceladas. Para outro turno, utilize procedimento de reembolso.');
       if(row("SELECT COUNT(*) AS n FROM financial_entries WHERE sale_id=? AND status='settled'",id).n)
         throw new Error('Recebimento do fiado já liquidado. Resolva o recebimento antes de cancelar.');
-      for(const item of sale.items)recordStock(item.product_id,item.quantity_milli,'sale_cancel','Cancelamento da venda '+id,id);
-      for(const allocation of sale.batch_allocations)
-        run('UPDATE product_batches SET remaining_milli=remaining_milli+? WHERE id=?',allocation.quantity_milli,allocation.batch_id);
-      const cash=sale.payments.filter(p=>p.method==='cash').reduce((sum,p)=>sum+p.amount_cents,0);
-      if(cash)recordCash(session,'sale_cancel',-cash,'Estorno local da venda '+id,id,null,ctx?.operatorId||null);
+      if(!sale.is_training){
+        for(const item of sale.items)recordStock(item.product_id,item.quantity_milli,'sale_cancel','Cancelamento da venda '+id,id);
+        for(const allocation of sale.batch_allocations)
+          run('UPDATE product_batches SET remaining_milli=remaining_milli+? WHERE id=?',allocation.quantity_milli,allocation.batch_id);
+        const cash=sale.payments.filter(p=>p.method==='cash').reduce((sum,p)=>sum+p.amount_cents,0);
+        if(cash)recordCash(session,'sale_cancel',-cash,'Estorno local da venda '+id,id,null,ctx?.operatorId||null);
+      }
       run("UPDATE financial_entries SET status='cancelled' WHERE sale_id=? AND status='open'",id);
       run("UPDATE sales SET status='cancelled',cancelled_at=? WHERE id=?",now(),id);
       return getSale(id);
@@ -462,8 +469,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
   }
   function listFinance(){return all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC');}
   function report(){
-    const totals=row("SELECT COUNT(*) AS sales_count, COALESCE(SUM(total_cents),0) AS sales_total_cents, COALESCE(SUM(discount_cents),0) AS discounts_cents FROM sales WHERE status='completed'");
-    const payments=all("SELECT p.method,SUM(p.amount_cents) AS total FROM sale_payments p JOIN sales s ON s.id=p.sale_id WHERE s.status='completed' GROUP BY p.method");
+    const totals=row("SELECT COUNT(*) AS sales_count, COALESCE(SUM(total_cents),0) AS sales_total_cents, COALESCE(SUM(discount_cents),0) AS discounts_cents FROM sales WHERE status='completed' AND is_training=0'");
+    const payments=all("SELECT p.method,SUM(p.amount_cents) AS total FROM sale_payments p JOIN sales s ON s.id=p.sale_id WHERE s.status='completed' AND s.is_training=0 GROUP BY p.method");
     const amounts=Object.fromEntries(methodIds.map(id=>[id+'_cents',payments.find(p=>p.method===id)?.total||0]));
     const finance=all("SELECT type,status,COALESCE(SUM(amount_cents),0) AS total FROM financial_entries GROUP BY type,status");
     for(const type of ['payable','receivable'])for(const status of ['open','settled'])
@@ -472,12 +479,14 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     return {...totals,...amounts,
       inventory_value_cents:products.reduce((sum,p)=>sum+Math.round(p.stock_milli*p.cost_price_cents/1000),0),
       product_count:products.length,low_stock_count:products.filter(p=>p.stock_milli<=0).length,
-      cancelled_count:row("SELECT COUNT(*) AS n FROM sales WHERE status='cancelled'").n
+      cancelled_count:row("SELECT COUNT(*) AS n FROM sales WHERE status='cancelled' AND is_training=0").n
     };
   }
 
   function reportItems(filters={}){
     const status=filters?.status||'completed';
+    const training=filters?.training||'exclude';
+    if(!['exclude','only','include'].includes(training))throw new Error('Filtro de treinamento inválido.');
     if(!['completed','cancelled','all'].includes(status))throw new Error('Situação de relatório inválida.');
     const from=filters?.from?strictDate(filters.from,'Data inicial'):null;
     const to=filters?.to?strictDate(filters.to,'Data final'):null;
@@ -492,6 +501,7 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     const rows=[];
     for(const s of sales){
       if(status!=='all'&&s.status!==status)continue;
+      if((training==='exclude'&&s.is_training)||(training==='only'&&!s.is_training))continue;
       const day=s.created_at?.slice(0,10);
       if((from&&day<from)||(to&&day>to)||(operatorId&&s.operator_id!==operatorId))continue;
       const items=all('SELECT * FROM sale_items WHERE sale_id=? ORDER BY rowid',s.id);
@@ -510,13 +520,13 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
           brand:item.brand,producer:item.producer,variant_group:item.variant_group,variant_label:item.variant_label,
           quantity_milli:item.quantity_milli,unit_price_cents:item.unit_price_cents,
           gross_cents:item.line_total_cents,discount_cents:discounts[i],
-          net_cents:item.line_total_cents-discounts[i],status:s.status,payment_method:method,
+          net_cents:item.line_total_cents-discounts[i],status:s.status,is_training:s.is_training,payment_method:method,
           payment_allocations:assigned.map(a=>({method:a.method,amount_cents:a.amount_cents})),
           customer_id:s.customer_id,operator_id:s.operator_id,terminal_id:s.terminal_id,created_at:s.created_at});
       });
     }
     return {rows,summary:{items_count:rows.length,
-      net_total_cents:rows.filter(x=>x.status==='completed').reduce((sum,x)=>sum+x.net_cents,0)}};
+      net_total_cents:rows.filter(x=>x.status==='completed'&&!x.is_training).reduce((sum,x)=>sum+x.net_cents,0)}};
   }
 
   function recordInitialStock(productId,quantityMilli){
