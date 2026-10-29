@@ -353,7 +353,7 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       if(!p)throw new Error('Produto não encontrado ou desativado.');
       if(p.unit==='UN' && delta%1000!==0)throw new Error('Produto por unidade exige quantidade inteira.');
       const tracked=row('SELECT COALESCE(SUM(remaining_milli),0) AS total FROM product_batches WHERE product_id=?',id).total;
-      if(p.stock_milli+delta<tracked)throw new Error('Ajuste de estoque reduziria saldo abaixo dos lotes fisicamente rastreados.');
+      if(p.stock_milli+delta>=0&&p.stock_milli+delta<tracked)throw new Error('Ajuste de estoque reduziria saldo abaixo dos lotes fisicamente rastreados.');
       recordStock(id,delta,input.kind,reason);
       return row('SELECT * FROM products WHERE id=?',id);
     });
