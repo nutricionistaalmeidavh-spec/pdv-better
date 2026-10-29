@@ -90,7 +90,7 @@ export const apiChannels = Object.freeze({
   report: 'pdv:report:summary', reportItems: 'pdv:report:items', reportItemsExport: 'pdv:report:items-export', reportExport: 'pdv:report:export',
   lanStatus: 'pdv:lan:status', lanHost: 'pdv:lan:host', lanJoin: 'pdv:lan:join', lanLocal: 'pdv:lan:local',
   deviceGet: 'pdv:device:get', deviceSet: 'pdv:device:set', devicePrinters: 'pdv:device:printers',
-  devicePrint: 'pdv:device:print', drawerOpen: 'pdv:drawer:open', scaleRead: 'pdv:scale:read',
+  devicePrint: 'pdv:device:print', printQueueList: 'pdv:device:print-jobs', printQueueRetry: 'pdv:device:print-retry', printQueuePurge: 'pdv:device:print-purge', drawerOpen: 'pdv:drawer:open', scaleRead: 'pdv:scale:read',
   backupCreate: 'pdv:backup:create', backupRestore: 'pdv:backup:restore',
   authStatus: 'pdv:auth:status', authBootstrap: 'pdv:auth:bootstrap', authLogin: 'pdv:auth:login', authLogout: 'pdv:auth:logout', authSetPassword: 'pdv:auth:set-password',
   sessionsList: 'pdv:sessions:list'
