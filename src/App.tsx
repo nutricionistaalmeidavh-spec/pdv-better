@@ -55,6 +55,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [editing,setEditing] = useState<Row|null>(null);
   const [form,setForm] = useState<Row>({});
   const [saving,setSaving] = useState(false);
+  const [importingCsv,setImportingCsv] = useState(false);
   const [cart,setCart] = useState<CartItem[]>(() => {
     try {
       const saved=JSON.parse(localStorage.getItem('pdv-better:draft-v1:'+user.id)||'[]');
@@ -137,6 +138,23 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       setEditing(null); setNotice(definitions[view].singular + ' salvo: ' + saved.name);
     } catch (err) { setError('Não foi possível salvar. ' + friendlyError(err)); }
     finally { setSaving(false); }
+  }
+  async function importProductsCsv(event:React.ChangeEvent<HTMLInputElement>){
+    const file=event.target.files?.[0];event.target.value='';
+    if(!bridge||!file||importingCsv)return;
+    setImportingCsv(true);setError('');setNotice('');
+    try{
+      if(file.size>120000)throw new Error('CSV excede o limite de 120 KB. Divida em arquivos menores.');
+      const csv=await file.text();
+      const preview=await bridge.catalogCsvPreview({csv});
+      if(!window.confirm('Importar '+preview.count+' produtos no SQLite?\n'+
+        preview.rows.slice(0,5).map((r:Row)=>r.code+' · '+r.name).join('\n')+
+        '\nTodos os produtos serão gravados juntos; erros cancelam toda a importação.'))return;
+      const result=await bridge.catalogCsvImport({csv});
+      await reload('products');
+      setNotice(result.imported+' produtos importados de forma transacional.');
+    }catch(err){setError('Falha na importação CSV. '+friendlyError(err));}
+    finally{setImportingCsv(false);}
   }
   async function archiveRecord(row:Row) {
     if (!bridge || !window.confirm('Desativar ' + row.name + '? O cadastro ficará oculto, sem exclusão permanente.')) return;
@@ -307,7 +325,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
           {['cash','sales','inventory','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
           {view==='settings' && <SystemSettings/>}
           {activeSchema && <>
-            <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div>{allowed(user.role,"save",[view])&&<button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button>}</div>
+            <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div>{view==='products'&&allowed(user.role,'importCatalogCsv')&&<label className="secondary" style={{display:'inline-flex',alignItems:'center',gap:8,padding:12}}>
+                Importar produtos CSV
+                <input type="file" accept=".csv,text/csv" aria-label="Importar produtos CSV"
+                  disabled={importingCsv} onChange={ev=>void importProductsCsv(ev)} style={{maxWidth:180}}/>
+              </label>}
+              {allowed(user.role,"save",[view])&&<button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button>}</div>
             <div className="panel data-panel">
               <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{filteredRows.length} cadastros</span></div>
               <div className="table-wrap"><table><thead><tr>{activeSchema.fields.slice(0,4).map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
