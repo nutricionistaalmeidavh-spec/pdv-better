@@ -89,7 +89,7 @@ test('backup usa snapshot SQLite consistente e restauração rejeita arquivo cor
    const corrupt=join(dir,'corrupt.sqlite');writeFileSync(corrupt,'not a SQLite database');
    assert.throws(()=>stageRestore(corrupt,source),/inválid|corrompid/i);
    const staged=stageRestore(backup,source);
-   assert.ok(existsSync(staged.stagedPath));assert.equal(staged.version,4);
+   assert.ok(existsSync(staged.stagedPath));assert.equal(staged.version,5);
    assert.equal(store.list('products').length,1);
  }finally{store.close();rmSync(dir,{recursive:true,force:true});}
 });
