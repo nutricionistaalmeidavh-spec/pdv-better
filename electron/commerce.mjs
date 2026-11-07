@@ -489,8 +489,9 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
   function createFinance(input){
     return atomic(db,()=>{
       const detail=financeInput(input),id=randomUUID();
-      run("INSERT INTO financial_entries(id,type,description,amount_cents,due_on,status,created_at) VALUES(?,?,?,?,?,'open',?)",
-        id,detail.type,detail.description,detail.amountCents,detail.dueOn,now());
+      const category=input?.category?assertLabel(input.category,'Categoria',80):null;
+      run("INSERT INTO financial_entries(id,type,description,amount_cents,due_on,status,created_at,category) VALUES(?,?,?,?,?,'open',?,?)",
+        id,detail.type,detail.description,detail.amountCents,detail.dueOn,now(),category);
       return financeWithBalance(row('SELECT * FROM financial_entries WHERE id=?',id));
     });
   }
