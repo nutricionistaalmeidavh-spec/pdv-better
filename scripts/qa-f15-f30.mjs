@@ -326,7 +326,7 @@ try{
   await navigation('Controle de caixa').click();
   await page.getByRole('heading',{name:'Controle de caixa',exact:true}).waitFor();
   await page.getByText('Histórico do turno').waitFor();
-  await page.getByText(/Dinheiro previsto em caixa/).waitFor();
+  await page.getByText(/Contagem cega: registre cada meio/).waitFor();
   await page.locator('.commerce-section').filter({hasText:'Histórico do turno'}).locator('tbody tr').first().waitFor();
   pass('F30','saldo previsto, movimentações da sessão e tela de histórico conferidos');
 
