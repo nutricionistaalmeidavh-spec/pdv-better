@@ -47,3 +47,12 @@ test('modais de pagamento extensos mantêm os botões acessíveis',()=>{
  assert.match(css,/\.dialog-footer\s*\{[^}]*position:\s*sticky/s);
  assert.match(css,/\.dialog-footer\s*\{[^}]*bottom:\s*0/s);
 });
+
+test('frente de caixa usa uma única aparência e não exibe seletor de modos legados',()=>{
+  const cashier=source('src/Cashier.tsx');
+  const app=source('src/App.tsx');
+  assert.doesNotMatch(cashier,/cashier-mode-picker|Escolher visual do caixa/);
+  assert.doesNotMatch(app,/setCashierMode|onModeChange=|cashierMode/);
+  assert.match(app,/cashier-shell mode-light/);
+  assert.match(cashier,/<h1>PDV SUPER<\/h1>/);
+});
