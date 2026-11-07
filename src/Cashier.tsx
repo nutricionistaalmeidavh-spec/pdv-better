@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   ScanBarcode, Search, ShoppingCart, Package, Plus, Minus, Trash2,
   CreditCard, Banknote, Wallet, UserRound, Tag, Grid2X2, Keyboard,
-  CheckCircle2, AlertTriangle, Settings2, X
+  CheckCircle2, AlertTriangle, Settings2, X, Star, Clock3, BookmarkPlus, Undo2
 } from 'lucide-react';
 import { money, lineTotalCents } from '../shared/domain.mjs';
 
@@ -13,6 +13,7 @@ type CartLine = {
   quantityMilli:number; batchId?:string; batchCode?:string;
 };
 type PaymentMethod = 'cash'|'pix'|'card';
+type HeldSale = {id:string;label:string;createdAt:string;items:CartLine[]};
 
 type CashierProps = {
   mode:CashierMode;
@@ -41,6 +42,15 @@ type CashierProps = {
   onClearCart:()=>void;
   onCash:()=>void;
   onOpenPayment:(method?:PaymentMethod,focus?:'customer'|'discount')=>void;
+  favoriteIds:string[];
+  favoriteProducts:Row[];
+  onToggleFavorite:(id:string)=>void;
+  heldSales:HeldSale[];
+  onHold:(label:string)=>void;
+  onResumeHeld:(id:string)=>void;
+  onRemoveHeld:(id:string)=>void;
+  canUndo:boolean;
+  onUndo:()=>void;
 };
 
 const variants:{id:CashierMode;label:string}[]=[
@@ -54,9 +64,13 @@ export function Cashier({
   categories,categoryFilter,onCategoryFilter,products,onAddProduct,onProducts,
   cart,cartError,total,sessionOpen,onRemoveProduct,onChangeQuantity,
   manualWeight,onManualWeightChange,onApplyWeight,onReadScale,readingScale,
-  onClearCart,onCash,onOpenPayment
+  onClearCart,onCash,onOpenPayment,
+  favoriteIds,favoriteProducts,onToggleFavorite,
+  heldSales,onHold,onResumeHeld,onRemoveHeld,canUndo,onUndo
 }:CashierProps) {
   const [catalogOpen,setCatalogOpen]=useState(false);
+  const [heldOpen,setHeldOpen]=useState(false);
+  const [holdLabel,setHoldLabel]=useState('');
   const canReceive=cart.length>0&&sessionOpen;
   const productCount=useMemo(()=>cart.reduce((sum,item)=>sum+item.quantityMilli/1000,0),[cart]);
   const showCatalog=catalogOpen||search.trim().length>0;
@@ -110,19 +124,40 @@ export function Cashier({
               onClick={()=>onCategoryFilter(category.id)}>{category.name}</button>)}
           </div>
           <div className="cashier-product-results">
-            {products.map(product=><button type="button" className="cashier-product-option"
-              key={product.id} onClick={()=>{onAddProduct(product);setCatalogOpen(false);}}>
-              <span className="cashier-product-icon"><Package size={17}/></span>
-              <span className="cashier-product-description"><strong>{product.name}</strong>
-                <small>{product.code||'Sem código'} · {product.unit} · Saldo {Number(product.stock_milli||0)/1000}</small>
-              </span>
-              <strong>{money(product.sale_price_cents)}</strong><Plus size={16}/>
-            </button>)}
+            {products.map(product=><div className="cashier-product-entry" key={product.id}>
+              <button type="button" className="cashier-product-option"
+                onClick={()=>{onAddProduct(product);setCatalogOpen(false);}}>
+                <span className="cashier-product-icon"><Package size={17}/></span>
+                <span className="cashier-product-description"><strong>{product.name}</strong>
+                  <small>{product.code||'Sem código'} · {product.unit} · Saldo {Number(product.stock_milli||0)/1000}</small>
+                </span>
+                <strong>{money(product.sale_price_cents)}</strong><Plus size={16}/>
+              </button>
+              <button type="button" className="cashier-favorite-star"
+                aria-label={(favoriteIds.includes(product.id)?'Desfavoritar ':'Favoritar ')+product.name}
+                aria-pressed={favoriteIds.includes(product.id)}
+                onClick={()=>onToggleFavorite(product.id)}>
+                <Star size={19} fill={favoriteIds.includes(product.id)?'currentColor':'none'}/>
+              </button>
+            </div>)}
             {!products.length&&<div className="cashier-no-results">Nenhum produto encontrado.
               <button type="button" onClick={onProducts}>Abrir cadastros</button>
             </div>}
           </div>
         </section>}
+
+        <section className="cashier-favorites" aria-label="Produtos favoritos">
+          <div className="cashier-favorites-title">
+            <strong><Star size={17}/> Favoritos</strong>
+            <span>{favoriteProducts.length ? 'Toque para adicionar ao carrinho' : 'Marque a estrela na consulta de produtos'}</span>
+          </div>
+          {favoriteProducts.length>0&&<div className="cashier-favorite-chips">
+            {favoriteProducts.map(product=><button key={product.id} type="button" onClick={()=>onAddProduct(product)}
+              title={'Adicionar '+product.name+' ao carrinho'}>
+              <span>{product.name}</span><strong>{money(product.sale_price_cents)}</strong><Plus size={15}/>
+            </button>)}
+          </div>}
+        </section>
 
         <section className="cashier-cart-area" aria-label="Itens da venda">
           <div className="cashier-cart-header">
@@ -172,6 +207,7 @@ export function Cashier({
             <button type="button" disabled={!canReceive} onClick={()=>openPayment(undefined,'discount')}><Tag size={18}/> Desconto <kbd>F4</kbd></button>
             <button type="button" disabled={!cart.length} className="cashier-danger" onClick={onClearCart}><Trash2 size={17}/> Cancelar</button>
             <button type="button" onClick={onCash}><Settings2 size={18}/> Caixa</button>
+            <button type="button" disabled={!canUndo} onClick={onUndo} aria-label="Desfazer exclusão do carrinho"><Undo2 size={18}/> Desfazer <kbd>Ctrl+Z</kbd></button>
           </footer>
         </section>
       </div>
@@ -199,8 +235,37 @@ export function Cashier({
           onClick={()=>openPayment()}><Keyboard size={17}/> Outras formas / misto <kbd>F10</kbd></button>
         {!sessionOpen&&<button className="cashier-open-session" onClick={onCash} type="button">
           Abrir caixa para receber</button>}
+        <section className="cashier-hold-panel" aria-label="Vendas em espera">
+          <label className="cashier-hold-label">Identificar venda (opcional)
+            <input aria-label="Identificar venda em espera" maxLength={60}
+              placeholder="Ex.: balcão 2" value={holdLabel}
+              onChange={event=>setHoldLabel(event.target.value)}/>
+          </label>
+          <button className="cashier-hold-button" type="button" disabled={!cart.length}
+            onClick={()=>{onHold(holdLabel);setHoldLabel('');}}>
+            <BookmarkPlus size={18}/> Colocar em espera <kbd>F9</kbd>
+          </button>
+          <button className="cashier-held-toggle" type="button"
+            aria-expanded={heldOpen} onClick={()=>setHeldOpen(value=>!value)}>
+            <Clock3 size={17}/> Vendas em espera ({heldSales.length}) <kbd>F11</kbd>
+          </button>
+          {heldOpen&&<div className="cashier-held-list">
+            {!heldSales.length&&<p>Nenhuma venda em espera neste terminal.</p>}
+            {heldSales.map(sale=><div className="cashier-held-row" key={sale.id}>
+              <div><strong>{sale.label}</strong>
+                <small>{sale.items.length} itens · {new Date(sale.createdAt).toLocaleString('pt-BR')}</small>
+              </div>
+              <button type="button" disabled={cart.length>0}
+                aria-label={'Retomar '+sale.label} onClick={()=>onResumeHeld(sale.id)}>Retomar</button>
+              <button type="button" className="cashier-held-delete"
+                aria-label={'Excluir espera '+sale.label} onClick={()=>onRemoveHeld(sale.id)}>
+                <Trash2 size={16}/></button>
+            </div>)}
+            {heldSales.length>0&&cart.length>0&&<p>Guarde ou limpe o carrinho atual para retomar outra venda.</p>}
+          </div>}
+        </section>
         <div className="cashier-safe-note"><CheckCircle2 size={16}/>
-          <span>Funciona offline. Pix e cartão precisam de confirmação externa antes de registrar a venda.</span>
+          <span><strong>Operação não fiscal.</strong> Em espera não reserva estoque nem congela preços. Pix e cartão exigem confirmação externa.</span>
         </div>
       </aside>
     </div>
