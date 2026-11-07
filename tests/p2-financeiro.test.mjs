@@ -76,3 +76,25 @@ test('P2: CSV offline protege fórmulas de células e exporta valores exatos',()
  assert.match(output,/\\'=HYPERLINK|"'=HYPERLINK/);
  assert.match(output,/25,00/);
 });
+
+test('P2: categoria acompanha lançamento avulso, permanece no Kanban e na projeção',()=>{
+ const f=fixture();try{
+  const entry=f.store.createFinance({type:'payable',description:'Serviço de nuvem local',amountCents:900,dueOn:'2026-12-20',category:'Infraestrutura'});
+  assert.equal(entry.category,'Infraestrutura');
+  assert.equal(f.store.listFinance().find(x=>x.id===entry.id).category,'Infraestrutura');
+  const projected=f.store.financeOverview({from:'2026-12-01',to:'2026-12-31'}).forecasts;
+  assert.equal(projected.find(x=>x.id===entry.id)?.category,'Infraestrutura');
+ }finally{f.done();}
+});
+test('P2: reenvio de recorrência mostra saldo já liquidado sem recriar contas',()=>{
+ const f=fixture();try{
+  f.store.openSession({openingCashCents:5000});
+  const input={type:'receivable',description:'Mensalidade',amountCents:1000,dueOn:'2026-11-20',months:3,key:'mensalidade-retry'};
+  const initial=f.store.createFinanceSchedule(input);
+  f.store.settleFinance({id:initial.entries[0].id,method:'pix',amountCents:300});
+  const replay=f.store.createFinanceSchedule(input);
+  assert.equal(replay.entries[0].paid_cents,300);
+  assert.equal(replay.entries[0].remaining_cents,700);
+  assert.equal(f.store.listFinance().length,3);
+ }finally{f.done();}
+});
