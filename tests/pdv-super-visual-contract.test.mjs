@@ -40,3 +40,10 @@ test('fluxos de pagamento, favoritos e vendas em espera permanecem conectados',(
   const app=source('src/App.tsx');
   assert.match(app,/resolveCashierShortcut/);
 });
+
+test('modais de pagamento extensos mantêm os botões acessíveis',()=>{
+ const css=source('src/pdv-super.css');
+ assert.match(css,/\.dialog-form\s*\{[^}]*overflow-y:\s*auto/s);
+ assert.match(css,/\.dialog-footer\s*\{[^}]*position:\s*sticky/s);
+ assert.match(css,/\.dialog-footer\s*\{[^}]*bottom:\s*0/s);
+});
