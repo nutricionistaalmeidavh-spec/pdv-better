@@ -945,7 +945,7 @@ select option {color:var(--super-text);background:white}
   .shell.super-shell .cashier-product-results{grid-template-columns:repeat(3,minmax(0,1fr))}
   .shell.super-shell .cashier-workspace{grid-template-columns:minmax(0,1fr) minmax(300px,38%)}
   .super-top-brand strong{font-size:15px}
-  .super-user span{display:none}
+  .super-user span{display:inline;max-width:110px;font-size:10px}
   .super-top-actions .status-pill{display:none}
 }
 @media(max-width:850px){
