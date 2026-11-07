@@ -197,6 +197,25 @@ async function main(){
       await edit.click();
       await capture('Cadastro - editar '+singular+' - dados existentes');
       await page.locator('[role="dialog"]').last().getByRole('button',{name:'Cancelar'}).click();
+      if(key==='products'){
+        // Exercita o fluxo real de seleção, compactação, persistência e reabertura da foto.
+        await page.locator('.data-panel button[title="Editar cadastro"]').first().click();
+        const photoData=await page.evaluate(()=>{
+          const c=document.createElement('canvas');c.width=180;c.height=180;
+          const ctx=c.getContext('2d');
+          ctx.fillStyle='#d9a42d';ctx.fillRect(0,0,180,180);
+          ctx.fillStyle='#fff';ctx.fillRect(21,20,138,140);
+          ctx.fillStyle='#183e78';ctx.fillRect(21,80,138,40);
+          return c.toDataURL('image/jpeg',.8).split(',')[1];
+        });
+        await page.getByRole('dialog',{name:'Editar Produto'}).locator('input[aria-label="Selecionar foto do produto"]')
+          .setInputFiles({name:'produto-qa.jpg',mimeType:'image/jpeg',buffer:Buffer.from(photoData,'base64')});
+        await page.locator('.product-photo-editor img').waitFor({state:'visible'});
+        await capture('Cadastro - produto - foto enviada e miniatura');
+        await page.getByRole('dialog',{name:'Editar Produto'}).getByRole('button',{name:'Salvar cadastro'}).click();
+        await page.locator('.product-thumbnail:not(.product-thumbnail-empty)').first().waitFor({state:'visible'});
+        await capture('Produtos - imagem persistida no catalogo');
+      }
       if(key==='operators'){
         await page.getByRole('button',{name:'Definir senha'}).first().click();
         await capture('Perfis - definir senha de operador');
