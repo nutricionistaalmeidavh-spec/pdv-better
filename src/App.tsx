@@ -364,8 +364,8 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   }
   return <div className={'shell'+(view==='checkout'?' cashier-shell mode-'+cashierMode:'')}>
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><Package size={21}/></div><div><strong>PDV Better</strong><span>by ArtiSys</span></div></div>
-      <div className="workspace"><div className="workspace-avatar">PB</div><div><strong>Estabelecimento local</strong><span>Funcionamento offline • perfis e caixas independentes</span></div></div>
+      <div className="brand"><div className="brand-mark"><ShoppingCart size={22}/></div><div><strong>PDV SUPER</strong><span>Gestão comercial local</span></div></div>
+      <div className="workspace"><div className="workspace-avatar">PS</div><div><strong>Estabelecimento local</strong><span>Funcionamento offline • perfis e caixas independentes</span></div></div>
       <nav aria-label="Navegação principal">
         {menus.map(section => <div className="menu-section" key={section.title}>
           <div className="menu-title">{section.title}</div>
@@ -380,7 +380,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       <div className="sidebar-footer"><Database size={17}/><div><strong>SQLite local</strong><span>Sem serviços pagos</span></div><ShieldCheck size={17}/></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="breadcrumbs"><span>PDV Better</span><ChevronRight size={16}/><strong>{titles[view] || definitions[view]?.label}</strong></div>
+      <header className="topbar"><div className="breadcrumbs"><span>PDV SUPER</span><ChevronRight size={16}/><strong>{titles[view] || definitions[view]?.label}</strong></div>
         <div className="top-actions"><span title="Operador autenticado">{user.name} · {user.role}</span><button className="secondary" onClick={()=>void onLogout()}>Sair</button><span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Modo local'}</span><span className="version">Versão 0.4.0</span></div>
       </header>
       <section className="content">
@@ -388,7 +388,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         {error && !editing && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}<button onClick={() => {setLoading(true); void reloadAll();}}><RotateCcw size={15}/>Tentar novamente</button></div>}
         {loading ? <div className="loading">Carregando dados do estabelecimento…</div> : <>
           {view === 'dashboard' && <>
-            <div className="page-heading"><div><div className="eyebrow">INÍCIO</div><h1>Bem-vindo ao PDV Better</h1><p>Seu comércio organizado em um único lugar, mesmo sem internet.</p></div><button className="primary" onClick={() => selectView('checkout')}><ShoppingCart size={17}/> Abrir frente de caixa</button></div>
+            <div className="page-heading"><div><div className="eyebrow">INÍCIO</div><h1>Bem-vindo ao PDV SUPER</h1><p>Seu comércio organizado em um único lugar, mesmo sem internet.</p></div><button className="primary" onClick={() => selectView('checkout')}><ShoppingCart size={17}/> Abrir frente de caixa</button></div>
             {(!products.length||!session)&&<div className="panel glass-panel" aria-label="Primeiros passos">
               <h2>Primeiros passos</h2>
               <p>Prepare o catálogo, abra seu caixa com o valor real de troco e faça a primeira venda.</p>
