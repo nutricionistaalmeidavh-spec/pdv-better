@@ -5,6 +5,7 @@ import { reportRows } from '../shared/report.mjs';
 import { paymentPreview } from '../shared/payment-preview.mjs';
 import { suggestCashierPaymentAmount } from '../shared/cashier.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
+import {normalizePayments} from '../shared/commerce.mjs';
 import { SaleReceipt } from './Receipt';
 import { buildLabeledSaleItems } from '../shared/batch-label.mjs';
 type R=Record<string,any>;
@@ -15,8 +16,8 @@ const statusText:Record<string,string>={...commerceLabels.status,...commerceLabe
 function Message({error,success}:{error:string;success:string}){
   return <>{error && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}</div>}{success && <div className="notice success" role="status"><Check size={17}/>{success}</div>}</>;
 }
-export function PaymentModal({cart,products,customers,role,onClose,onDone,initialMethod='cash',initialFocus}:{
-  cart:any[];products:R[];customers:R[];role:string;onClose:()=>void;onDone:(sale:R)=>void;
+export function PaymentModal({cart,products,customers,role,onClose,onDone,onCustomerSaved,initialMethod='cash',initialFocus}:{
+  cart:any[];products:R[];customers:R[];role:string;onClose:()=>void;onDone:(sale:R)=>void;onCustomerSaved:()=>Promise<void>;
   initialMethod?:'cash'|'pix'|'card';initialFocus?:'customer'|'discount';
 }){
   const subtotal=cart.reduce((sum,row)=>sum+Math.round(row.priceCents*row.quantityMilli/1000),0);
@@ -25,6 +26,8 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,initia
   const [payments,setPayments]=useState<Array<{method:string;amount:string}>>([{method:initialMethod,amount:'0,00'}]);
   const [initialAmountFilled,setInitialAmountFilled]=useState(false);
   const [itemMethods,setItemMethods]=useState<Record<string,string>>({});
+  const [splitByQuantity,setSplitByQuantity]=useState(false);
+  const [splitQuantities,setSplitQuantities]=useState<Record<string,string>>({});
   const [training,setTraining]=useState(false);
   const [pending,setPending]=useState(false);
   const [error,setError]=useState('');
@@ -70,14 +73,58 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,initia
   const selectedAssignments=Object.values(itemMethods).filter(Boolean).length;
   const explicitItems=quote?.lines||[];
   const fullAssignment=selectedAssignments>0&&explicitItems.every((line:R)=>!!itemMethods[line.product_id]);
-  const assignmentError=selectedAssignments>0&&!fullAssignment
-    ?'Atribua uma forma de pagamento a todos os produtos ou remova as atribuições.'
-    :fullAssignment&&explicitItems.some((line:R)=>!payments.some(p=>p.method===itemMethods[line.product_id]))
-      ?'A forma atribuída deve estar entre os pagamentos informados.':'';
+  let splitAssignments:R[]=[];
+  let splitError='';
+  if(splitByQuantity&&quote&&payments.length>1){
+    try{
+      for(const line of explicitItems){
+        const lineQty=cart.find(x=>x.id===line.product_id)?.quantityMilli;
+        if(!Number.isSafeInteger(lineQty)||lineQty<=0)throw new Error('Produto sem quantidade válida.');
+        const quantities=payments.map(p=>({
+          method:p.method,
+          quantityMilli:splitQuantities[line.product_id+':'+p.method]
+            ?parseFixed(splitQuantities[line.product_id+':'+p.method],3,'Quantidade')
+            :0
+        })).filter(x=>x.quantityMilli>0);
+        if(quantities.reduce((sum,x)=>sum+x.quantityMilli,0)!==lineQty)
+          throw new Error('Distribua toda a quantidade de '+(cart.find(x=>x.id===line.product_id)?.name||'cada produto')+' entre os meios de pagamento.');
+        let balance=line.net_cents;
+        for(let i=0;i<quantities.length;i++){
+          const qty=quantities[i];
+          const cents=i===quantities.length-1?balance:Math.round(line.net_cents*qty.quantityMilli/lineQty);
+          balance-=cents;
+          if(cents<=0)throw new Error('A divisão gera uma parcela sem valor. Ajuste as quantidades.');
+          splitAssignments.push({productId:line.product_id,method:qty.method,quantityMilli:qty.quantityMilli,amountCents:cents});
+        }
+      }
+      if(payment.canSubmit){
+        const normalized=normalizePayments(payments.map(p=>({method:p.method,amountCents:parseFixed(p.amount,2,'Pagamento')})),total);
+        for(const p of normalized.payments){
+          if(splitAssignments.filter(x=>x.method===p.method).reduce((sum,x)=>sum+x.amountCents,0)!==p.amount_cents)
+            throw new Error('Quantidades distribuídas não conciliam com o valor de '+methodLabel(p.method)+'.');
+        }
+      }
+    }catch(err){splitAssignments=[];splitError=errorMessage(err);}
+  }
+  const assignmentError=splitByQuantity?splitError:
+    selectedAssignments>0&&!fullAssignment
+      ?'Atribua uma forma de pagamento a todos os produtos ou remova as atribuições.'
+      :fullAssignment&&explicitItems.some((line:R)=>!payments.some(p=>p.method===itemMethods[line.product_id]))
+        ?'A forma atribuída deve estar entre os pagamentos informados.':'';
 
+  const createQuickCustomer=async()=>{
+    if(!newCustomerName.trim()||!window.pdv||pending||customerBusy)return;
+    setCustomerBusy(true);setError('');
+    try{
+      const customer=await window.pdv.save('customers',{name:newCustomerName.trim()});
+      setExtraCustomers(current=>[...current,customer]);setCustomerId(customer.id);setNewCustomerName('');
+      await onCustomerSaved();
+    }catch(err){setError(errorMessage(err));}
+    finally{setCustomerBusy(false);}
+  };
   const updatePayment=(i:number,key:string,value:string)=>setPayments(rows=>rows.map((r,index)=>i===index?{...r,[key]:value}:r));
   const send=async(ev:React.FormEvent)=>{
-    ev.preventDefault();if(pending || !window.pdv)return;
+    ev.preventDefault();if(pending || customerBusy || !window.pdv)return;
     if(discountError || quoteError || assignmentError || !quote || !payment.canSubmit){setError(discountError || quoteError || assignmentError || payment.error || 'Aguarde a cotação e confira os pagamentos.');return;}
     setPending(true);setError('');
     try{
@@ -86,7 +133,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,initia
         items:buildLabeledSaleItems(cart,selectedBatches),
         customerId:customerId||null,discountCents,training,
         payments:payments.map(p=>({method:p.method,amountCents:parseFixed(p.amount,2,'Pagamento')})),
-        ...(fullAssignment?{itemPayments:explicitItems.map((line:R)=>({
+        ...(splitByQuantity?{itemPayments:splitAssignments}:fullAssignment?{itemPayments:explicitItems.map((line:R)=>({
           productId:line.product_id,method:itemMethods[line.product_id],amountCents:line.net_cents
         }))}:{})
       });
@@ -107,7 +154,16 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,initia
             <span>Venda de treinamento — simulação sem estoque, caixa ou faturamento</span>
             <input type="checkbox" checked={training} onChange={e=>setTraining(e.target.checked)}/>
           </label>}
-          <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select autoFocus={initialFocus==='customer'} value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{customers.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+          <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select autoFocus={initialFocus==='customer'} value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{[...customers,...extraCustomers.filter(r=>!customers.some(item=>item.id===r.id))].map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+        </div>
+        <div className="payment-inputs"><h3>Cadastro rápido de cliente</h3>
+          <p>Não encontrou o cliente? Cadastre sem perder o carrinho nem os valores informados.</p>
+          <div className="payment-row">
+            <input aria-label="Nome do novo cliente" maxLength={120} placeholder="Nome do cliente" value={newCustomerName}
+              onChange={e=>setNewCustomerName(e.target.value)}/>
+            <button type="button" className="secondary" disabled={customerBusy||pending||!newCustomerName.trim()}
+              onClick={()=>void createQuickCustomer()}>{customerBusy?'Cadastrando…':'Cadastrar cliente'}</button>
+          </div>
         </div>
         {(discountError||quoteError)&&<div className="form-error" role="alert">{discountError||quoteError}</div>}
         {cart.filter(item=>batches.some(b=>b.product_id===item.id&&b.remaining_milli>0)).map(item=>
@@ -120,8 +176,20 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,initia
           </label>)}
         {payments.length>1&&quote&&<div className="payment-inputs">
           <h3>Pagamento por produto (opcional)</h3>
-          <p>Atribua cada produto a uma das formas listadas abaixo. Para dividir um mesmo produto entre duas formas, mantenha sem atribuição: o total continuará conciliado, sem inventar rateio.</p>
-          {explicitItems.map((line:R)=><label key={line.product_id} className="form-field">
+          <label className="form-field">Dividir quantidade do produto entre meios de pagamento
+            <input type="checkbox" checked={splitByQuantity} onChange={e=>setSplitByQuantity(e.target.checked)}/>
+          </label>
+          <p>{splitByQuantity
+            ?'Informe as quantidades de cada produto por meio. O total das quantidades deve ser exato e os valores devem conciliar com cada pagamento.'
+            :'Atribua um meio por produto. Para distribuir unidades do mesmo produto em meios diferentes, ative a divisão por quantidade.'}</p>
+          {splitByQuantity?explicitItems.map((line:R)=><div key={line.product_id} className="form-grid">
+            <strong>{cart.find(x=>x.id===line.product_id)?.name||'Produto'} — {(cart.find(x=>x.id===line.product_id)?.quantityMilli||0)/1000} unidades/kg — {money(line.net_cents)}</strong>
+            {payments.map(p=><label key={p.method} className="form-field">Quantidade em {methodLabel(p.method)}
+              <input inputMode="decimal" placeholder="0,000" aria-label={'Quantidade de '+line.product_id+' em '+p.method}
+                value={splitQuantities[line.product_id+':'+p.method]||''}
+                onChange={e=>setSplitQuantities(current=>({...current,[line.product_id+':'+p.method]:e.target.value}))}/>
+            </label>)}
+          </div>):explicitItems.map((line:R)=><label key={line.product_id} className="form-field">
             {cart.find(row=>row.id===line.product_id)?.name||'Produto'} — líquido {money(line.net_cents)}
             <select aria-label={'Forma de pagamento do produto '+(cart.find(row=>row.id===line.product_id)?.name||line.product_id)}
               value={itemMethods[line.product_id]||''}
@@ -157,7 +225,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,initia
           <p className="commerce-warning">Pix e cartão são registrados manualmente. Confirme o recebimento no aplicativo do banco ou na maquininha antes de concluir. Este comprovante não é fiscal.</p>
         </div>
         {error && <div className="form-error" role="alert">{error}</div>}
-        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||!cart.length||total<=0||!!discountError||!!quoteError||!!assignmentError||!quote||!payment.canSubmit} type="submit">{pending?'Registrando…':training?'Registrar simulação sem movimento real':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
+        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||customerBusy||!cart.length||total<=0||!!discountError||!!quoteError||!!assignmentError||!quote||!payment.canSubmit} type="submit">{pending?'Registrando…':training?'Registrar simulação sem movimento real':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
       </form>
     </section>
   </div>;
@@ -171,12 +239,27 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [products,setProducts]=useState<R[]>([]);
   const [movements,setMovements]=useState<R[]>([]);
   const [finance,setFinance]=useState<R[]>([]);
+  const [settleAmounts,setSettleAmounts]=useState<Record<string,string>>({});
+  const [suppliers,setSuppliers]=useState<R[]>([]);
+  const [purchases,setPurchases]=useState<R[]>([]);
+  const [purchaseSupplier,setPurchaseSupplier]=useState('');
+  const [purchaseProduct,setPurchaseProduct]=useState('');
+  const [purchaseQty,setPurchaseQty]=useState('1');
+  const [purchaseCost,setPurchaseCost]=useState('0,00');
+  const [purchaseLines,setPurchaseLines]=useState<R[]>([]);
+  const [purchaseDoc,setPurchaseDoc]=useState('');
+  const [purchaseDue,setPurchaseDue]=useState('');
   const [summary,setSummary]=useState<R>({});
   const [error,setError]=useState('');
   const [success,setSuccess]=useState('');
   const [busy,setBusy]=useState(false);
   const [amount,setAmount]=useState('0,00');
-  const [counted,setCounted]=useState('0,00');
+  const [methodCounts,setMethodCounts]=useState<Record<string,string>>({cash:'',pix:'',card_credit:'',card_debit:'',card:''});
+  const [closeReview,setCloseReview]=useState(false);
+  const [managerOperators,setManagerOperators]=useState<R[]>([]);
+  const [managerSelection,setManagerSelection]=useState('');
+  const [managerPassword,setManagerPassword]=useState('');
+  const [lastClose,setLastClose]=useState<R|null>(null);
   const [kind,setKind]=useState('withdrawal');
   const [reason,setReason]=useState('');
   const [productId,setProductId]=useState('');
@@ -218,14 +301,18 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     if(!api){setError('Abra pelo aplicativo Electron.');return;}
     try{
       const manager=role!=='Caixa';
-      const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules]=await Promise.all([
+      const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules,who,sp,purchasesNow]=await Promise.all([
         api.sessionCurrent(),api.salesList(),api.list('products'),manager?api.stockHistory():Promise.resolve([]),
         manager?api.financeList():Promise.resolve([]),manager?api.report():Promise.resolve({}),
         manager?api.sessionsList():Promise.resolve([]),
-        manager?api.batchesList():Promise.resolve([]),manager?api.promotionsList():Promise.resolve([]),manager?api.bundleList():Promise.resolve([])
+        manager?api.batchesList():Promise.resolve([]),manager?api.promotionsList():Promise.resolve([]),manager?api.bundleList():Promise.resolve([]),
+        api.authStatus(),manager?api.list('suppliers'):Promise.resolve([]),manager?api.purchaseList():Promise.resolve([])
       ]);
       setSession(s);setSales(sl);setProducts(pr);setMovements(m);setFinance(fin);setSummary(r);setOtherSessions(other);setBatches(lots);setPromotions(priceRules);setBundles(groupRules);setError('');
-      if(s)setCounted((s.expected_cash_cents/100).toFixed(2));
+      setSuppliers(sp);setPurchases(purchasesNow);setSettleAmounts({});
+      const possibleManagers=(who.operators||[]).filter((x:R)=>x.role==='Administrador'||x.role==='Gerente');
+      setManagerOperators(possibleManagers);
+      setManagerSelection(current=>current||possibleManagers[0]?.id||'');
     }catch(err){setError(errorMessage(err));}
   }
   useEffect(()=>{setSuccess('');void load();},[view]);
@@ -254,11 +341,36 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     }catch(err){setError(errorMessage(err));}
     finally{setBusy(false);}
   }
-  const title:Record<string,string>={cash:'Controle de caixa',sales:'Vendas realizadas',inventory:'Movimentações de estoque',finance:'Financeiro',reports:'Relatórios e indicadores'};
+  const title:Record<string,string>={cash:'Controle de caixa',sales:'Vendas realizadas',inventory:'Movimentações de estoque',purchases:'Compras e fornecedores',finance:'Financeiro',reports:'Relatórios e indicadores'};
   return <div className="commerce-screen">
     {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
     <div className="page-heading"><div><div className="eyebrow">MARCO B / OPERAÇÃO LOCAL</div><h1>{title[view]}</h1><p>Registros persistidos no SQLite do estabelecimento.</p></div><button className="secondary" disabled={busy} onClick={()=>void load()}><RotateCcw size={16}/>Atualizar</button></div>
     <Message error={error} success={success}/>
+    {closeReview&&<div className="modal-backdrop" role="presentation"><section className="dialog commerce-dialog glass-payment" role="dialog" aria-modal="true" aria-label="Confirmar fechamento de caixa">
+      <header className="dialog-head"><h2>Revisar fechamento cego</h2></header>
+      <p>Confira os valores informados. As diferenças serão registradas por meio de pagamento; nenhuma cobrança externa é realizada.</p>
+      <div className="commerce-table"><table><thead><tr><th>Meio</th><th>Valor informado</th></tr></thead><tbody>
+        {['cash','pix','card_credit','card_debit','card'].map(id=><tr key={id}><td>{methodLabel(id)}</td><td>{methodCounts[id]}</td></tr>)}
+      </tbody></table></div>
+      <label className="form-field">Gerente que autoriza
+        <select required value={managerSelection} onChange={e=>setManagerSelection(e.target.value)}>
+          {managerOperators.map(o=><option key={o.id} value={o.id}>{o.name} — {o.role}</option>)}
+        </select>
+      </label>
+      <label className="form-field">Senha do gerente
+        <input required type="password" autoComplete="off" value={managerPassword} onChange={e=>setManagerPassword(e.target.value)}/>
+      </label>
+      {error&&<p role="alert" className="form-error">{error}</p>}
+      <footer className="dialog-footer">
+        <button className="secondary" type="button" disabled={busy} onClick={()=>{setCloseReview(false);setManagerPassword('');}}>Voltar à contagem</button>
+        <button className="primary" type="button" disabled={busy||!managerPassword||!managerSelection}
+          onClick={()=>void action(async()=>{
+            const counts=Object.fromEntries(Object.entries(methodCounts).map(([key,value])=>[key,parseFixed(value,2,'Conferência '+key)]));
+            const closed=await api!.sessionClose({counts,managerApproval:{operatorId:managerSelection,password:managerPassword}});
+            setLastClose(closed);setCloseReview(false);setManagerPassword('');
+          },'Fechamento autorizado. Divergências registradas.')}>Autorizar e fechar caixa</button>
+      </footer>
+    </section></div>}
     {view==='cash' && <div className="commerce-columns">
       {role!=='Caixa'&&<div className="panel commerce-section commerce-wide"><h2>Caixas abertos por terminal</h2><p>Cada caixa tem abertura, movimentações, saldo e fechamento independentes. O gerente visualiza os terminais, mas não fecha outro caixa remotamente.</p>
         <div className="commerce-table"><table><thead><tr><th>Terminal</th><th>Operador de abertura</th><th>Aberto em</th><th>Troco inicial</th><th>Saldo previsto</th></tr></thead><tbody>
@@ -266,15 +378,24 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         </tbody></table>{otherSessions.length===0&&<p className="commerce-empty">Nenhum caixa aberto.</p>}</div>
       </div>}
       <div className="panel commerce-section"><h2>{session?'Turno aberto':'Abrir novo caixa'}</h2>
-        {session?<><p>Aberto em {pretty(session.opened_at)}</p><div className="total-line"><span>Dinheiro previsto em caixa</span><strong>{money(session.expected_cash_cents)}</strong></div>
-          <form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.sessionClose({countedCashCents:counted}), 'Caixa fechado. Consulte a conferência nos relatórios.');}}>
-            <label>Dinheiro contado (R$)<input inputMode="decimal" value={counted} onChange={e=>setCounted(e.target.value)}/></label>
-            <button disabled={busy} className="primary" type="submit">Conferir e fechar caixa</button>
+        {session?<><p>Aberto em {pretty(session.opened_at)}</p>
+          <p>Contagem cega: registre cada meio sem consultar os valores previstos. A comparação acontece somente após a autorização.</p>
+          <form className="commerce-form" onSubmit={e=>{e.preventDefault();setCloseReview(true);}}>
+            {(['cash','pix','card_credit','card_debit','card'] as const).map(id=>
+              <label key={id}>{methodLabel(id)} conferido (R$)
+                <input required inputMode="decimal" placeholder="0,00" value={methodCounts[id]}
+                  onChange={e=>{const value=e.target.value;setMethodCounts(previous=>({...previous,[id]:value}));}}/>
+              </label>)}
+            <button disabled={busy} className="primary" type="submit">Revisar fechamento e solicitar gerente</button>
           </form>
         </>:<form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.sessionOpen({openingCashCents:amount}),'Caixa aberto para vendas.');}}>
           <label>Valor inicial de troco (R$)<input inputMode="decimal" value={amount} onChange={e=>setAmount(e.target.value)}/></label><button disabled={busy} className="primary" type="submit">Abrir caixa</button>
         </form>}
       </div>
+      {lastClose&&<div className="panel commerce-section"><h2>Última conferência concluída</h2>
+        <div className="commerce-table"><table><thead><tr><th>Meio</th><th>Previsto</th><th>Contado</th><th>Diferença</th></tr></thead><tbody>
+          {(lastClose.checks||[]).map((x:R)=><tr key={x.method}><td>{methodLabel(x.method)}</td><td>{money(x.expected_cents)}</td><td>{money(x.counted_cents)}</td><td>{money(x.difference_cents)}</td></tr>)}
+        </tbody></table></div></div>}
       <div className="panel commerce-section"><h2>Sangria / reforço</h2><p>Movimentações auditáveis em dinheiro, vinculadas ao turno aberto.</p><form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.cashMove({kind,amountCents:amount,note:reason}),'Movimentação de caixa registrada.');}}>
         <label>Operação<select value={kind} onChange={e=>setKind(e.target.value)}>{cashMovementKinds.map(k=><option value={k} key={k}>{commerceLabels.cash[k]}</option>)}</select></label>
         <label>Valor (R$)<input value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value)}/></label>
@@ -348,6 +469,62 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         </tbody></table></div>
       </div>
       <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.slice(0,300).map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div></div></>}
+    {view==='purchases'&&<>
+      <div className="panel commerce-section">
+        <h2>Nova compra — etapa 1: revisar itens</h2>
+        <p>Uma compra em rascunho não movimenta estoque nem cria conta a pagar. O custo médio será atualizado somente ao confirmar o recebimento físico.</p>
+        <div className="commerce-inline-form">
+          <label>Fornecedor
+            <select value={purchaseSupplier} onChange={e=>setPurchaseSupplier(e.target.value)} required>
+              <option value="">Selecione um fornecedor</option>
+              {suppliers.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}
+            </select>
+          </label>
+          <label>Documento de referência<input value={purchaseDoc} maxLength={100} onChange={e=>setPurchaseDoc(e.target.value)} placeholder="Nota ou pedido (opcional)"/></label>
+          <label>Vencimento<input type="date" value={purchaseDue} onChange={e=>setPurchaseDue(e.target.value)}/></label>
+        </div>
+        <div className="commerce-inline-form">
+          <label>Produto
+            <select value={purchaseProduct} onChange={e=>setPurchaseProduct(e.target.value)}>
+              <option value="">Selecione</option>
+              {products.map(item=><option key={item.id} value={item.id}>{item.name} — saldo {item.stock_milli/1000}</option>)}
+            </select>
+          </label>
+          <label>Quantidade<input inputMode="decimal" value={purchaseQty} onChange={e=>setPurchaseQty(e.target.value)} placeholder="1,000"/></label>
+          <label>Custo unitário (R$)<input inputMode="decimal" value={purchaseCost} onChange={e=>setPurchaseCost(e.target.value)}/></label>
+          <button type="button" className="secondary" disabled={!purchaseProduct||purchaseLines.some(x=>x.productId===purchaseProduct)}
+            onClick={()=>{try{const qty=parseFixed(purchaseQty,3,'Quantidade'),cost=parseFixed(purchaseCost,2,'Custo');
+              if(qty<=0||cost<0)throw new Error('Quantidade ou custo inválido.');
+              setPurchaseLines(current=>[...current,{productId:purchaseProduct,quantityMilli:qty,unitCostCents:cost}]);
+              setPurchaseProduct('');
+            }catch(err){setError(errorMessage(err));}}}>Adicionar item</button>
+        </div>
+        <div className="commerce-table"><table><thead><tr><th>Produto</th><th>Quantidade</th><th>Custo</th><th>Total</th><th>Ação</th></tr></thead><tbody>
+          {purchaseLines.map(x=><tr key={x.productId}><td>{products.find(p=>p.id===x.productId)?.name}</td><td>{x.quantityMilli/1000}</td>
+            <td>{money(x.unitCostCents)}</td><td>{money(Math.round(x.quantityMilli*x.unitCostCents/1000))}</td>
+            <td><button type="button" className="secondary" onClick={()=>setPurchaseLines(lines=>lines.filter(i=>i.productId!==x.productId))}>Remover</button></td></tr>)}
+        </tbody></table></div>
+        <button type="button" className="primary" disabled={busy||!purchaseSupplier||purchaseLines.length===0}
+          onClick={()=>void action(async()=>{
+            await api!.purchaseCreate({supplierId:purchaseSupplier,documentRef:purchaseDoc,dueOn:purchaseDue,lines:purchaseLines});
+            setPurchaseLines([]);setPurchaseDoc('');setPurchaseDue('');
+          },'Compra salva como rascunho; estoque e financeiro inalterados.')}>Salvar compra em rascunho</button>
+      </div>
+      <div className="panel commerce-section"><h2>Etapa 2: receber compras</h2>
+        <p>Confira fisicamente a mercadoria, as quantidades e os custos antes de confirmar. O recebimento é irreversível pelo fluxo comum e não pode ser repetido.</p>
+        <div className="commerce-table"><table><thead><tr><th>Fornecedor</th><th>Documento</th><th>Itens</th><th>Total</th><th>Situação</th><th>Operação</th></tr></thead><tbody>
+          {purchases.map(p=><tr key={p.id}><td>{p.supplier_name}</td><td>{p.document_ref||'—'}</td>
+            <td><details><summary>{p.lines.length} item(ns)</summary>
+              {p.lines.map((line:R)=><p key={line.id}>{products.find(prod=>prod.id===line.product_id)?.name||line.product_id} · {line.quantity_milli/1000} · {money(line.unit_cost_cents)} / unidade</p>)}
+            </details></td>
+            <td>{money(p.total_cents)}</td><td>{p.status==='received'?'Recebida':'Rascunho'}</td>
+            <td>{p.status==='draft'&&<button type="button" className="secondary" disabled={busy}
+              onClick={()=>{if(window.confirm('Mercadoria conferida fisicamente? Receber a compra atualizará estoque, custo médio e conta a pagar.'))
+                void action(()=>api!.purchaseReceive(p.id),'Compra recebida e custo médio atualizado.',true);}}>Conferir e receber</button>}</td>
+          </tr>)}
+        </tbody></table></div>
+      </div>
+    </>}
     {view==='finance'&&<><div className="panel commerce-section"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn}), 'Lançamento registrado.');}}>
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
       <label>Descrição<input required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Ex.: aluguel"/></label>
@@ -355,9 +532,23 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       <label>Vencimento<input type="date" value={dueOn} onChange={e=>setDueOn(e.target.value)}/></label>
       <button disabled={busy} className="primary" type="submit"><Plus size={16}/>Criar lançamento</button></form></div>
       <div className="panel commerce-section"><div className="commerce-heading"><div><h2>Contas a pagar e receber</h2><p>O fiado aparece automaticamente como conta a receber.</p></div><label>Quitação<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}>{paymentMethods.filter(m=>m.id!=='credit').map(m=><option value={m.id} key={m.id}>{m.label}</option>)}</select></label></div>
-        <div className="commerce-table"><table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Situação</th><th>Operação</th></tr></thead><tbody>{finance.map(f=><tr key={f.id}><td>{f.description}</td><td>{statusText[f.type]}</td><td>{money(f.amount_cents)}</td><td>{f.due_on||'—'}</td><td>{statusText[f.status]}</td><td>{f.status==='open'&&<button className="secondary" disabled={busy||paymentMethod==='cash'&&!session} onClick={()=>{
-          if(window.confirm('Confirmar liquidação via '+methodLabel(paymentMethod)+'?'))void action(()=>api!.financeSettle({id:f.id,method:paymentMethod}), 'Conta liquidada.');
-        }}>Liquidar</button>}</td></tr>)}</tbody></table>{!finance.length&&<p className="commerce-empty">Nenhum lançamento financeiro.</p>}</div><p className="commerce-warning">Pagamentos não realizados em dinheiro são registrados manualmente. Nenhuma cobrança é executada em gateways externos.</p></div></>}
+        <div className="commerce-table"><table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Pago</th><th>Saldo</th><th>Vencimento</th><th>Situação</th><th>Baixa parcial (R$)</th><th>Operação</th></tr></thead><tbody>{finance.map(f=><tr key={f.id}><td>{f.description}
+          {(f.settlements||[]).length>0&&<details><summary>Histórico de baixas ({f.settlements.length})</summary>
+            {(f.settlements||[]).map((settlement:R)=><p key={settlement.id}>
+              {pretty(settlement.created_at)} · {money(settlement.amount_cents)} · {methodLabel(settlement.method)}
+            </p>)}
+          </details>}</td><td>{statusText[f.type]}</td><td>{money(f.amount_cents)}</td><td>{money(f.paid_cents||0)}</td><td>{money(f.remaining_cents??f.amount_cents)}</td>
+          <td>{f.due_on||'—'}</td><td>{statusText[f.status]}</td>
+          <td>{f.status==='open'&&<input aria-label={'Valor a baixar de '+f.description} inputMode="decimal"
+            value={settleAmounts[f.id]??((f.remaining_cents??f.amount_cents)/100).toFixed(2)}
+            onChange={e=>setSettleAmounts(values=>({...values,[f.id]:e.target.value}))}/>}</td>
+          <td>{f.status==='open'&&<button className="secondary" disabled={busy||paymentMethod==='cash'&&!session} onClick={()=>{
+            try{const amountCents=parseFixed(settleAmounts[f.id]??((f.remaining_cents??f.amount_cents)/100).toFixed(2),2,'Valor de baixa');
+              if(amountCents<=0||amountCents>(f.remaining_cents??f.amount_cents))throw new Error('Valor ultrapassa saldo em aberto.');
+              if(window.confirm('Confirmar baixa de '+money(amountCents)+' via '+methodLabel(paymentMethod)+'?'))
+                void action(()=>api!.financeSettle({id:f.id,method:paymentMethod,amountCents}),'Baixa financeira registrada.');
+            }catch(err){setError(errorMessage(err));}
+          }}>Dar baixa</button>}</td></tr>)}</tbody></table>{!finance.length&&<p className="commerce-empty">Nenhum lançamento financeiro.</p>}</div><p className="commerce-warning">Pagamentos não realizados em dinheiro são registrados manualmente. Nenhuma cobrança é executada em gateways externos.</p></div></>}
     {view==='reports'&&<>
       <div className="commerce-heading">
         <div><h2>Relatório gerencial acumulado</h2><p>Exporte localmente; nenhum dado é enviado a serviços externos.</p></div>
