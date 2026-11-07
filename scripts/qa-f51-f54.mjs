@@ -39,11 +39,11 @@ async function openPort(){
   return port;
 }
 async function login(page,label,pw){
-  await page.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
   await page.getByRole('combobox',{name:'Operador'}).selectOption({label});
   await page.locator('.auth-form input[type="password"]').first().fill(pw);
   await page.getByRole('button',{name:'Entrar no PDV'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:25000});
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:25000});
 }
 async function settings(page){
   await menu(page,'Dispositivos e rede').click();
@@ -54,12 +54,12 @@ try{
   host=await hostApp.firstWindow();
   const hostErrors=[];
   host.on('pageerror',e=>hostErrors.push(e.message));
-  await host.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+  await host.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
   await host.getByRole('textbox',{name:'Nome do administrador'}).fill('Administrador LAN QA');
   await host.locator('.auth-form input[type="password"]').nth(0).fill(password);
   await host.locator('.auth-form input[type="password"]').nth(1).fill(password);
   await host.getByRole('button',{name:'Criar administrador'}).click();
-  await host.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+  await host.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});
   const operator=(await call(host,'authStatus')).operators.find(x=>x.role==='Administrador');
   assert.ok(operator?.id);
   const baseline=await call(host,'save','products',{
@@ -95,7 +95,7 @@ try{
   client=await clientApp.firstWindow();
   const clientErrors=[];
   client.on('pageerror',e=>clientErrors.push(e.message));
-  await client.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+  await client.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
   assert.equal((await call(client,'authStatus')).setupRequired,true);
   assert.match(String(await error(client,'lanJoin',{address,secret:'chave-errada'})),/chave/i);
   const joined=await call(client,'lanJoin',{address,secret:lan.pairingKey});
@@ -122,7 +122,7 @@ try{
   assert.equal((await call(host,'sessionsList')).length,0);
   // Sem fallback automático/copiar banco local: o cliente ainda não foi configurado nele.
   await client.getByRole('button',{name:'Sair',exact:true}).click();
-  await client.getByRole('heading',{name:'PDV Better',exact:true}).waitFor();
+  await client.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor();
   const isolated=await call(client,'lanLocal');
   assert.equal(isolated.mode,'local');
   assert.equal((await call(client,'authStatus')).setupRequired,true);
