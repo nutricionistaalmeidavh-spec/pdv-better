@@ -146,7 +146,7 @@ async function start() {
       ];
       sheet.autoFilter={from:'A1',to:'F'+(rows.length+1)};
       sheet.getRow(1).font={bold:true};
-      const safe=v=>/^[\\s]*[=+\\-@]/.test(String(v||''))?"'"+String(v):String(v||'');
+      const safe=v=>/^\s*[=+@-]/.test(String(v||''))?"'"+String(v):String(v||'');
       for(const x of rows){
         const record=sheet.addRow({date:x.date,kind:safe(x.kind),description:safe(x.description),
           category:safe(x.category),method:safe(x.method),amount:x.amount_cents/100});
