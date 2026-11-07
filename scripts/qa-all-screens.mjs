@@ -127,7 +127,7 @@ async function seed(){
 }
 async function buildPDF(){
   const pdf=await PDFDocument.create();
-  pdf.setTitle('PDV Better | QA Visual Completo');
+  pdf.setTitle('PDV SUPER | QA Visual Completo');
   pdf.setSubject('Capturas do Electron real usando SQLite e dados ficticios');
   const font=await pdf.embedFont(StandardFonts.Helvetica);
   const bold=await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -148,7 +148,7 @@ async function buildPDF(){
     const img=await pdf.embedJpg(new Uint8Array((await import('node:fs')).readFileSync(join(shots,item.file))));
     const scale=Math.min(782/img.width,510/img.height);
     p.drawImage(img,{x:(842-img.width*scale)/2,y:28+(510-img.height*scale)/2,width:img.width*scale,height:img.height*scale});
-    p.drawText('PDV Better | Evidencia real | '+item.id+'/'+String(captures.length).padStart(2,'0'),{x:32,y:12,size:8,font,color:rgb(0.42,0.44,0.51)});
+    p.drawText('PDV SUPER | Evidencia real | '+item.id+'/'+String(captures.length).padStart(2,'0'),{x:32,y:12,size:8,font,color:rgb(0.42,0.44,0.51)});
   }
   const bytes=await pdf.save({useObjectStreams:true});
   writeFileSync(join(output,'PDV-Better-QA-Todas-as-Telas.pdf'),bytes);
@@ -163,7 +163,7 @@ async function main(){
   await page.setViewportSize({width:1440,height:900});
   const pageErrors=[];
   page.on('pageerror',e=>pageErrors.push(e.message));
-  await page.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
   await page.getByRole('button',{name:'Criar administrador'}).waitFor();
   await capture('Primeiro acesso - cadastrar administrador',{selector:'.auth-panel'});
   await page.getByRole('textbox',{name:'Nome do administrador'}).fill('Administrador Principal QA');
@@ -171,7 +171,7 @@ async function main(){
   await page.locator('.auth-form input[type=password]').nth(1).fill(pwd);
   await capture('Primeiro acesso - formulario preenchido');
   await page.getByRole('button',{name:'Criar administrador'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor();
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
   await go('Controle de caixa');
   await capture('Caixa fechado - abertura de turno');
   const seeds=await seed();
@@ -181,7 +181,7 @@ async function main(){
   await capture('Login de operador - lista de perfis');
   await page.locator('.auth-form input[type=password]').first().fill(pwd);
   await page.getByRole('button',{name:'Entrar no PDV'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor();
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
   const buttons=await page.getByRole('navigation',{name:'Navegação principal'}).locator('button.nav-item').allTextContents();
   for(const [,label] of names)if(!buttons.some(s=>s.trim()===label))throw new Error('Falta tela no menu administrativo: '+label);
   for(const [key,label] of names){
@@ -219,7 +219,7 @@ async function main(){
   await go('Frente de caixa');
   for(const [mode,label] of [['compact','compacto'],['light','claro'],['dark','escuro']]){
     await page.getByRole('button',{name:label==='compacto'?'Compacto':label==='claro'?'Claro':'Escuro'}).click();
-    await capture('Caixa Rapido - visual '+label);
+    await capture('PDV SUPER - visual '+label);
   }
   await page.getByRole('button',{name:'Abrir catálogo'}).click();
   await page.locator('button.cashier-product-option').nth(0).click();
@@ -245,7 +245,7 @@ async function main(){
     await page.locator('.auth-form select').selectOption(value);
     await page.locator('.auth-form input[type=password]').first().fill(pwd);
     await page.getByRole('button',{name:'Entrar no PDV'}).click();
-    await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor();
+    await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
     await capture('Perfil '+role+' - visao geral e permissoes');
     const navLabels=await page.getByRole('navigation',{name:'Navegação principal'}).locator('button.nav-item').allTextContents();
     if(role==='Caixa'&&navLabels.some(x=>/Financeiro|Operadores|Relatórios|Dispositivos e rede/.test(x)))throw new Error('Perfil Caixa visualiza menu restrito.');
