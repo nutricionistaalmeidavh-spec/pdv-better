@@ -35,7 +35,7 @@ async function toCheckout(){
 async function choose(name){
   const open=page.getByRole('button',{name:'Abrir catálogo'});
   if(await open.count())await open.click();
-  await page.locator('.cashier-product-results').getByRole('button',{name:new RegExp(name,'i')}).click();
+  await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:new RegExp(name,'i')}).click();
 }
 async function clearCart(){
   if(await cart().getByText('Pronto para a próxima venda').count())return;
@@ -128,10 +128,10 @@ try{
   await toCheckout();
   // F15: busca por nome e código parcial, além de inexistente.
   await search().fill('Café Arábica');
-  assert.equal(await page.locator('.cashier-product-results').getByRole('button',{name:/Café Arábica QA/}).count(),1);
-  assert.equal(await page.locator('.cashier-product-results').getByRole('button',{name:/Biscoito Integral QA/}).count(),0);
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Café Arábica QA/}).count(),1);
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Biscoito Integral QA/}).count(),0);
   await search().fill('QA-BISC-2002');
-  assert.equal(await page.locator('.cashier-product-results').getByRole('button',{name:/Biscoito Integral QA/}).count(),1);
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Biscoito Integral QA/}).count(),1);
   await search().fill('NAO-EXISTE');
   await page.getByText('Nenhum produto encontrado').waitFor();
   await search().fill('');
@@ -140,10 +140,10 @@ try{
   // F17: filtro real de categoria no catálogo de frente de caixa.
   await page.getByRole('button',{name:'Abrir catálogo'}).click();
   await page.locator('.cashier-filters').getByRole('button',{name:'Bebidas QA'}).click();
-  assert.equal(await page.locator('.cashier-product-results').getByRole('button',{name:/Café Arábica QA/}).count(),1);
-  assert.equal(await page.locator('.cashier-product-results').getByRole('button',{name:/Biscoito Integral QA/}).count(),0);
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Café Arábica QA/}).count(),1);
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Biscoito Integral QA/}).count(),0);
   await page.locator('.cashier-filters').getByRole('button',{name:'Todos'}).click();
-  assert.equal(await page.locator('.cashier-product-results').getByRole('button',{name:/Biscoito Integral QA/}).count(),1);
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Biscoito Integral QA/}).count(),1);
   pass('F17','filtro por categoria e retorno a todos os produtos');
 
   // F16: simulamos somente a digitação de um leitor HID: SKU + Enter no input real.
