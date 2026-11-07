@@ -116,9 +116,9 @@ export function Cashier({
                 <span className="cashier-product-icon cashier-item-photo">{product.image_data?<img src={product.image_data} alt="" loading="lazy"/>:<Package size={17}/>}</span>
                 <span className="cashier-product-description"><strong>{product.name}</strong>
                   <small className="cashier-product-meta">{product.code||'Sem código'} · {product.unit}</small>
-                  <small className="cashier-product-stock">Estoque: {(Number(product.stock_milli||0)/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</small>
                 </span>
                 <strong className="cashier-product-price">{money(product.sale_price_cents)}</strong>
+                <small className="cashier-product-stock">Estoque: {(Number(product.stock_milli||0)/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</small>
               </button>
               <button type="button" className="cashier-favorite-star"
                 aria-label={(favoriteIds.includes(product.id)?'Desfavoritar ':'Favoritar ')+product.name}
@@ -219,9 +219,9 @@ export function Cashier({
             <CreditCard size={24}/><strong>Cartão</strong><kbd>F7</kbd></button>
           <button type="button" disabled={!canReceive} onClick={()=>openPayment('cash')}>
             <Banknote size={24}/><strong>Dinheiro</strong><kbd>F8</kbd></button>
+          <button className="cashier-other" type="button" disabled={!canReceive}
+            onClick={()=>openPayment()}><Keyboard size={17}/><strong>Outros</strong><kbd>F10</kbd></button>
         </div>
-        <button className="cashier-other" type="button" disabled={!canReceive}
-          onClick={()=>openPayment()}><Keyboard size={17}/> Outras formas / misto <kbd>F10</kbd></button>
         {!sessionOpen&&<button className="cashier-open-session" onClick={onCash} type="button">
           Abrir caixa para receber</button>}
         <section className="cashier-hold-panel" aria-label="Vendas em espera">
