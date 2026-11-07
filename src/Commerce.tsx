@@ -26,6 +26,9 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
   const [newCustomerName,setNewCustomerName]=useState('');
   const [extraCustomers,setExtraCustomers]=useState<R[]>([]);
   const [customerBusy,setCustomerBusy]=useState(false);
+  const [newCustomerName,setNewCustomerName]=useState('');
+  const [extraCustomers,setExtraCustomers]=useState<R[]>([]);
+  const [customerBusy,setCustomerBusy]=useState(false);
   const [payments,setPayments]=useState<Array<{method:string;amount:string}>>([{method:initialMethod,amount:'0,00'}]);
   const [initialAmountFilled,setInitialAmountFilled]=useState(false);
   const [itemMethods,setItemMethods]=useState<Record<string,string>>({});
