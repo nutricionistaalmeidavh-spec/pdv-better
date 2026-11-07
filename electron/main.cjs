@@ -67,6 +67,9 @@ async function start() {
   ipcMain.handle(apiChannels.bundleSet, (_event, input) => domain('setBundlePromotion',input));
   ipcMain.handle(apiChannels.bundleList, () => domain('listBundlePromotions'));
   ipcMain.handle(apiChannels.bundleArchive, (_event, id) => domain('archiveBundlePromotion',id));
+  ipcMain.handle(apiChannels.purchaseCreate,(_event,input)=>domain('createPurchase',input));
+  ipcMain.handle(apiChannels.purchaseReceive,(_event,id)=>domain('receivePurchase',id));
+  ipcMain.handle(apiChannels.purchaseList,()=>domain('listPurchases'));
   ipcMain.handle(apiChannels.financeCreate, (_event, input) => domain('createFinance',input));
   ipcMain.handle(apiChannels.financeList, (_event) => domain('listFinance'));
   ipcMain.handle(apiChannels.financeSettle, (_event, input) => domain('settleFinance',input));
