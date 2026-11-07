@@ -281,7 +281,7 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       items:all('SELECT * FROM sale_items WHERE sale_id=? ORDER BY rowid',id),
       payments:all('SELECT * FROM sale_payments WHERE sale_id=? ORDER BY rowid',id),
       batch_allocations:all('SELECT * FROM sale_batch_allocations WHERE sale_id=? ORDER BY rowid',id),
-      item_payments:all("SELECT x.id,x.sale_item_id,x.sale_payment_id,x.amount_cents,i.product_id,p.method FROM sale_item_payments x JOIN sale_items i ON i.id=x.sale_item_id JOIN sale_payments p ON p.id=x.sale_payment_id WHERE x.sale_id=? ORDER BY x.rowid",id)};
+      item_payments:all("SELECT x.id,x.sale_item_id,x.sale_payment_id,x.amount_cents,x.quantity_milli,i.product_id,p.method FROM sale_item_payments x JOIN sale_items i ON i.id=x.sale_item_id JOIN sale_payments p ON p.id=x.sale_payment_id WHERE x.sale_id=? ORDER BY x.rowid",id)};
   }
   function getCurrentSession(ctx){
     const session=openRow(ctx);
@@ -362,12 +362,18 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       if(draft.itemPayments){
         const sumsByProduct=new Map();
         const sumsByMethod=new Map();
+        const quantitiesByProduct=new Map();
+        const hasQuantity=draft.itemPayments.some(a=>a.quantityMilli!==null);
+        if(hasQuantity&&draft.itemPayments.some(a=>a.quantityMilli===null))throw new Error('Todas as atribuições devem informar quantidade.');
         const productTotals=new Map(snapshots.map((s,i)=>[s.id,s.line-itemDiscounts[i]]));
         for(const a of draft.itemPayments){
           if(!productTotals.has(a.productId))throw new Error('Pagamento por produto inexistente na venda.');
           sumsByProduct.set(a.productId,(sumsByProduct.get(a.productId)||0)+a.amountCents);
           sumsByMethod.set(a.method,(sumsByMethod.get(a.method)||0)+a.amountCents);
+          if(hasQuantity)quantitiesByProduct.set(a.productId,(quantitiesByProduct.get(a.productId)||0)+a.quantityMilli);
         }
+        if(hasQuantity&&snapshots.some(s=>quantitiesByProduct.get(s.id)!==s.quantityMilli))
+          throw new Error('Quantidade por pagamento não concilia com a quantidade vendida.');
         if([...productTotals].some(([id,net])=>sumsByProduct.get(id)!==net))
           throw new Error('Pagamento por produto não concilia com seu valor líquido.');
         if(computed.payments.some(p=>sumsByMethod.get(p.method)!==p.amount_cents)
@@ -409,8 +415,8 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
         }
       }
       if(draft.itemPayments)for(const allocation of draft.itemPayments){
-        run('INSERT INTO sale_item_payments(id,sale_id,sale_item_id,sale_payment_id,amount_cents) VALUES(?,?,?,?,?)',
-          randomUUID(),saleId,saleItemIds.get(allocation.productId),salePaymentIds.get(allocation.method),allocation.amountCents);
+        run('INSERT INTO sale_item_payments(id,sale_id,sale_item_id,sale_payment_id,amount_cents,quantity_milli) VALUES(?,?,?,?,?,?)',
+          randomUUID(),saleId,saleItemIds.get(allocation.productId),salePaymentIds.get(allocation.method),allocation.amountCents,allocation.quantityMilli);
       }
       return getSale(saleId);
     });
