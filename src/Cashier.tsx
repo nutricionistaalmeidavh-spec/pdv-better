@@ -16,8 +16,6 @@ type PaymentMethod = 'cash'|'pix'|'card';
 type HeldSale = {id:string;label:string;createdAt:string;items:CartLine[]};
 
 type CashierProps = {
-  mode:CashierMode;
-  onModeChange:(mode:CashierMode)=>void;
   searchRef:React.RefObject<HTMLInputElement|null>;
   search:string;
   onSearchChange:(value:string)=>void;
@@ -53,14 +51,8 @@ type CashierProps = {
   onUndo:()=>void;
 };
 
-const variants:{id:CashierMode;label:string}[]=[
-  {id:'compact',label:'Compacto'},
-  {id:'light',label:'Claro'},
-  {id:'dark',label:'Escuro'}
-];
-
 export function Cashier({
-  mode,onModeChange,searchRef,search,onSearchChange,onSearchKeyDown,
+  searchRef,search,onSearchChange,onSearchKeyDown,
   categories,categoryFilter,onCategoryFilter,products,onAddProduct,onProducts,
   cart,cartError,total,sessionOpen,onRemoveProduct,onChangeQuantity,
   manualWeight,onManualWeightChange,onApplyWeight,onReadScale,readingScale,
@@ -86,12 +78,6 @@ export function Cashier({
           <h1>PDV SUPER</h1>
           <p>Leitura, conferência e recebimento em uma única tela.</p>
         </div>
-      </div>
-      <div className="cashier-mode-picker" aria-label="Escolher visual do caixa">
-        {variants.map(variant=><button key={variant.id} type="button"
-          className={mode===variant.id?'is-active':''}
-          aria-pressed={mode===variant.id}
-          onClick={()=>onModeChange(variant.id)}>{variant.label}</button>)}
       </div>
     </header>
 
