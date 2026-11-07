@@ -93,6 +93,8 @@ export function GuidedTour({userId,role,view,loading,startSignal,onNavigate}:Pro
   },[mode,index]);
 
   if(loading||mode==='idle')return null;
+  // Não sobrepor botões de cadastro, pagamento ou modais operacionais.
+  if(mode==='invite'&&view!=='dashboard')return null;
   if(mode==='invite')return <aside className="guided-tour-invite" aria-label="Convite para conhecer o PDV SUPER">
     <div className="guided-tour-invite-icon"><GraduationCap size={21}/></div>
     <div className="guided-tour-invite-copy">
