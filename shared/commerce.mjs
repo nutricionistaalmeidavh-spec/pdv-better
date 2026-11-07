@@ -64,7 +64,7 @@ export function validateSaleInput(input) {
   const discountCents=assertCents(input.discountCents??0,'Desconto');
   const itemPayments=input.itemPayments===undefined?null:input.itemPayments;
   if(itemPayments!==null&&(!Array.isArray(itemPayments)||!itemPayments.length||itemPayments.length>500))throw new Error('Atribuição por produto inválida.');
-  const normalizedItemPayments=itemPayments?.map(x=>({productId:assertLabel(x?.productId,'Produto',64),method:assertChoice(x?.method,methodIds,'Forma de pagamento'),amountCents:assertCents(x?.amountCents,'Pagamento por produto')}))||null;
+  const normalizedItemPayments=itemPayments?.map(x=>({productId:assertLabel(x?.productId,'Produto',64),method:assertChoice(x?.method,methodIds,'Forma de pagamento'),amountCents:assertCents(x?.amountCents,'Pagamento por produto'),quantityMilli:x?.quantityMilli===undefined?null:assertMilli(x.quantityMilli,'Quantidade por pagamento')}))||null;
   if(normalizedItemPayments?.some(x=>x.amountCents<=0))throw new Error('Pagamento por produto deve ser positivo.');
   const customerId=input.customerId || null;
   if(customerId!==null && (typeof customerId!=='string'||customerId.length>64)) throw new Error('Cliente inválido.');
