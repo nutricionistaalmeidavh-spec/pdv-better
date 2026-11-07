@@ -168,7 +168,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
       if(!own.some(x=>x.id===sale.id))throw new Error('Permissão insuficiente: venda de outro terminal.');
     }
     if(method==='listStockMovements'&&user.role==='Caixa')throw new Error('Permissão insuficiente.');
-    const approvedBy=method==='closeSession'?access.verifyManagerApproval(args[0]?.managerApproval,ctx.terminalId):null;
+    const approvedBy=method==='closeSession'?access.verifyManagerApproval(args[0]?.managerApproval,ctx.terminalId).id:null;
     const context={terminalId:ctx.terminalId,operatorId:user.id,role:user.role,approvedBy};
     return sessionAware.has(method)?operations[method](...args,context):operations[method](...args);
   }
