@@ -19,9 +19,12 @@ export function createFinanceP2(db){
  const many=(q,...v)=>db.prepare(q).all(...v);
  const exec=(q,...v)=>db.prepare(q).run(...v);
  function groupEntries(id){
-  return many("SELECT f.* FROM financial_entries f WHERE recurrence_group_id=? ORDER BY recurrence_index",id).map(e=>({
-   ...e,paid_cents:0,remaining_cents:e.amount_cents,settlements:[]
-  }));
+  return many("SELECT f.* FROM financial_entries f WHERE recurrence_group_id=? ORDER BY recurrence_index",id).map(e=>{
+   const settlements=many('SELECT * FROM finance_settlements WHERE entry_id=? ORDER BY created_at,id',e.id);
+   const paid=settlements.reduce((sum,x)=>sum+x.amount_cents,0);
+   if(!Number.isSafeInteger(paid)||paid>e.amount_cents)throw new Error('Saldo de recorrência inconsistente.');
+   return {...e,paid_cents:paid,remaining_cents:e.amount_cents-paid,settlements};
+  });
  }
  function createFinanceSchedule(input,ctx={}){
   const type=assertChoice(input?.type,typeChoices,'Tipo');
