@@ -200,3 +200,64 @@
 }
 @media(prefers-reduced-motion:reduce){.cashier-mode *{scroll-behavior:auto!important;transition:none!important}}
 @media print {.cashier-mode,.cashier-heading,.cashier-workspace{display:none!important}}
+
+/* P2/P3 — atalhos de operadores, favoritos e vendas em espera, todos locais. */
+.cashier-favorites {
+  display:flex;flex-direction:column;gap:9px;padding:12px 14px;
+  background:var(--cash-paper);border:1px solid var(--cash-line);border-radius:12px;
+}
+.cashier-favorites-title {display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.cashier-favorites-title strong {display:flex;align-items:center;gap:6px;color:var(--cash-text);font-size:12px}
+.cashier-favorites-title strong svg {color:var(--cash-blue)}
+.cashier-favorites-title span {font-size:10px;color:var(--cash-muted)}
+.cashier-favorite-chips {display:flex;gap:7px;overflow-x:auto;padding:2px 0;scrollbar-width:thin}
+.cashier-favorite-chips button {
+  display:flex;align-items:center;gap:8px;flex:none;
+  color:var(--cash-text);background:var(--cash-highlight);
+  border:1px solid var(--cash-line);border-radius:9px;padding:9px 10px;
+  max-width:235px;text-align:left;font-size:11px;
+}
+.cashier-favorite-chips button span {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cashier-favorite-chips button strong {color:var(--cash-blue);white-space:nowrap}
+.cashier-product-entry {display:flex;align-items:stretch;border-top:1px solid var(--cash-line)}
+.cashier-product-entry .cashier-product-option {border-top:0;min-width:0;flex:1}
+.cashier-product-entry .cashier-favorite-star {
+  display:grid;place-items:center;flex:none;border:0;background:transparent;
+  padding:8px;color:var(--cash-muted);
+}
+.cashier-product-entry .cashier-favorite-star[aria-pressed="true"] {color:#e2a329}
+.cashier-product-entry .cashier-favorite-star:hover {background:var(--cash-highlight)}
+.cashier-hold-panel {display:flex;flex-direction:column;gap:7px;padding-top:12px;border-top:1px solid #33476a}
+.cashier-hold-label {display:flex;flex-direction:column;gap:6px;color:#c8dcfa;font-size:10px;font-weight:700}
+.cashier-hold-label input {
+  background:#1a345f;color:#fff;border:1px solid #42618e;
+  border-radius:8px;padding:10px 12px;font-size:12px;min-width:0;width:100%;
+}
+.cashier-hold-label input::placeholder {color:#bac9e1;opacity:1}
+.cashier-hold-button,.cashier-held-toggle {
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:11px 9px;border:1px solid #48628a;border-radius:9px;
+  background:#1b3763;color:#fff;font-size:11px;font-weight:800;
+}
+.cashier-hold-button:hover:not(:disabled),.cashier-held-toggle:hover {background:#244a7e}
+.cashier-hold-button kbd,.cashier-held-toggle kbd {margin-left:auto;color:#d5e6ff;border-color:#57779f}
+.cashier-held-list {display:flex;flex-direction:column;gap:6px;max-height:208px;overflow-y:auto;scrollbar-width:thin}
+.cashier-held-list p {color:#bfd1ed;font-size:10px;line-height:1.5;margin:5px 0}
+.cashier-held-row {
+  display:flex;align-items:center;gap:6px;padding:8px;
+  border:1px solid #3c547d;border-radius:8px;background:#1b2e52;
+}
+.cashier-held-row div {min-width:0;flex:1}
+.cashier-held-row strong,.cashier-held-row small {display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cashier-held-row strong {color:#fff;font-size:11px}
+.cashier-held-row small {color:#bfd3ef;font-size:9px;margin-top:3px}
+.cashier-held-row button {
+  flex:none;color:#fff;background:#2b548c;border:1px solid #5a79a6;
+  border-radius:6px;font-size:10px;font-weight:750;padding:7px;
+}
+.cashier-held-row button.cashier-held-delete {display:grid;place-items:center;color:#ffc4c7;background:transparent}
+.cashier-held-row button:hover:not(:disabled) {background:#3769a6}
+@media(max-width:730px) {
+  .cashier-favorites {padding:9px}
+  .cashier-favorites-title {align-items:flex-start}
+}
