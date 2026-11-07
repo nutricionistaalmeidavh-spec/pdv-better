@@ -39,13 +39,15 @@ try{
  await nav('Frente de caixa').click();
  const search=page.getByRole('textbox',{name:'Pesquisar ou ler código de barras'});
  await search.waitFor();
- await page.locator('.product-list').getByText('Café teste 250g').waitFor();
+ await page.getByRole('button',{name:'Abrir catálogo'}).click();
+ await page.locator('.cashier-product-results').getByText('Café teste 250g').waitFor();
+ await page.getByRole('button',{name:'Fechar catálogo'}).last().click();
  await search.fill(createBatchLabel(a.code,batchB.code));
  await search.press('Enter');
- await page.locator('.cart-line').filter({hasText:'Lote físico TESTE-FISICO'}).waitFor({timeout:20000});
+ await page.locator('.cashier-item').filter({hasText:'Lote TESTE-FISICO'}).waitFor({timeout:20000});
  await search.fill(b.code);await search.press('Enter');
- await page.locator('.cart-line').filter({hasText:'Biscoito teste'}).waitFor();
- await page.locator('.cart-panel').getByRole('button',{name:'Receber e concluir venda'}).click();
+ await page.locator('.cashier-item').filter({hasText:'Biscoito teste'}).waitFor();
+ await page.locator('.cashier-payment-panel').getByRole('button',{name:/Receber pagamento/}).click();
  const dlg=page.getByRole('dialog',{name:'Receber venda'});
  await dlg.waitFor();
  await page.waitForFunction(()=>{
