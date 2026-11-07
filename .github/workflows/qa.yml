@@ -60,7 +60,9 @@ jobs:
         run: npm run test:journeys
       - name: Executar jornadas LAN e recuperação de backup entre terminais
         run: npm run test:journeys:infra
-      - name: Evidências do QA (JSON e imagens somente em falha)
+      - name: Testar tour guiado no Electron real com capturas
+        run: node scripts/qa-guided-tour.mjs
+      - name: Evidências do QA (JSON e capturas do tour)
         if: always()
         uses: actions/upload-artifact@v4
         with:
