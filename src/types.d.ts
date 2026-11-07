@@ -26,6 +26,9 @@ interface PdvBridge {
   purchaseCreate(input:any):Promise<any>;
   purchaseReceive(id:string):Promise<any>;
   purchaseList():Promise<any[]>;
+  financeSchedule(input:any):Promise<any>;
+  financeOverview(input?:any):Promise<any>;
+  financeExport(input:{format:'csv'|'xlsx'|'pdf';filters?:any}):Promise<any>;
   financeCreate(input: any): Promise<any>;
   financeList(): Promise<any[]>;
   financeSettle(input: any): Promise<any>;
