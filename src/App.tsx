@@ -512,10 +512,10 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
           {['cash','sales','inventory','purchases','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
           {view==='settings' && <SystemSettings/>}
           {activeSchema && <>
-            <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div>{view==='products'&&allowed(user.role,'importCatalogCsv')&&<label className="secondary" style={{display:'inline-flex',alignItems:'center',gap:8,padding:12}}>
-                Importar produtos CSV
+            <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div>{view==='products'&&allowed(user.role,'importCatalogCsv')&&<label className="secondary catalog-import-control">
+                <Database size={16} aria-hidden="true"/> Importar produtos CSV
                 <input type="file" accept=".csv,text/csv" aria-label="Importar produtos CSV"
-                  disabled={importingCsv} onChange={ev=>void importProductsCsv(ev)} style={{maxWidth:180}}/>
+                  disabled={importingCsv} onChange={ev=>void importProductsCsv(ev)}/>
               </label>}
               {allowed(user.role,"save",[view])&&<button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button>}</div>
             <div className={"panel data-panel"+(view==='products'?" data-panel-products":"")}>
