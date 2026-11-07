@@ -14,7 +14,7 @@ const plain=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').rep
 function line(text,width=42){return plain(text).slice(0,width);}
 export function makeReceipt(sale){
   if(!sale || !Array.isArray(sale.items)||!Number.isSafeInteger(sale.total_cents))throw new Error('Venda inválida para comprovante.');
-  const text=['PDV BETTER','COMPROVANTE NAO FISCAL','------------------------------------------','Venda: '+line(sale.id,34),'Data: '+new Date(sale.created_at).toLocaleString('pt-BR'),'------------------------------------------'];
+  const text=['PDV SUPER','COMPROVANTE NAO FISCAL','------------------------------------------','Venda: '+line(sale.id,34),'Data: '+new Date(sale.created_at).toLocaleString('pt-BR'),'------------------------------------------'];
   for(const item of sale.items){
     text.push(line(item.name));
     text.push('  '+line((item.quantity_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})+' '+item.unit,14)+'  '+money(item.line_total_cents));
