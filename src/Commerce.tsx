@@ -6,6 +6,7 @@ import { paymentPreview } from '../shared/payment-preview.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
 import {normalizePayments} from '../shared/commerce.mjs';
 import { SaleReceipt } from './Receipt';
+import {FinanceP2Panel} from './FinanceP2';
 import { buildLabeledSaleItems } from '../shared/batch-label.mjs';
 type R=Record<string,any>;
 const methodLabel=(id:string)=>paymentMethods.find(x=>x.id===id)?.label||id;
@@ -512,6 +513,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         </tbody></table></div>
       </div>
     </>}
+    {view==='finance'&&<FinanceP2Panel entries={finance} onChanged={load}/>}
     {view==='finance'&&<><div className="panel commerce-section"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn}), 'Lançamento registrado.');}}>
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
       <label>Descrição<input required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Ex.: aluguel"/></label>
