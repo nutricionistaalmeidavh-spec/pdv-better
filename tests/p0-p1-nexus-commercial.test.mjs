@@ -91,3 +91,24 @@ test('P0: fechamento pelo IPC exige autenticação adicional de gerente',()=>{
   assert.equal(closed.status,'closed');
  }finally{f.done();}
 });
+
+test('P1: três unidades do mesmo produto podem ser distribuídas entre dinheiro e Pix sem inventar valores',()=>{
+ const f=fixture();try{
+  f.db.openSession({openingCashCents:0});
+  const sale=f.db.checkout({key:'split-by-quantity',items:[{id:f.product.id,quantityMilli:3000}],
+   payments:[{method:'cash',amountCents:2500},{method:'pix',amountCents:1250}],
+   itemPayments:[
+    {productId:f.product.id,method:'cash',quantityMilli:2000,amountCents:2500},
+    {productId:f.product.id,method:'pix',quantityMilli:1000,amountCents:1250}
+   ]});
+  assert.equal(sale.item_payments.length,2);
+  assert.equal(sale.item_payments.find(x=>x.method==='cash').quantity_milli,2000);
+  assert.equal(sale.item_payments.find(x=>x.method==='pix').quantity_milli,1000);
+  assert.throws(()=>f.db.checkout({key:'bad-split',items:[{id:f.product.id,quantityMilli:3000}],
+   payments:[{method:'cash',amountCents:2500},{method:'pix',amountCents:1250}],
+   itemPayments:[
+    {productId:f.product.id,method:'cash',quantityMilli:1000,amountCents:2500},
+    {productId:f.product.id,method:'pix',quantityMilli:1000,amountCents:1250}
+   ]}),/quantidade|concilia/i);
+ }finally{f.done();}
+});
