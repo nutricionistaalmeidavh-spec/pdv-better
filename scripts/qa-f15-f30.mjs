@@ -190,6 +190,21 @@ try{
   assert.equal(session.expected_cash_cents,10050);
   pass('F29','venda bloqueada com caixa fechado; abertura em R$ 100,50 persistida');
   await toCheckout();
+  // P1 — atalhos devem preparar a confirmação, jamais registrar pagamento.
+  for(const [key,method] of [['F6','pix'],['F7','card'],['F8','cash']]){
+    await page.keyboard.press(key);
+    const dlg=payment();await dlg.waitFor();
+    assert.equal(await dlg.getByRole('combobox',{name:'Forma de pagamento 1'}).inputValue(),method);
+    await dlg.getByRole('button',{name:'Voltar ao carrinho'}).click();
+    await dlg.waitFor({state:'hidden'});
+  }
+  await page.keyboard.press('F3');
+  await payment().waitFor();
+  assert.equal(await payment().getByRole('combobox',{name:/Cliente \(obrigatório/})
+    .evaluate(el=>document.activeElement===el),true);
+  await page.keyboard.press('Escape');
+  await payment().waitFor({state:'hidden'});
+  assert.equal((await call('salesList')).length,0,'atalhos não podem concluir venda sozinhos');
 
   // F20: sem balança configurada informa erro, com balança TCP local lê 0,750 kg.
   await choose('Queijo a Granel QA');
