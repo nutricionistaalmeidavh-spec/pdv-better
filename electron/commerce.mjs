@@ -309,14 +309,32 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
   function closeSession(input,ctx){
     return atomic(db,()=>{
       const session=requireOpen(ctx);
-      const counted=assertCents(input?.countedCashCents,'Dinheiro contado');
+      const inputCounts=input?.counts;
+      const counted=inputCounts
+        ? assertCents(inputCounts.cash,'Dinheiro contado')
+        : assertCents(input?.countedCashCents,'Dinheiro contado');
       const expected=cashExpected(session);
+      const closedAt=now();
+      if(inputCounts){
+        const methods=['cash','pix','card_credit','card_debit','card'];
+        for(const method of methods){
+          if(inputCounts[method]===undefined||inputCounts[method]===null||String(inputCounts[method]).trim()==='')
+            throw new Error('Informe a contagem cega de '+method+', inclusive quando for zero.');
+          const countedMethod=assertCents(inputCounts[method],'Valor conferido de '+method);
+          const expectedMethod=method==='cash'?expected:row(
+            "SELECT COALESCE(SUM(p.amount_cents),0) AS n FROM sale_payments p JOIN sales s ON s.id=p.sale_id WHERE s.session_id=? AND s.status='completed' AND s.is_training=0 AND p.method=?",
+            session.id,method).n;
+          run('INSERT INTO cash_count_checks(session_id,method,expected_cents,counted_cents,difference_cents,verified_by,created_at) VALUES(?,?,?,?,?,?,?)',
+            session.id,method,expectedMethod,countedMethod,countedMethod-expectedMethod,ctx?.approvedBy||ctx?.operatorId||null,closedAt);
+        }
+      }
       run("UPDATE cash_sessions SET status='closed',closed_at=?,counted_cash_cents=?,expected_cash_cents=?,difference_cents=? WHERE id=?",
-        now(),counted,expected,counted-expected,session.id);
-      return row('SELECT * FROM cash_sessions WHERE id=?',session.id);
+        closedAt,counted,expected,counted-expected,session.id);
+      return {...row('SELECT * FROM cash_sessions WHERE id=?',session.id),
+        checks:all('SELECT * FROM cash_count_checks WHERE session_id=? ORDER BY method',session.id)};
     });
   }
-  function checkout(input,ctx){
+    function checkout(input,ctx){
     const draft=validateSaleInput(input);
     if(draft.training&&ctx?.role&&ctx.role!=='Gerente'&&ctx.role!=='Administrador')
       throw new Error('Permissão insuficiente: treinamento reservado a gerente/administrador.');
@@ -403,7 +421,7 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       const sale=getSale(id);
       if(sale.status==='cancelled')throw new Error('Venda já cancelada.');
       if(sale.session_id!==session.id)throw new Error('Somente vendas do turno aberto podem ser canceladas. Para outro turno, utilize procedimento de reembolso.');
-      if(row("SELECT COUNT(*) AS n FROM financial_entries WHERE sale_id=? AND status='settled'",id).n)
+      if(row("SELECT COUNT(*) AS n FROM finance_settlements fs JOIN financial_entries f ON f.id=fs.entry_id WHERE f.sale_id=?",id).n)
         throw new Error('Recebimento do fiado já liquidado. Resolva o recebimento antes de cancelar.');
       if(!sale.is_training){
         for(const item of sale.items)recordStock(item.product_id,item.quantity_milli,'sale_cancel','Cancelamento da venda '+id,id);
@@ -443,38 +461,57 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     if(productId!==null)return all('SELECT * FROM stock_movements WHERE product_id=? ORDER BY created_at DESC,rowid DESC',assertLabel(productId,'Produto',64));
     return all('SELECT * FROM stock_movements ORDER BY created_at DESC,rowid DESC');
   }
+  function financeWithBalance(entry){
+    if(!entry)return null;
+    const settlements=all('SELECT * FROM finance_settlements WHERE entry_id=? ORDER BY created_at,id',entry.id);
+    const paid=settlements.reduce((sum,x)=>sum+x.amount_cents,0);
+    if(!Number.isSafeInteger(paid)||paid>entry.amount_cents)throw new Error('Inconsistência nas baixas financeiras.');
+    return {...entry,paid_cents:paid,remaining_cents:entry.amount_cents-paid,settlements};
+  }
   function createFinance(input){
     return atomic(db,()=>{
       const detail=financeInput(input),id=randomUUID();
       run("INSERT INTO financial_entries(id,type,description,amount_cents,due_on,status,created_at) VALUES(?,?,?,?,?,'open',?)",
         id,detail.type,detail.description,detail.amountCents,detail.dueOn,now());
-      return row('SELECT * FROM financial_entries WHERE id=?',id);
+      return financeWithBalance(row('SELECT * FROM financial_entries WHERE id=?',id));
     });
   }
   function settleFinance(input,ctx){
     return atomic(db,()=>{
       const id=assertLabel(input?.id,'Lançamento',64);
       const method=assertChoice(input?.method,methodIds.filter(x=>x!=='credit'),'Forma de quitação');
-      const entry=row('SELECT * FROM financial_entries WHERE id=?',id);
+      const entry=financeWithBalance(row('SELECT * FROM financial_entries WHERE id=?',id));
       if(!entry)throw new Error('Lançamento não encontrado.');
       if(entry.status!=='open')throw new Error('Conta já liquidada ou cancelada.');
+      const amount=input?.amountCents===undefined||input?.amountCents===null
+        ?entry.remaining_cents:assertCents(input.amountCents,'Valor da baixa');
+      if(!Number.isSafeInteger(amount)||amount<=0||amount>entry.remaining_cents)
+        throw new Error('Valor da baixa excede o saldo restante ou é inválido.');
       if(method==='cash'){
         const session=requireOpen(ctx);
         recordCash(session,entry.type==='receivable'?'receivable_paid':'payable_paid',
-          entry.type==='receivable'?entry.amount_cents:-entry.amount_cents,entry.description,null,id,ctx?.operatorId||null);
+          entry.type==='receivable'?amount:-amount,entry.description,null,id,ctx?.operatorId||null);
       }
-      run("UPDATE financial_entries SET status='settled',method=?,settled_at=? WHERE id=?",method,now(),id);
-      return row('SELECT * FROM financial_entries WHERE id=?',id);
+      run('INSERT INTO finance_settlements(id,entry_id,amount_cents,method,operator_id,created_at) VALUES(?,?,?,?,?,?)',
+        randomUUID(),id,amount,method,ctx?.operatorId||null,now());
+      if(amount===entry.remaining_cents)
+        run("UPDATE financial_entries SET status='settled',method=?,settled_at=? WHERE id=?",method,now(),id);
+      return financeWithBalance(row('SELECT * FROM financial_entries WHERE id=?',id));
     });
   }
-  function listFinance(){return all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC');}
-  function report(){
+  function listFinance(){
+    return all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC').map(financeWithBalance);
+  }
+    function report(){
     const totals=row("SELECT COUNT(*) AS sales_count, COALESCE(SUM(total_cents),0) AS sales_total_cents, COALESCE(SUM(discount_cents),0) AS discounts_cents FROM sales WHERE status='completed' AND is_training=0");
     const payments=all("SELECT p.method,SUM(p.amount_cents) AS total FROM sale_payments p JOIN sales s ON s.id=p.sale_id WHERE s.status='completed' AND s.is_training=0 GROUP BY p.method");
     const amounts=Object.fromEntries(methodIds.map(id=>[id+'_cents',payments.find(p=>p.method===id)?.total||0]));
-    const finance=all("SELECT type,status,COALESCE(SUM(amount_cents),0) AS total FROM financial_entries GROUP BY type,status");
-    for(const type of ['payable','receivable'])for(const status of ['open','settled'])
-      amounts[type+'s_'+(status==='settled'?'paid':'open')+'_cents']=finance.find(x=>x.type===type&&x.status===status)?.total||0;
+    const finance=listFinance().filter(x=>x.status!=='cancelled');
+    for(const type of ['payable','receivable']){
+      const entries=finance.filter(x=>x.type===type);
+      amounts[type+'s_open_cents']=entries.reduce((sum,x)=>sum+x.remaining_cents,0);
+      amounts[type+'s_paid_cents']=entries.reduce((sum,x)=>sum+x.paid_cents,0);
+    }
     const products=all('SELECT id,name,stock_milli,cost_price_cents FROM products WHERE active=1');
     return {...totals,...amounts,
       inventory_value_cents:products.reduce((sum,p)=>sum+Math.round(p.stock_milli*p.cost_price_cents/1000),0),
