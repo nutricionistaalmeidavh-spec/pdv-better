@@ -20,6 +20,6 @@ export function reportHtml(report){
    'body{font:14px Arial,sans-serif;color:#282b3e;padding:24px}h1{font-size:25px;margin:0 0 8px}'+
    'p{color:#6f7484;margin:0 0 26px}table{border-collapse:collapse;width:100%}td,th{padding:12px;border-bottom:1px solid #ddd;text-align:left}'+
    'th{font-weight:600}td{text-align:right}footer{margin-top:26px;font-size:11px;color:#666}'+
-   '</style></head><body><h1>PDV Better — Relatório acumulado</h1><p>Dados locais. Pix/cartão confirmados manualmente.</p><table>'+
-   tr+'</table><footer>Relatório gerencial não fiscal — ArtiSys</footer></body></html>';
+   '</style></head><body><h1>PDV SUPER — Relatório acumulado</h1><p>Dados locais. Pix/cartão confirmados manualmente.</p><table>'+
+   tr+'</table><footer>Relatório gerencial não fiscal — PDV SUPER</footer></body></html>';
 }
