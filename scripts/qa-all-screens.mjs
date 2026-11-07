@@ -217,10 +217,7 @@ async function main(){
     }
   }
   await go('Frente de caixa');
-  for(const [mode,label] of [['compact','compacto'],['light','claro'],['dark','escuro']]){
-    await page.getByRole('button',{name:label==='compacto'?'Compacto':label==='claro'?'Claro':'Escuro'}).click();
-    await capture('PDV SUPER - visual '+label);
-  }
+  await capture('PDV SUPER - frente de caixa unificada');
   await page.getByRole('button',{name:'Abrir catálogo'}).click();
   await page.locator('button.cashier-product-option').nth(0).click();
   await page.getByRole('button',{name:'Abrir catálogo'}).click();
