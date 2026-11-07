@@ -112,3 +112,30 @@ test('P1: três unidades do mesmo produto podem ser distribuídas entre dinheiro
    ]}),/quantidade|concilia/i);
  }finally{f.done();}
 });
+
+test('P1: quantidade conciliada não pode associar centavos incompatíveis ao mesmo produto',()=>{
+ const f=fixture();try{
+  f.db.openSession({openingCashCents:0});
+  assert.throws(()=>f.db.checkout({
+   key:'split-price-inconsistent',
+   items:[{id:f.product.id,quantityMilli:3000}],
+   payments:[{method:'cash',amountCents:1250},{method:'pix',amountCents:2500}],
+   itemPayments:[
+    {productId:f.product.id,method:'cash',quantityMilli:2000,amountCents:1250},
+    {productId:f.product.id,method:'pix',quantityMilli:1000,amountCents:2500}
+   ]
+  }),/propor|quantidade|valor|concilia/i);
+  assert.equal(f.db.listSales().length,0);
+ }finally{f.done();}
+});
+test('P0: custo histórico da venda não muda após receber compra com novo custo',()=>{
+ const f=fixture();try{
+  f.db.openSession({openingCashCents:0});
+  const sale=f.db.checkout({key:'historical-cost',items:[{id:f.product.id,quantityMilli:1000}],payments:[{method:'cash',amountCents:1250}]});
+  assert.equal(sale.items[0].unit_cost_cents,600);
+  const purchase=f.db.createPurchase({supplierId:f.supplier.id,lines:[{productId:f.product.id,quantityMilli:1000,unitCostCents:1000}]});
+  f.db.receivePurchase(purchase.id);
+  assert.equal(f.db.getSale(sale.id).items[0].unit_cost_cents,600);
+  assert.equal(f.db.list('products')[0].cost_price_cents,640);
+ }finally{f.done();}
+});
