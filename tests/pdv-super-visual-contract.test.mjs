@@ -56,3 +56,11 @@ test('frente de caixa usa uma única aparência e não exibe seletor de modos le
   assert.match(app,/cashier-shell mode-light/);
   assert.match(cashier,/<h1>PDV SUPER<\/h1>/);
 });
+
+test('financeiro P2 e resumo de pagamentos mantêm geometria funcional',()=>{
+ const css=source('src/pdv-super.css');
+ assert.match(css,/\.finance-kanban\s*\{[^}]*display:\s*grid/s);
+ assert.match(css,/\.finance-kanban-item\s*\{[^}]*display:\s*flex/s);
+ assert.match(css,/\.payment-summary\s*\{[^}]*display:\s*grid/s);
+ assert.match(css,/\.payment-summary>div\s*\{[^}]*display:\s*flex/s);
+});
