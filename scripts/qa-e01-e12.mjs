@@ -169,7 +169,7 @@ try{
 
   // E08: venda do caixa fechado nao pode ser cancelada no proximo turno.
   const older=await call(host,'checkout',checkout(insufficient,'qa-e08-sale'));
-  await call(host,'sessionClose',{countedCashCents:'40,00'});
+  await call(host,'sessionClose',{counts:{cash:'40,00',pix:'0,00',card_credit:'0,00',card_debit:'0,00',card:'0,00'},managerApproval:{operatorId:(await call(host,'authStatus')).operators.find(x=>x.role==='Administrador').id,password:adminPassword}});
   await call(host,'sessionOpen',{openingCashCents:'10,00'});
   assert.match(String(await error(host,'salesCancel',older.id)),/Somente vendas do turno aberto/i);
   assert.equal((await call(host,'saleGet',older.id)).status,'completed');
