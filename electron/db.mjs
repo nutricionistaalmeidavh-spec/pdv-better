@@ -10,6 +10,8 @@ import {migratePhase7} from './phase7.mjs';
 import {migratePhase8} from './phase8.mjs';
 import {migratePhase9} from './phase9.mjs';
 import {migratePhase10} from './phase10.mjs';
+import {migratePhase11} from './phase11.mjs';
+import {createFinanceP2} from './finance-p2.mjs';
 import {createCommercialPurchases} from './commercial-purchases.mjs';
 import {parseCatalogCsv} from '../shared/catalog-import.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
@@ -49,6 +51,8 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   migratePhase8(db);
   migratePhase9(db);
   migratePhase10(db);
+  migratePhase11(db);
+  const financeP2=createFinanceP2(db);
   const commercialPurchases=createCommercialPurchases(db);
   const access=createAccess(db);
   function list(kind, search = '') {
@@ -147,9 +151,9 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   function overview() {
     return Object.fromEntries(entityOrder.map(kind => [kind, db.prepare('SELECT COUNT(*) AS n FROM "' + kind + '" WHERE active=1').get().n]));
   }
-  const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases};
-  const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase']);
-  const noArgs=new Set(['getCurrentSession','listSales','listOpenSessions','report','overview','listFinance','listPurchases']);
+  const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
+  const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
+  const noArgs=new Set(['getCurrentSession','listSales','listOpenSessions','report','overview','listFinance','listPurchases','financeOverview']);
   function secureCall(method,args=[],ctx={}){
     if(typeof method!=='string'||typeof operations[method]!=='function') {
       if(method==='setPassword'){
