@@ -1,5 +1,6 @@
 // Agrupamento visual puro. Uma conta ocupa exatamente uma coluna.
-export function financeBuckets(entries,today=new Date().toISOString().slice(0,10)){
+const businessDay=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
+export function financeBuckets(entries,today=businessDay()){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(today))throw new Error('Data de referência inválida.');
  const groups={overdue:[],upcoming:[],partial:[],settled:[],undated:[]};
  for(const entry of entries||[]){
