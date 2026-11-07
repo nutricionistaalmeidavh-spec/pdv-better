@@ -147,7 +147,7 @@ export function Cashier({
                   <div className="cashier-item-stepper">
                     <button type="button" aria-label={'Diminuir '+item.name}
                       onClick={()=>onChangeQuantity(item,-(item.unit==='KG'?100:1000))}><Minus size={16}/></button>
-                    <span>{(item.quantityMilli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</span>
+                    <span>{(item.quantityMilli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {item.unit}</span>
                     <button type="button" aria-label={'Aumentar '+item.name}
                       onClick={()=>onChangeQuantity(item,item.unit==='KG'?100:1000)}><Plus size={16}/></button>
                   </div>
@@ -162,7 +162,7 @@ export function Cashier({
                       onChange={ev=>onManualWeightChange(item.id,ev.target.value)}/>
                   </label>
                   <button type="button" onClick={()=>onApplyWeight(item)}>Aplicar peso</button>
-                  <button type="button" disabled={readingScale} onClick={()=>onReadScale(item)}>Ler balança</button>
+                  <button type="button" aria-label={'Ler balança para '+item.name} disabled={readingScale} onClick={()=>onReadScale(item)}>Ler balança</button>
                 </div>}
               </div>)}
           </div>
