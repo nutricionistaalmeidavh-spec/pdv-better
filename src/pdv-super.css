@@ -506,3 +506,117 @@ select option {color:var(--super-text);background:white}
 .button-danger:hover:not(:disabled) {background:#ffe1e5;border-color:#de8997}
 @media(max-width:1100px){.finance-kanban{grid-auto-columns:minmax(210px,55%)}}
 @media(max-width:760px){.payment-summary{grid-template-columns:1fr}}
+
+
+/* PDV SUPER — fidelidade à referência de caixa: tabela operacional com fotos e totais. */
+.cashier-shell .content{padding-top:18px}
+.cashier-heading{margin-bottom:12px}
+.cashier-heading-title .cashier-bolt{width:41px;height:41px;border-radius:9px}
+.cashier-heading-title h1{font-size:26px;line-height:1.15;letter-spacing:-.8px}
+.cashier-heading-title p{font-size:11px;margin-top:4px}
+.cashier-workspace{grid-template-columns:minmax(0,1fr) minmax(288px,315px);align-items:start;gap:14px}
+.cashier-center{min-width:0}
+.cashier-cart-area{border-radius:13px;min-height:465px;box-shadow:0 7px 18px #0d376a0c}
+.cashier-cart-header{padding:12px 16px;min-height:65px}
+.cashier-cart-header h2{font-size:15px}
+.cashier-table-head,.cashier-item-main{
+  display:grid;
+  grid-template-columns:46px minmax(122px,1fr) 108px 98px 103px 32px;
+  gap:8px;align-items:center;min-width:0;
+}
+.cashier-table-head{
+  min-height:44px;padding:8px 13px;
+  background:linear-gradient(180deg,#f8faff,#edf3fb);
+  border-bottom:1px solid #cad8eb;
+  color:#172d4b;font-size:12px;font-weight:800;
+}
+.cashier-table-head span:first-child{grid-column:span 2}
+.cashier-table-head span:nth-child(n+2){text-align:center}
+.cashier-item{padding:0 13px;border-bottom:1px solid #e1e9f3}
+.cashier-item-main{min-height:77px;padding:8px 0}
+.cashier-item-photo{
+  display:grid;place-items:center;overflow:hidden;background:#edf4ff;
+  color:#4d77b0;border:1px solid #d8e5f5;border-radius:8px;
+  width:44px;height:49px;flex:none;
+}
+.cashier-item-photo img{display:block;width:100%;height:100%;object-fit:contain;background:#fff}
+.cashier-item-name strong{font-size:12px;font-weight:750;color:#142840}
+.cashier-item-name small{font-size:10px;color:#61738a}
+.cashier-item-stepper{min-height:35px;background:#f8fbff;border-radius:8px}
+.cashier-item-stepper button{padding:8px 5px}
+.cashier-item-stepper span{min-width:30px;font-size:12px}
+.cashier-item-unit-price,.cashier-item-total{font-size:12px;color:#172d4b;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
+.cashier-item-unit-price{font-weight:650}
+.cashier-item-remove{padding:5px;min-height:34px;color:#dc3845}
+.cashier-item-remove:hover{background:#fff0f1;border-radius:7px}
+.cashier-weight{margin:0 0 10px 50px}
+.cashier-toolbar{background:#f8faff;gap:5px;justify-content:flex-start;padding:10px 12px}
+.cashier-toolbar button{
+  border:1px solid #cfdaeb;background:#fff;color:#102f58;
+  padding:10px 12px;flex:1 0 auto;
+  box-shadow:0 2px 4px #122f5211;
+}
+.cashier-toolbar button:hover:not(:disabled){background:#edf6ff;border-color:#a2c4eb}
+.cashier-toolbar button.cashier-danger{color:#b12a3a;border-color:#f2ced1}
+.cashier-payment-panel{background:linear-gradient(155deg,#0d264b,#07192f);border-radius:13px;padding:21px 18px}
+.cashier-payment-eyebrow{font-size:11px;color:#c2d6ee}
+.cashier-subtotal,.cashier-discount{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:13px;margin:14px 0;color:#dbe9fa;
+}
+.cashier-subtotal strong{font-size:20px}
+.cashier-discount{margin:14px 0}
+.cashier-discount strong{color:#41e873;font-size:18px}
+.cashier-payment-divider{margin:18px 0;background:#36577b}
+.cashier-payment-label{font-size:14px}
+.cashier-grand-total{font-size:35px;letter-spacing:-1.2px;margin:6px 0 12px;text-align:right}
+.cashier-receive{font-size:15px!important;letter-spacing:-.2px;min-height:62px;margin-bottom:4px}
+.cashier-product-icon{height:39px;width:39px}
+.cashier-product-option{padding:9px 6px}
+.cashier-product-description strong{color:#0f2e55}
+.cashier-favorites{padding:10px 13px}
+.product-photo-field{grid-column:1/-1}
+.product-photo-editor{display:flex;align-items:center;gap:16px;padding:14px;background:#f2f7fe;border:1px solid #d8e6f5;border-radius:12px}
+.product-photo-editor>img,.product-photo-placeholder{
+  width:110px;height:110px;object-fit:contain;background:white;border:1px solid #ccdced;
+  border-radius:10px;flex:none;
+}
+.product-photo-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:#5279aa}
+.product-photo-placeholder small{font-size:10px}
+.product-photo-actions{display:flex;align-items:flex-start;gap:9px;flex-wrap:wrap;min-width:0}
+.product-photo-actions>small{flex-basis:100%;color:#66809b;font-size:11px;line-height:1.5}
+.product-photo-button{position:relative;overflow:hidden;cursor:pointer;min-height:40px;display:inline-flex;align-items:center}
+.product-photo-button input[type="file"]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.product-photo-button:focus-within{outline:3px solid #52a7ff;outline-offset:2px}
+.photo-column{width:73px;min-width:73px;text-align:center!important}
+.product-thumbnail{display:inline-grid;place-items:center;width:49px;height:52px;object-fit:contain;background:#fff;border:1px solid #dae6f4;border-radius:8px;vertical-align:middle}
+.product-thumbnail-empty{background:#eef5ff;color:#7e9abc}
+@media(max-width:1340px){
+  .cashier-item-main,.cashier-table-head{grid-template-columns:40px minmax(115px,1fr) 94px 80px 84px 27px;gap:5px}
+  .cashier-item-photo{width:38px;height:44px}
+  .cashier-item-stepper span{min-width:22px}
+  .cashier-item-unit-price,.cashier-item-total{font-size:11px}
+}
+@media(max-width:1160px){
+  .cashier-workspace{grid-template-columns:1fr}
+  .cashier-payment-panel{max-width:100%;display:flex}
+  .cashier-item-main,.cashier-table-head{grid-template-columns:45px minmax(130px,1fr) 104px 90px 96px 31px;gap:7px}
+}
+@media(max-width:820px){
+  .cashier-item-main,.cashier-table-head{grid-template-columns:40px minmax(95px,1fr) 85px 72px 77px 26px;gap:5px}
+  .cashier-item-main{min-height:70px}
+  .cashier-item-stepper button{padding:6px 2px}
+  .cashier-item-stepper span{font-size:10px;min-width:18px}
+  .cashier-item-unit-price,.cashier-item-total{font-size:10px}
+}
+@media(max-width:560px){
+  .cashier-cart-items,.cashier-table-head{min-width:0}
+  .cashier-item-main,.cashier-table-head{grid-template-columns:37px minmax(70px,1fr) 79px 60px 69px 25px;gap:3px}
+  .cashier-item-photo{width:34px;height:37px}
+  .cashier-item-name strong{font-size:10px}
+  .cashier-item-name small{font-size:9px}
+  .cashier-item-unit-price,.cashier-item-total{font-size:9px}
+  .cashier-table-head{font-size:10px;padding:8px 6px}
+  .cashier-item{padding:0 6px}
+  .product-photo-editor{flex-wrap:wrap}
+}
