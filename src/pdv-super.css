@@ -968,3 +968,82 @@ select option {color:var(--super-text);background:white}
 @media print{
   .shell.super-shell .topbar.super-topbar{display:none!important}
 }
+
+
+/* Operação de estoque e relatório gerencial — mesmos componentes da referência. */
+.shell.super-shell .super-inventory-overview{padding:18px 20px;overflow:hidden}
+.shell.super-shell .super-inventory-overview .commerce-heading h2{font-size:19px;color:#10346a}
+.shell.super-shell .super-inventory-grid{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin:14px 0;
+}
+.shell.super-shell .super-inventory-stat{
+ display:flex;flex-direction:column;gap:5px;padding:14px 16px;min-width:0;
+ background:linear-gradient(160deg,#f8fbff,#ecf5ff);
+ border:1px solid #cfdeef;border-radius:10px;
+}
+.shell.super-shell .super-inventory-stat strong{font-size:23px;font-variant-numeric:tabular-nums;color:#064eb4}
+.shell.super-shell .super-inventory-stat span{font-size:11px;color:#506f95}
+.shell.super-shell .super-inventory-warning strong{color:#b78111}
+.shell.super-shell .super-inventory-danger strong{color:#c62b43}
+.shell.super-shell .super-inventory-table {max-height:360px;overflow:auto;margin:0;border:1px solid #d9e5f2;border-radius:9px}
+.shell.super-shell .super-inventory-table th{position:sticky;top:0;z-index:1;background:#edf4ff;font-size:11px}
+.shell.super-shell .super-inventory-table td{font-size:11px;padding:9px 13px}
+.shell.super-shell .super-stock-product{display:flex;align-items:center;gap:9px;min-width:160px}
+.shell.super-shell .super-stock-product img,.shell.super-shell .super-stock-empty {
+ display:grid;place-items:center;flex:none;width:29px;height:34px;object-fit:contain;
+ background:#fff;border:1px solid #d5e1ed;border-radius:6px;color:#2b6cba;
+}
+.shell.super-shell .super-stock-product strong{font-weight:750;color:#20395a}
+.shell.super-shell .super-stock-status {
+ display:inline-flex;padding:6px 9px;border:1px solid transparent;border-radius:9px;
+ font-size:10px;font-weight:750;white-space:nowrap;
+}
+.shell.super-shell .super-stock-status.good{background:#e2f8e6;border-color:#c1ebce;color:#187341}
+.shell.super-shell .super-stock-status.low{background:#fff1d4;border-color:#f4dda5;color:#835d0b}
+.shell.super-shell .super-stock-status.out{background:#ffe5e8;border-color:#f2bfc6;color:#ad2c44}
+.shell.super-shell .super-inventory-actions{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:9px;margin-top:15px}
+.shell.super-shell .super-inventory-actions button{display:flex;align-items:center;gap:7px;font-size:12px;padding:11px 16px}
+.shell.super-shell #inventory-move-form{scroll-margin-top:95px}
+.shell.super-shell .super-report-kpis {
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px;
+}
+.shell.super-shell .super-report-kpis .stat{
+ min-height:122px;display:flex;flex-direction:column;justify-content:space-between;gap:7px;
+ padding:15px 16px;background:#fff;border:1px solid #d0deef;border-radius:10px;
+}
+.shell.super-shell .super-report-kpis .stat span{font-size:12px;font-weight:750;color:#436184}
+.shell.super-shell .super-report-kpis .stat strong{font-size:23px;color:#0c3f9a;letter-spacing:-.5px}
+.shell.super-shell .super-report-kpis .stat small{font-size:10px;color:#6785a4}
+.shell.super-shell .super-report-charts{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:14px;margin-bottom:15px}
+.shell.super-shell .super-report-chart-panel{padding:18px 17px;background:#fff;border:1px solid #d1e1f1;border-radius:12px;min-width:0;box-shadow:0 5px 15px #133d7712}
+.shell.super-shell .super-report-chart-panel h3{margin:0 0 5px;font-size:15px;color:#132c50}
+.shell.super-shell .super-report-chart-panel p{margin:0;font-size:11px;color:#6e86a1}
+.shell.super-shell .super-report-bars{height:220px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;align-items:end;border-bottom:1px solid #b9d0ec;margin-top:20px}
+.shell.super-shell .super-report-bar-column{display:flex;min-width:0;height:100%;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;text-align:center}
+.shell.super-shell .super-report-bar-value{font-size:9px;color:#34618f;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.shell.super-shell .super-report-bar-track{display:flex;align-items:end;width:100%;height:170px;background:#f4f9ff;border-radius:6px 6px 0 0;overflow:hidden}
+.shell.super-shell .super-report-bar-fill{display:block;width:100%;background:linear-gradient(180deg,#1b86ed,#0a4eb7);border-radius:5px 5px 0 0}
+.shell.super-shell .super-report-bar-column small{font-size:9px;color:#607c9d;padding-bottom:5px}
+.shell.super-shell .super-report-payment-chart{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,1fr);gap:13px;align-items:center;min-height:245px}
+.shell.super-shell .super-report-donut{width:min(190px,100%);aspect-ratio:1;display:grid;place-items:center;border-radius:50%;justify-self:center}
+.shell.super-shell .super-report-donut>div{display:flex;flex-direction:column;align-items:center;justify-content:center;width:69%;height:69%;border-radius:50%;background:#fff;gap:5px;text-align:center}
+.shell.super-shell .super-report-donut strong{font-size:14px;color:#134083;white-space:nowrap}
+.shell.super-shell .super-report-donut span{font-size:10px;color:#6b85a6}
+.shell.super-shell .super-report-legend{display:flex;flex-direction:column;gap:10px;min-width:0}
+.shell.super-shell .super-report-legend>div{display:grid;grid-template-columns:9px minmax(0,1fr);column-gap:7px;row-gap:3px;align-items:center;font-size:10px}
+.shell.super-shell .super-report-legend i{display:block;width:9px;height:9px;border-radius:2px}
+.shell.super-shell .super-report-legend span{color:#3b5678}
+.shell.super-shell .super-report-legend strong{grid-column:2;color:#0e4c9d;font-size:11px}
+.shell.super-shell .super-report-details{margin:10px 0 18px;border:1px solid #d1dfea;background:#fff;border-radius:10px;padding:12px 15px}
+.shell.super-shell .super-report-details summary{color:#17579b;font-size:12px;font-weight:750;cursor:pointer}
+.shell.super-shell .super-report-details .report-grid{margin-top:13px}
+@media(max-width:1050px){
+ .shell.super-shell .super-report-charts{grid-template-columns:1fr}
+ .shell.super-shell .super-report-kpis,.shell.super-shell .super-inventory-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:570px){
+ .shell.super-shell .super-report-kpis,.shell.super-shell .super-inventory-grid{grid-template-columns:1fr 1fr}
+ .shell.super-shell .super-report-payment-chart{grid-template-columns:1fr}
+ .shell.super-shell .super-report-donut{width:160px}
+ .shell.super-shell .super-report-legend{display:grid;grid-template-columns:repeat(2,1fr)}
+}
