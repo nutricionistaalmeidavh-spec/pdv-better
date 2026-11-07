@@ -22,7 +22,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,initia
   const subtotal=cart.reduce((sum,row)=>sum+Math.round(row.priceCents*row.quantityMilli/1000),0);
   const [discount,setDiscount]=useState('0,00');
   const [customerId,setCustomerId]=useState('');
-  const [payments,setPayments]=useState([{method:initialMethod,amount:'0,00'}]);
+  const [payments,setPayments]=useState<Array<{method:string;amount:string}>>([{method:initialMethod,amount:'0,00'}]);
   const [initialAmountFilled,setInitialAmountFilled]=useState(false);
   const [itemMethods,setItemMethods]=useState<Record<string,string>>({});
   const [training,setTraining]=useState(false);
