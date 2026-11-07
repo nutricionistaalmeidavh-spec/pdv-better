@@ -172,6 +172,9 @@ async function main(){
   await capture('Primeiro acesso - formulario preenchido');
   await page.getByRole('button',{name:'Criar administrador'}).click();
   await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
+  await page.locator('.guided-tour-invite').waitFor({state:'visible'});
+  await capture('Primeiro acesso - convite para tour guiado');
+  await page.locator('.guided-tour-invite').getByRole('button',{name:'Agora não'}).click();
   await go('Controle de caixa');
   await capture('Caixa fechado - abertura de turno');
   const seeds=await seed();
@@ -271,6 +274,8 @@ async function main(){
     await page.locator('.auth-form input[type=password]').first().fill(pwd);
     await page.getByRole('button',{name:'Entrar no PDV'}).click();
     await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
+    const invite=page.locator('.guided-tour-invite');
+    if(await invite.isVisible())await invite.getByRole('button',{name:'Agora não'}).click();
     await capture('Perfil '+role+' - visao geral e permissoes');
     const navLabels=await page.getByRole('navigation',{name:'Navegação principal'}).locator('button.nav-item').allTextContents();
     if(role==='Caixa'&&navLabels.some(x=>/Financeiro|Operadores|Relatórios|Dispositivos e rede/.test(x)))throw new Error('Perfil Caixa visualiza menu restrito.');
