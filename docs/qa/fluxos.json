@@ -1,0 +1,1818 @@
+{
+  "version": 1,
+  "product": "PDV Better",
+  "platform": "Windows 10/11 x64",
+  "scope": "Operação offline local por padrão, sem serviço pago obrigatório",
+  "sourceOfTruth": "docs/qa/fluxos.json",
+  "implementationStages": {
+    "A": "presente-no-marco-a",
+    "B": "em-desenvolvimento-pr-2",
+    "P": "planejado"
+  },
+  "coverageNotes": "A implementação não significa cobertura E2E. existingBackendEvidence aponta testes existentes do Marco A que cobrem apenas parte das regras. plannedTest é um caminho futuro: os testes de jornadas não estão implementados.",
+  "modules": [
+    {
+      "id": "MOD-01",
+      "name": "Instalação e inicialização",
+      "screen": "Instalador NSIS / abertura do aplicativo",
+      "flows": [
+        {
+          "id": "FL-01-01",
+          "title": "Instalar e atualizar o aplicativo",
+          "screen": "Instalador NSIS / abertura do aplicativo",
+          "action": "Executar instalador NSIS ou atualização local",
+          "validations": "Windows 10/11 x64, integridade do pacote, diretório e dados existentes",
+          "result": "Aplicativo instalável preservando banco e versão",
+          "recovery": "Interromper instalação sem corromper dados e permitir repetir",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-01-01",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-01-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-01-02",
+          "title": "Criar ou selecionar estabelecimento",
+          "screen": "Instalador NSIS / abertura do aplicativo",
+          "action": "Abrir configuração do estabelecimento local",
+          "validations": "Identificador estável, dados mínimos e ausência de duplicidade",
+          "result": "Estabelecimento selecionado sem depender de nuvem",
+          "recovery": "Preservar seleção anterior e reabrir configuração",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-01-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-01-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-01-03",
+          "title": "Configurar dados e preferências",
+          "screen": "Instalador NSIS / abertura do aplicativo",
+          "action": "Preencher dados comerciais iniciais e salvar",
+          "validations": "Campos obrigatórios, formato de documento e opções válidas",
+          "result": "Configuração lida novamente do SQLite",
+          "recovery": "Manter formulário e mostrar campos inválidos",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-01-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-01-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-01-04",
+          "title": "Restaurar sessão após reinicialização",
+          "screen": "Instalador NSIS / abertura do aplicativo",
+          "action": "Encerrar e reabrir o aplicativo",
+          "validations": "Integridade do SQLite, versão compatível e dados locais",
+          "result": "Cadastros persistentes reaparecem sem exigir internet",
+          "recovery": "Oferecer tentar novamente e restauração de backup",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-01-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-01-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-02",
+      "name": "Operadores e permissões",
+      "screen": "Cadastros / Operadores",
+      "flows": [
+        {
+          "id": "FL-02-01",
+          "title": "Cadastrar e editar operadores",
+          "screen": "Cadastros / Operadores",
+          "action": "Adicionar ou alterar um operador",
+          "validations": "Nome obrigatório, função válida e UUID estável",
+          "result": "Operador persistido e visível na lista",
+          "recovery": "Preservar formulário diante de falha de gravação",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-02-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-02-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-02-02",
+          "title": "Entrar e sair do sistema",
+          "screen": "Cadastros / Operadores",
+          "action": "Autenticar operador e encerrar sessão",
+          "validations": "Credenciais válidas, bloqueio de tentativas e política de sessão",
+          "result": "Sessão local aberta ou finalizada conforme permissão",
+          "recovery": "Não autenticar e oferecer nova tentativa sem expor credenciais",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-02-02",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-02-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-02-03",
+          "title": "Definir perfis e permissões",
+          "screen": "Cadastros / Operadores",
+          "action": "Configurar direitos de caixa, gerente e administrador",
+          "validations": "Matriz de permissões canônica e privilégios mínimos",
+          "result": "Operações restritas a perfis autorizados",
+          "recovery": "Negar ação sem alterar dados e registrar ocorrência",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-02-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-02-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-02-04",
+          "title": "Trocar operador e auditar ações",
+          "screen": "Cadastros / Operadores",
+          "action": "Alternar operador responsável durante turno",
+          "validations": "Operador ativo, caixa válido e ação rastreável",
+          "result": "Próximas movimentações vinculadas ao novo operador",
+          "recovery": "Manter operador anterior caso troca falhe",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-02-04",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-02-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-03",
+      "name": "Produtos e categorias",
+      "screen": "Cadastros / Produtos e Categorias",
+      "flows": [
+        {
+          "id": "FL-03-01",
+          "title": "Cadastrar, editar e desativar produtos",
+          "screen": "Cadastros / Produtos e Categorias",
+          "action": "Criar, editar ou desativar um produto",
+          "validations": "Nome obrigatório, código único, unidade UN/KG, valores não negativos",
+          "result": "Produto persistido e desativação lógica sem apagar histórico",
+          "recovery": "Preservar formulário e impedir desativação inconsistente",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-03-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-03-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-03-02",
+          "title": "Cadastrar categorias, unidades e códigos",
+          "screen": "Cadastros / Produtos e Categorias",
+          "action": "Criar categoria e atribuir código e unidade ao produto",
+          "validations": "Categoria ativa, código normalizado sem duplicidade e unidade válida",
+          "result": "Catálogo referenciado sem inconsistência",
+          "recovery": "Bloquear vínculo inválido e permitir correção no formulário",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-03-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-03-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-03-03",
+          "title": "Definir preços e custos",
+          "screen": "Cadastros / Produtos e Categorias",
+          "action": "Alterar preços de venda e custo",
+          "validations": "Conversão para centavos, precisão e valores permitidos",
+          "result": "Novos valores confirmados por leitura do SQLite",
+          "recovery": "Manter valores anteriores se a transação falhar",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-03-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-03-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-03-04",
+          "title": "Pesquisar e ler códigos de barras",
+          "screen": "Cadastros / Produtos e Categorias",
+          "action": "Pesquisar produto por nome, SKU ou leitura HID",
+          "validations": "Código exato, produto ativo e inexistência de ambiguidade",
+          "result": "Produto correspondente exibido e selecionável",
+          "recovery": "Informar código não encontrado e manter busca disponível",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-03-04",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-03-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-04",
+      "name": "Clientes",
+      "screen": "Cadastros / Clientes",
+      "flows": [
+        {
+          "id": "FL-04-01",
+          "title": "Cadastrar e editar clientes",
+          "screen": "Cadastros / Clientes",
+          "action": "Preencher formulário de cliente e salvar",
+          "validations": "Nome obrigatório, campos de documento e contato com formato permitido",
+          "result": "Cliente persistido com identificador estável",
+          "recovery": "Reter valores digitados e indicar erro de validação",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-04-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-04-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-04-02",
+          "title": "Pesquisar por nome e CPF/CNPJ",
+          "screen": "Cadastros / Clientes",
+          "action": "Digitar critério de busca no cadastro",
+          "validations": "Normalização da pesquisa e visibilidade de cadastros ativos",
+          "result": "Lista filtrada e paginada sem perda silenciosa",
+          "recovery": "Exibir estado vazio e permitir limpar filtro",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-04-02",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-04-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-04-03",
+          "title": "Consultar histórico de compras",
+          "screen": "Cadastros / Clientes",
+          "action": "Abrir detalhes e histórico do cliente",
+          "validations": "Cliente existente, acesso autorizado e vendas associadas",
+          "result": "Vendas do cliente apresentadas por data",
+          "recovery": "Apresentar histórico vazio ou tentar novamente em falha de leitura",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-04-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-04-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-04-04",
+          "title": "Consultar saldos e créditos",
+          "screen": "Cadastros / Clientes",
+          "action": "Consultar créditos, pagamentos pendentes e fiado",
+          "validations": "Somente lançamentos válidos e saldo calculado canonicamente",
+          "result": "Saldo e movimentos conciliáveis",
+          "recovery": "Exibir divergência e não alterar saldo em erro",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-04-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-04-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-05",
+      "name": "Fornecedores",
+      "screen": "Cadastros / Fornecedores",
+      "flows": [
+        {
+          "id": "FL-05-01",
+          "title": "Cadastrar e editar fornecedores",
+          "screen": "Cadastros / Fornecedores",
+          "action": "Criar ou alterar fornecedor",
+          "validations": "Nome obrigatório, contato válido e identidade estável",
+          "result": "Cadastro salvo no SQLite e disponível na lista",
+          "recovery": "Manter formulário e permitir correção sem duplicar cadastro",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-05-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-05-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-05-02",
+          "title": "Relacionar fornecedores a produtos",
+          "screen": "Cadastros / Fornecedores",
+          "action": "Selecionar fornecedor no cadastro de produto",
+          "validations": "Ambos ativos e referência consistente",
+          "result": "Relação fornecedor-produto consultável",
+          "recovery": "Rejeitar vínculo inválido e preservar seleção anterior",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-05-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-05-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-05-03",
+          "title": "Consultar compras e histórico",
+          "screen": "Cadastros / Fornecedores",
+          "action": "Abrir detalhes das compras vinculadas",
+          "validations": "Fornecedor existente, pedidos com IDs válidos",
+          "result": "Histórico navegável por pedido",
+          "recovery": "Exibir ausência de compras ou tentar ler novamente",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-05-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-05-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-06",
+      "name": "Frente de caixa",
+      "screen": "Frente de caixa / F2",
+      "flows": [
+        {
+          "id": "FL-06-01",
+          "title": "Localizar e adicionar produtos",
+          "screen": "Frente de caixa / F2",
+          "action": "Ler código HID ou selecionar produto na busca",
+          "validations": "Produto ativo, código identificável e unidade permitida",
+          "result": "Linha adicionada ao rascunho sem salvar venda prematuramente",
+          "recovery": "Exibir erro de busca e manter carrinho intacto",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-06-01",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-06-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-06-02",
+          "title": "Alterar quantidade e remover itens",
+          "screen": "Frente de caixa / F2",
+          "action": "Usar controles de quantidade ou retirar linha",
+          "validations": "UN inteiro, KG em milésimos e total monetário preciso",
+          "result": "Carrinho atualizado e total recalculado",
+          "recovery": "Rejeitar quantidade inválida sem modificar linhas válidas",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-06-02",
+            "kind": "unitario",
+            "plannedTest": "tests/journeys/QA-06-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-06-03",
+          "title": "Aplicar descontos autorizados",
+          "screen": "Frente de caixa / F2",
+          "action": "Informar desconto por item ou venda",
+          "validations": "Limite por perfil, valor máximo e total não negativo",
+          "result": "Desconto gravado no rascunho e recalculado",
+          "recovery": "Negar desconto indevido e manter preço anterior",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-06-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-06-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-06-04",
+          "title": "Suspender, recuperar ou cancelar venda",
+          "screen": "Frente de caixa / F2",
+          "action": "Suspender rascunho, reabrir ou descartá-lo",
+          "validations": "Identificador de rascunho, isolamento de operador e confirmação",
+          "result": "Rascunho recuperável ou cancelado sem estoque movimentado",
+          "recovery": "Recuperar estado anterior em falha de persistência",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-06-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-06-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-06-05",
+          "title": "Concluir a venda",
+          "screen": "Frente de caixa / F2",
+          "action": "Confirmar itens e pagamentos",
+          "validations": "Total conciliado, estoque e caixa consistentes, operação idempotente",
+          "result": "Venda e efeitos registrados atomicamente no SQLite",
+          "recovery": "Rollback integral, conservar rascunho e permitir nova tentativa",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-06-05",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-06-05.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-07",
+      "name": "Pagamentos",
+      "screen": "Frente de caixa / Pagamento",
+      "flows": [
+        {
+          "id": "FL-07-01",
+          "title": "Receber em dinheiro",
+          "screen": "Frente de caixa / Pagamento",
+          "action": "Informar valor entregue pelo cliente",
+          "validations": "Valor positivo, suficiente para liquidar parcela e precisão em centavos",
+          "result": "Pagamento manual registrado na venda",
+          "recovery": "Rejeitar valor insuficiente sem gerar venda parcial",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-07-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-07-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-07-02",
+          "title": "Registrar Pix e cartão",
+          "screen": "Frente de caixa / Pagamento",
+          "action": "Escolher Pix ou cartão e informar confirmação manual",
+          "validations": "Identificador de transação quando aplicável, valor válido e ausência de falsa liquidação",
+          "result": "Meio de pagamento anotado sem depender de gateway",
+          "recovery": "Manter pendente quando não houver confirmação real",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-07-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-07-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-07-03",
+          "title": "Dividir em múltiplas formas",
+          "screen": "Frente de caixa / Pagamento",
+          "action": "Distribuir total entre dois ou mais meios",
+          "validations": "Soma das parcelas igual ao total e nenhum valor negativo",
+          "result": "Venda quitada com discriminação dos meios",
+          "recovery": "Informar diferença e permitir editar distribuição",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-07-03",
+            "kind": "unitario",
+            "plannedTest": "tests/journeys/QA-07-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-07-04",
+          "title": "Calcular troco",
+          "screen": "Frente de caixa / Pagamento",
+          "action": "Informar recebido em dinheiro acima do devido",
+          "validations": "Troco em centavos, sem arredondamento flutuante",
+          "result": "Troco correto exibido e registrado",
+          "recovery": "Bloquear confirmação se cálculo exceder limites seguros",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-07-04",
+            "kind": "unitario",
+            "plannedTest": "tests/journeys/QA-07-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-07-05",
+          "title": "Estornar ou cancelar pagamentos",
+          "screen": "Frente de caixa / Pagamento",
+          "action": "Selecionar pagamento e solicitar estorno",
+          "validations": "Permissão, motivo, vínculo de venda e estado permitido",
+          "result": "Estorno auditável com efeitos financeiros revertidos",
+          "recovery": "Preservar lançamento quando estorno falhar, sem simular devolução externa",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-07-05",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-07-05.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-08",
+      "name": "Controle de caixa",
+      "screen": "Caixa / Turno",
+      "flows": [
+        {
+          "id": "FL-08-01",
+          "title": "Abrir caixa com saldo inicial",
+          "screen": "Caixa / Turno",
+          "action": "Informar fundo inicial e iniciar turno",
+          "validations": "Um turno aberto por caixa, saldo em centavos e operador válido",
+          "result": "Turno aberto com saldo inicial persistido",
+          "recovery": "Não criar turno duplicado e oferecer retomar turno existente",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-08-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-08-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-08-02",
+          "title": "Registrar sangria e suprimento",
+          "screen": "Caixa / Turno",
+          "action": "Informar retirada ou reforço de dinheiro",
+          "validations": "Turno aberto, valor positivo, autorização e saldo suficiente para retirada",
+          "result": "Movimento registrado e saldo atualizado",
+          "recovery": "Rollback em erro e manutenção do saldo anterior",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-08-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-08-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-08-03",
+          "title": "Consultar movimentações",
+          "screen": "Caixa / Turno",
+          "action": "Abrir extrato do turno",
+          "validations": "Filtros válidos e leitura consistente de vendas e ajustes",
+          "result": "Extrato reproduzível, ordenado e conciliável",
+          "recovery": "Exibir erro de leitura sem ocultar divergência",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-08-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-08-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-08-04",
+          "title": "Fechar e conferir caixa",
+          "screen": "Caixa / Turno",
+          "action": "Informar valor contado e concluir conferência",
+          "validations": "Turno ativo, valores recebidos, diferença calculada e permissão",
+          "result": "Turno fechado sem aceitar lançamentos novos",
+          "recovery": "Não finalizar se houver transação pendente ou erro de banco",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-08-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-08-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-08-05",
+          "title": "Registrar divergências",
+          "screen": "Caixa / Turno",
+          "action": "Informar justificativa para diferença de fechamento",
+          "validations": "Diferença calculada, texto de justificativa e auditoria",
+          "result": "Divergência vinculada ao fechamento",
+          "recovery": "Preservar contagem e exigir correção de justificativa",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-08-05",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-08-05.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-09",
+      "name": "Estoque",
+      "screen": "Estoque / Movimentações",
+      "flows": [
+        {
+          "id": "FL-09-01",
+          "title": "Consultar saldos",
+          "screen": "Estoque / Movimentações",
+          "action": "Abrir posição de estoque por produto",
+          "validations": "Produto existente e soma de movimentos consistente",
+          "result": "Quantidade disponível exibida em unidade correta",
+          "recovery": "Sinalizar inconsistência e manter último dado confirmado",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-09-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-09-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-09-02",
+          "title": "Dar entrada e baixa",
+          "screen": "Estoque / Movimentações",
+          "action": "Registrar recebimento ou saída de produto",
+          "validations": "Quantidade positiva, tipo do movimento e disponibilidade para baixa",
+          "result": "Movimento imutável e saldo atualizado atomicamente",
+          "recovery": "Rollback completo, impedir saldos inválidos",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-09-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-09-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-09-03",
+          "title": "Executar inventário e ajustes",
+          "screen": "Estoque / Movimentações",
+          "action": "Contar itens e confirmar ajuste",
+          "validations": "Sessão de contagem válida e justificativa para diferença",
+          "result": "Ajuste rastreado e saldo reconciliado",
+          "recovery": "Preservar contagem sem aplicar ajuste em erro",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-09-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-09-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-09-04",
+          "title": "Registrar perdas e devoluções",
+          "screen": "Estoque / Movimentações",
+          "action": "Registrar avaria, perda ou retorno ao estoque",
+          "validations": "Motivo válido, referência da venda e quantidade possível",
+          "result": "Movimento auditado sem duplicar devolução",
+          "recovery": "Bloquear movimento repetido e solicitar revisão",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-09-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-09-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-09-05",
+          "title": "Configurar alertas de estoque mínimo",
+          "screen": "Estoque / Movimentações",
+          "action": "Definir limite de reposição por produto",
+          "validations": "Limite não negativo, unidade consistente e produto ativo",
+          "result": "Produtos abaixo do mínimo destacados",
+          "recovery": "Manter limite anterior se atualização falhar",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-09-05",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-09-05.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-10",
+      "name": "Compras e recebimento",
+      "screen": "Compras / Pedidos",
+      "flows": [
+        {
+          "id": "FL-10-01",
+          "title": "Criar pedido de compra",
+          "screen": "Compras / Pedidos",
+          "action": "Selecionar fornecedor e itens necessários",
+          "validations": "Fornecedor ativo, itens válidos, quantidades e custos coerentes",
+          "result": "Pedido salvo com estado rascunho ou enviado",
+          "recovery": "Preservar pedido editável após erro de gravação",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-10-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-10-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-10-02",
+          "title": "Registrar recebimento de mercadorias",
+          "screen": "Compras / Pedidos",
+          "action": "Conferir itens recebidos contra pedido",
+          "validations": "Pedido aberto, quantidades e divergências identificadas",
+          "result": "Recebimento parcial ou total rastreado",
+          "recovery": "Não movimentar estoque de itens rejeitados",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-10-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-10-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-10-03",
+          "title": "Atualizar estoque e custo",
+          "screen": "Compras / Pedidos",
+          "action": "Confirmar entrada e novo custo referencial",
+          "validations": "Recebimento aprovado e custo canônico",
+          "result": "Saldo e custo atualizados em uma transação",
+          "recovery": "Rollback conjunto em falha de qualquer atualização",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-10-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-10-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-10-04",
+          "title": "Registrar despesas da compra",
+          "screen": "Compras / Pedidos",
+          "action": "Adicionar frete, taxas ou custos extras",
+          "validations": "Valores não negativos e referência à compra",
+          "result": "Despesas vinculadas ao pedido e financeiro",
+          "recovery": "Não salvar despesa sem vínculo válido",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-10-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-10-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-11",
+      "name": "Trocas, devoluções e cancelamentos",
+      "screen": "Vendas / Histórico",
+      "flows": [
+        {
+          "id": "FL-11-01",
+          "title": "Localizar venda original",
+          "screen": "Vendas / Histórico",
+          "action": "Pesquisar venda pelo código, período ou cliente",
+          "validations": "Venda existente e acesso autorizado",
+          "result": "Documento original aberto para operação pós-venda",
+          "recovery": "Mostrar venda não encontrada sem alterar lançamentos",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-11-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-11-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-11-02",
+          "title": "Devolver itens parcialmente ou integralmente",
+          "screen": "Vendas / Histórico",
+          "action": "Selecionar itens e quantidades para devolução",
+          "validations": "Quantidade não supera a vendida menos devoluções anteriores",
+          "result": "Devolução registrada e vinculada à venda original",
+          "recovery": "Rejeitar duplicidade e preservar seleção",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-11-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-11-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-11-03",
+          "title": "Reintegrar estoque conforme regra",
+          "screen": "Vendas / Histórico",
+          "action": "Indicar se item devolvido está apto à revenda",
+          "validations": "Estado do produto e política de reintegração",
+          "result": "Estoque atualizado apenas quando aplicável",
+          "recovery": "Reverter transação em falha de movimentação",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-11-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-11-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-11-04",
+          "title": "Restituir ou gerar crédito",
+          "screen": "Vendas / Histórico",
+          "action": "Selecionar restituição manual ou crédito de cliente",
+          "validations": "Valor igual ao devido, autorização e tipo de restituição",
+          "result": "Crédito/saída registrado com vínculo original",
+          "recovery": "Manter obrigação pendente se devolução externa não confirmada",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-11-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-11-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-11-05",
+          "title": "Registrar motivo e autorização",
+          "screen": "Vendas / Histórico",
+          "action": "Informar justificativa e autorizar cancelamento",
+          "validations": "Operador com permissão, motivo e prazo permitido",
+          "result": "Auditoria registra quem, quando e por quê",
+          "recovery": "Negar sem permissão e manter venda original",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-11-05",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-11-05.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-12",
+      "name": "Orçamentos e pedidos",
+      "screen": "Vendas / Orçamentos",
+      "flows": [
+        {
+          "id": "FL-12-01",
+          "title": "Criar orçamento",
+          "screen": "Vendas / Orçamentos",
+          "action": "Selecionar cliente e itens sem cobrar",
+          "validations": "Produtos existentes, preços canônicos e validade permitida",
+          "result": "Orçamento persistido sem movimentar caixa ou estoque",
+          "recovery": "Preservar rascunho após falha",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-12-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-12-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-12-02",
+          "title": "Converter orçamento em venda",
+          "screen": "Vendas / Orçamentos",
+          "action": "Confirmar orçamento e abrir caixa",
+          "validations": "Orçamento válido, itens disponíveis e preços revisados",
+          "result": "Carrinho originado do orçamento sem duplicação de venda",
+          "recovery": "Informar indisponibilidade e não concluir automaticamente",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-12-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-12-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-12-03",
+          "title": "Reservar produtos quando aplicável",
+          "screen": "Vendas / Orçamentos",
+          "action": "Marcar reserva de itens por prazo",
+          "validations": "Limite de estoque, vencimento e identificação do pedido",
+          "result": "Reserva registrada separadamente da baixa real",
+          "recovery": "Desfazer reserva e avisar em caso de conflito",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-12-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-12-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-12-04",
+          "title": "Consultar pedidos pendentes",
+          "screen": "Vendas / Orçamentos",
+          "action": "Filtrar pedidos por situação, cliente e data",
+          "validations": "Filtros válidos e IDs consistentes",
+          "result": "Lista completa dos pedidos ainda abertos",
+          "recovery": "Exibir estado vazio ou permitir recarregar",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-12-04",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-12-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-13",
+      "name": "Mesas, comandas e garçom",
+      "screen": "Salão / Mapa de mesas e comandas",
+      "flows": [
+        {
+          "id": "FL-13-01",
+          "title": "Abrir mesa ou comanda",
+          "screen": "Salão / Mapa de mesas e comandas",
+          "action": "Selecionar mesa livre ou criar comanda",
+          "validations": "Identificador único, capacidade e estado disponível",
+          "result": "Mesa/comanda aberta com responsável identificado",
+          "recovery": "Impedir duas aberturas simultâneas para o mesmo identificador",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-13-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-13-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-13-02",
+          "title": "Adicionar e transferir pedidos",
+          "screen": "Salão / Mapa de mesas e comandas",
+          "action": "Garçom lança itens ou transfere entre mesas/comandas",
+          "validations": "Operador identificado, itens válidos e origem/destino compatíveis",
+          "result": "Itens adicionados ou transferidos sem duplicidade",
+          "recovery": "Rollback da transferência em qualquer falha",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-13-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-13-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-13-03",
+          "title": "Unir ou dividir contas",
+          "screen": "Salão / Mapa de mesas e comandas",
+          "action": "Selecionar itens de duas contas ou distribuir itens de uma conta",
+          "validations": "Quantidades não duplicadas, totais preservados e estado aberto",
+          "result": "Contas consolidadas ou desmembradas com valores corretos",
+          "recovery": "Manter contas originais caso conciliação falhe",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-13-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-13-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-13-04",
+          "title": "Fechar mesa",
+          "screen": "Salão / Mapa de mesas e comandas",
+          "action": "Revisar consumo, pagar e liberar a mesa",
+          "validations": "Pagamento conciliado, comanda sem itens pendentes e operador autorizado",
+          "result": "Venda persistida, comanda encerrada e mesa liberada",
+          "recovery": "Não liberar mesa se pagamento ou venda falhar",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-13-04",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-13-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-13-05",
+          "title": "Acessar via dispositivos na rede local",
+          "screen": "Salão / Mapa de mesas e comandas",
+          "action": "Garçom abre interface em celular na LAN",
+          "validations": "Autenticação local, autorização, conexão e sincronização sem internet externa",
+          "result": "Pedidos chegam ao servidor local e são confirmados por ID",
+          "recovery": "Fila local reenvia sem duplicar lançamentos após reconexão",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-13-05",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-13-05.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-14",
+      "name": "Fiscal",
+      "screen": "Fiscal / Emissão",
+      "flows": [
+        {
+          "id": "FL-14-01",
+          "title": "Configurar dados fiscais",
+          "screen": "Fiscal / Emissão",
+          "action": "Cadastrar emitente e parâmetros fiscais",
+          "validations": "CNPJ e inscrições válidas, certificado e ambiente coerentes",
+          "result": "Parâmetros salvos sem expor segredos no frontend",
+          "recovery": "Impedir emissão até corrigir configuração",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-14-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-14-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-14-02",
+          "title": "Preparar e validar documento",
+          "screen": "Fiscal / Emissão",
+          "action": "Montar itens, tributos e totais para emissão",
+          "validations": "Regras tributárias vigentes, unidade e valor de cada item",
+          "result": "Prévia fiscal válida associada à venda",
+          "recovery": "Mostrar rejeições de validação sem perder venda",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-14-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-14-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-14-03",
+          "title": "Emitir NFC-e quando habilitada",
+          "screen": "Fiscal / Emissão",
+          "action": "Assinar e transmitir documento fiscal",
+          "validations": "Credenciais e ambiente autorizados, conectividade e schema fiscal válido",
+          "result": "Autorização real registrada com chave e protocolo",
+          "recovery": "Manter pendente/contingência quando não houver resposta real",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-14-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-14-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-14-04",
+          "title": "Cancelar ou inutilizar conforme regras",
+          "screen": "Fiscal / Emissão",
+          "action": "Solicitar evento fiscal com justificativa",
+          "validations": "Janela legal aplicável, documento autorizado e permissão",
+          "result": "Evento real registrado sem apagar histórico",
+          "recovery": "Preservar status anterior e reprocessar rejeição com segurança",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-14-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-14-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-14-05",
+          "title": "Tratar contingência e rejeições",
+          "screen": "Fiscal / Emissão",
+          "action": "Abrir fila fiscal pendente e revisar erro",
+          "validations": "Estado da transmissão e idempotência pela chave fiscal",
+          "result": "Reenvio permitido ou orientação para correção",
+          "recovery": "Não marcar autorizado até protocolo real",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-14-05",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-14-05.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-15",
+      "name": "Financeiro",
+      "screen": "Financeiro / Contas",
+      "flows": [
+        {
+          "id": "FL-15-01",
+          "title": "Registrar receitas e despesas",
+          "screen": "Financeiro / Contas",
+          "action": "Lançar entrada ou saída não vinculada à venda",
+          "validations": "Categoria, valor, data e origem válidos",
+          "result": "Movimento persistido em centavos e auditável",
+          "recovery": "Não duplicar lançamento após repetição",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-15-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-15-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-15-02",
+          "title": "Controlar contas a pagar e receber",
+          "screen": "Financeiro / Contas",
+          "action": "Criar, liquidar ou cancelar título",
+          "validations": "Vencimento, valor, contraparte e estado permitidos",
+          "result": "Título reconciliado com pagamentos e recebimentos",
+          "recovery": "Preservar saldo em erro de baixa",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-15-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-15-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-15-03",
+          "title": "Registrar vendas a prazo",
+          "screen": "Financeiro / Contas",
+          "action": "Selecionar cliente e vencimento para fiado",
+          "validations": "Cliente identificável, limite aprovado e saldo correto",
+          "result": "Conta a receber vinculada à venda",
+          "recovery": "Rollback da venda e do crédito se criação falhar",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-15-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-15-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-15-04",
+          "title": "Conciliar recebimentos",
+          "screen": "Financeiro / Contas",
+          "action": "Relacionar liquidações aos títulos e vendas",
+          "validations": "Referência única, valores e datas consistentes",
+          "result": "Títulos liquidados sem dupla baixa",
+          "recovery": "Sinalizar diferença e manter títulos abertos",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-15-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-15-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-15-05",
+          "title": "Consultar fluxo de caixa",
+          "screen": "Financeiro / Contas",
+          "action": "Aplicar período e agrupar receitas/despesas",
+          "validations": "Período válido e origem canônica dos lançamentos",
+          "result": "Visão de caixa coerente com movimentos reais",
+          "recovery": "Exibir erro de cálculo sem fabricar valores",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-15-05",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-15-05.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-16",
+      "name": "Relatórios",
+      "screen": "Relatórios / Indicadores",
+      "flows": [
+        {
+          "id": "FL-16-01",
+          "title": "Relatório de vendas",
+          "screen": "Relatórios / Indicadores",
+          "action": "Escolher período e status das vendas",
+          "validations": "Datas válidas, apenas vendas confirmadas e estornos considerados",
+          "result": "Totais e listagem compatíveis com o livro de vendas",
+          "recovery": "Não apresentar valor anterior como atualizado após erro",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-16-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-16-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-16-02",
+          "title": "Produtos mais vendidos",
+          "screen": "Relatórios / Indicadores",
+          "action": "Agrupar itens por quantidade e faturamento",
+          "validations": "Quantidade e devoluções consideradas, unidades coerentes",
+          "result": "Ranking reproduzível pelo mesmo período",
+          "recovery": "Indicar ausência de vendas sem inventar ranking",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-16-02",
+            "kind": "unitario",
+            "plannedTest": "tests/journeys/QA-16-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-16-03",
+          "title": "Desempenho por operador",
+          "screen": "Relatórios / Indicadores",
+          "action": "Selecionar operador e intervalo",
+          "validations": "Operador identificado, associação de vendas por autoria",
+          "result": "Indicadores consistentes por operador",
+          "recovery": "Exibir lacunas de autoria sem atribuir vendas incorretamente",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-16-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-16-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-16-04",
+          "title": "Fechamentos de caixa",
+          "screen": "Relatórios / Indicadores",
+          "action": "Consultar turnos e suas divergências",
+          "validations": "Aberturas, movimentos e fechamentos persistidos",
+          "result": "Relatório conciliável de cada turno",
+          "recovery": "Indicar turno inconsistente para revisão",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-16-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-16-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-16-05",
+          "title": "Margens, custos e indicadores",
+          "screen": "Relatórios / Indicadores",
+          "action": "Calcular margem com custos vinculados às vendas",
+          "validations": "Precisão em centavos, custos históricos e devoluções",
+          "result": "Margens consistentes por item e período",
+          "recovery": "Exibir dado indisponível quando custo for desconhecido",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-16-05",
+            "kind": "unitario",
+            "plannedTest": "tests/journeys/QA-16-05.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-17",
+      "name": "Impressão e periféricos",
+      "screen": "Configurações / Dispositivos",
+      "flows": [
+        {
+          "id": "FL-17-01",
+          "title": "Configurar impressoras",
+          "screen": "Configurações / Dispositivos",
+          "action": "Selecionar impressora e testar comunicação",
+          "validations": "Dispositivo presente, permissões e formato configurado",
+          "result": "Impressora salva e teste físico impresso",
+          "recovery": "Permitir escolher outro dispositivo sem perder configuração",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-17-01",
+            "kind": "hardware",
+            "plannedTest": "tests/journeys/QA-17-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-17-02",
+          "title": "Imprimir comprovantes",
+          "screen": "Configurações / Dispositivos",
+          "action": "Solicitar impressão após venda confirmada",
+          "validations": "Venda persistida, valores corretos e dispositivo disponível",
+          "result": "Comprovante legível corresponde à venda",
+          "recovery": "Oferecer reimpressão sem duplicar venda em falha de impressão",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-17-02",
+            "kind": "hardware",
+            "plannedTest": "tests/journeys/QA-17-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-17-03",
+          "title": "Utilizar leitores de código de barras",
+          "screen": "Configurações / Dispositivos",
+          "action": "Ler código no campo de pesquisa",
+          "validations": "Entrada HID reconhecida, foco e código único",
+          "result": "Produto correto identificado sem chamada remota",
+          "recovery": "Oferecer digitação manual quando leitura falhar",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-17-03",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-17-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-17-04",
+          "title": "Acionar gaveta de dinheiro",
+          "screen": "Configurações / Dispositivos",
+          "action": "Executar abertura após pagamento em dinheiro",
+          "validations": "Operador permitido, caixa aberto e dispositivo configurado",
+          "result": "Comando emitido apenas na operação permitida",
+          "recovery": "Registrar erro físico sem repetir cobrança",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-17-04",
+            "kind": "hardware",
+            "plannedTest": "tests/journeys/QA-17-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-17-05",
+          "title": "Reimprimir comprovantes",
+          "screen": "Configurações / Dispositivos",
+          "action": "Selecionar venda anterior e solicitar segunda via",
+          "validations": "Venda existente e operador com permissão",
+          "result": "Segunda via identificada sem alterar total ou estoque",
+          "recovery": "Informar dispositivo indisponível e permitir tentar de novo",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-17-05",
+            "kind": "hardware",
+            "plannedTest": "tests/journeys/QA-17-05.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-18",
+      "name": "Configurações comerciais",
+      "screen": "Configurações / Regras",
+      "flows": [
+        {
+          "id": "FL-18-01",
+          "title": "Definir descontos e limites",
+          "screen": "Configurações / Regras",
+          "action": "Salvar regras de desconto por perfil",
+          "validations": "Limites canônicos e sem valores negativos",
+          "result": "Regras aplicadas às próximas operações",
+          "recovery": "Reverter alterações inválidas e preservar regra vigente",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-18-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-18-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-18-02",
+          "title": "Configurar formas de pagamento",
+          "screen": "Configurações / Regras",
+          "action": "Ativar ou desativar meios disponíveis",
+          "validations": "Ao menos meio permitido, regras e operador autorizado",
+          "result": "Lista de meios atualizada no fechamento de venda",
+          "recovery": "Impedir remoção de meio usado em transação em curso",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-18-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-18-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-18-03",
+          "title": "Definir arredondamentos e unidades",
+          "screen": "Configurações / Regras",
+          "action": "Revisar padrão monetário e granularidade de quantidade",
+          "validations": "Centavos inteiros, milésimos para KG e UN inteiro",
+          "result": "Valores calculados sem diferenças flutuantes",
+          "recovery": "Rejeitar regra conflitante preservando contrato canônico",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-18-03",
+            "kind": "unitario",
+            "plannedTest": "tests/journeys/QA-18-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-18-04",
+          "title": "Configurar preferências operacionais",
+          "screen": "Configurações / Regras",
+          "action": "Salvar comportamento padrão da frente de caixa",
+          "validations": "Opções conhecidas e direitos de alteração",
+          "result": "Preferências aplicadas ao reabrir aplicativo",
+          "recovery": "Carregar padrão seguro se preferência estiver inválida",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-18-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-18-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-19",
+      "name": "Backup e restauração",
+      "screen": "Ferramentas / Backup",
+      "flows": [
+        {
+          "id": "FL-19-01",
+          "title": "Criar backup local",
+          "screen": "Ferramentas / Backup",
+          "action": "Selecionar destino e executar cópia consistente",
+          "validations": "Banco não corrompido, destino gravável e cópia transacional",
+          "result": "Arquivo local verificável sem serviço externo",
+          "recovery": "Não sobrescrever backup válido em falha de cópia",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-19-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-19-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-19-02",
+          "title": "Exportar dados em formato aberto",
+          "screen": "Ferramentas / Backup",
+          "action": "Escolher tabelas e exportar CSV ou planilha",
+          "validations": "Campos canônicos, codificação, datas e valores corretos",
+          "result": "Arquivo aberto exportado sem perda silenciosa",
+          "recovery": "Gerar erro sem criar exportação parcial enganosa",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-19-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-19-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-19-03",
+          "title": "Restaurar backup validado",
+          "screen": "Ferramentas / Backup",
+          "action": "Selecionar arquivo e confirmar restauração",
+          "validations": "Versão compatível, integridade e confirmação explícita",
+          "result": "Dados restaurados e aplicativo reiniciado de forma segura",
+          "recovery": "Manter banco anterior e rollback se validação falhar",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-19-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-19-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-19-04",
+          "title": "Verificar integridade e versão do banco",
+          "screen": "Ferramentas / Backup",
+          "action": "Executar diagnóstico local do SQLite",
+          "validations": "Schema version, checks de integridade e migrações suportadas",
+          "result": "Resultado do diagnóstico com problemas identificados",
+          "recovery": "Bloquear restauração insegura e oferecer correção orientada",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-19-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-19-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-20",
+      "name": "Funcionamento offline e sincronização",
+      "screen": "Status local / Sincronização",
+      "flows": [
+        {
+          "id": "FL-20-01",
+          "title": "Operar com SQLite local",
+          "screen": "Status local / Sincronização",
+          "action": "Abrir e usar cadastros sem internet",
+          "validations": "Acesso ao arquivo SQLite e nenhuma dependência remota obrigatória",
+          "result": "Dados carregados e salvos com rede externa desligada",
+          "recovery": "Tentar leitura local novamente sem exigir conta ou assinatura",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-20-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-20-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-20-02",
+          "title": "Preservar transações sem internet",
+          "screen": "Status local / Sincronização",
+          "action": "Concluir operações comerciais com rede externa desconectada",
+          "validations": "Consistência e commit atômico no SQLite",
+          "result": "Venda local e movimentos persistem após reiniciar",
+          "recovery": "Rollback e rascunho preservado em erro de gravação",
+          "implementation": "em-desenvolvimento-pr-2",
+          "qa": {
+            "id": "QA-20-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-20-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-20-03",
+          "title": "Sincronizar com servidor próprio se configurado",
+          "screen": "Status local / Sincronização",
+          "action": "Ativar e iniciar sincronização opt-in",
+          "validations": "Servidor self-hosted configurado, autenticação e versões compatíveis",
+          "result": "Dados replicados sem afetar operação local",
+          "recovery": "Manter fila local e continuar operando sem conexão",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-20-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-20-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-20-04",
+          "title": "Resolver conflitos e retomar operações",
+          "screen": "Status local / Sincronização",
+          "action": "Reconciliar alterações divergentes por entidade",
+          "validations": "Regras determinísticas e IDs imutáveis",
+          "result": "Conflito resolvido sem perda silenciosa",
+          "recovery": "Encaminhar conflito não resolúvel à revisão e preservar ambas versões",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-20-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-20-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-21",
+      "name": "Auditoria e segurança",
+      "screen": "Auditoria / Eventos",
+      "flows": [
+        {
+          "id": "FL-21-01",
+          "title": "Registrar alterações críticas",
+          "screen": "Auditoria / Eventos",
+          "action": "Salvar evento ao alterar preço, produto ou configuração",
+          "validations": "Usuário, origem, antes/depois e timestamp confiáveis",
+          "result": "Trilha de eventos consultável sem alterar dado de negócio",
+          "recovery": "Reverter operação crítica se auditoria obrigatória falhar",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-21-01",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-21-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-21-02",
+          "title": "Rastrear cancelamentos e descontos",
+          "screen": "Auditoria / Eventos",
+          "action": "Consultar eventos de estorno e redução de preço",
+          "validations": "Associação de venda, operador e motivo",
+          "result": "Trilha completa de autorização e valores",
+          "recovery": "Não autorizar operação sem registro requerido",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-21-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-21-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-21-03",
+          "title": "Controlar acesso a operações",
+          "screen": "Auditoria / Eventos",
+          "action": "Tentar operação protegida com perfil restrito",
+          "validations": "Matriz de permissões e identidade validada localmente",
+          "result": "Acesso concedido ou negado sem bypass por UI",
+          "recovery": "Rejeitar alteração não autorizada sem gravar dados",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-21-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-21-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-21-04",
+          "title": "Consultar logs e falhas",
+          "screen": "Auditoria / Eventos",
+          "action": "Abrir histórico técnico filtrado",
+          "validations": "Proteção de dados pessoais e separação de logs sensíveis",
+          "result": "Erros pesquisáveis com identificadores de correlação",
+          "recovery": "Não travar operação por falha de visualização de logs",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-21-04",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-21-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "MOD-22",
+      "name": "Atualizações e manutenção",
+      "screen": "Ajuda / Sobre / Manutenção",
+      "flows": [
+        {
+          "id": "FL-22-01",
+          "title": "Identificar versão instalada",
+          "screen": "Ajuda / Sobre / Manutenção",
+          "action": "Abrir informações do aplicativo",
+          "validations": "Versão lida da distribuição instalada",
+          "result": "Versão e compatibilidade exibidas corretamente",
+          "recovery": "Exibir versão desconhecida sem inventar atualização disponível",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-22-01",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-22-01.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-22-02",
+          "title": "Executar migrações de banco",
+          "screen": "Ajuda / Sobre / Manutenção",
+          "action": "Abrir instalação com schema anterior",
+          "validations": "PRAGMA user_version, migração idempotente e dados preservados",
+          "result": "Banco atualizado e reaberto com todos os registros",
+          "recovery": "Abortar migração com cópia preservada",
+          "implementation": "presente-no-marco-a",
+          "qa": {
+            "id": "QA-22-02",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-22-02.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": "tests/catalog.test.mjs"
+          }
+        },
+        {
+          "id": "FL-22-03",
+          "title": "Preservar dados existentes",
+          "screen": "Ajuda / Sobre / Manutenção",
+          "action": "Atualizar aplicativo mantendo base atual",
+          "validations": "Diretório de dados fixo, UUID estável e formato compatível",
+          "result": "Cadastros e históricos anteriores intactos",
+          "recovery": "Reverter binário sem apagar o banco",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-22-03",
+            "kind": "integracao",
+            "plannedTest": "tests/journeys/QA-22-03.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        },
+        {
+          "id": "FL-22-04",
+          "title": "Recuperar falhas e permitir rollback",
+          "screen": "Ajuda / Sobre / Manutenção",
+          "action": "Detectar falha na atualização ou inicialização",
+          "validations": "Backup anterior, esquema compatível e diagnóstico rastreável",
+          "result": "Versão funcional restabelecida com dados consistentes",
+          "recovery": "Bloquear rollback incompatível e oferecer restauração validada",
+          "implementation": "planejado",
+          "qa": {
+            "id": "QA-22-04",
+            "kind": "e2e",
+            "plannedTest": "tests/journeys/QA-22-04.test.mjs",
+            "coverage": "pendente-jornada",
+            "existingBackendEvidence": null
+          }
+        }
+      ]
+    }
+  ]
+}
