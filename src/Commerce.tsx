@@ -17,6 +17,58 @@ const statusText:Record<string,string>={...commerceLabels.status,...commerceLabe
 function Message({error,success}:{error:string;success:string}){
   return <>{error && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}</div>}{success && <div className="notice success" role="status"><Check size={17}/>{success}</div>}</>;
 }
+
+/* Indicadores visuais derivados somente do SQLite local, sem números ilustrativos. */
+function ReportCharts({sales,summary}:{sales:R[];summary:R}){
+  const daily=Array.from({length:7},(_,index)=>{
+    const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()-(6-index));
+    const key=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+    const amount=sales.filter(s=>s.status==='completed'&&!s.is_training&&s.created_at&&
+      new Date(s.created_at).toLocaleDateString('en-CA')===key).reduce((total,s)=>total+Number(s.total_cents||0),0);
+    return {key,label:d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),amount};
+  });
+  const maximum=Math.max(1,...daily.map(d=>d.amount));
+  const paymentMethods=[
+    {name:'Dinheiro',amount:Number(summary.cash_cents||0),color:'#0d51c5'},
+    {name:'Pix',amount:Number(summary.pix_cents||0),color:'#178de5'},
+    {name:'Cartão',amount:Number(summary.card_cents||0)+Number(summary.card_credit_cents||0)+Number(summary.card_debit_cents||0),color:'#65b9f5'},
+    {name:'Fiado',amount:Number(summary.credit_cents||0),color:'#b3dcf8'}
+  ];
+  const paymentTotal=paymentMethods.reduce((sum,row)=>sum+row.amount,0);
+  let at=0;
+  const slices=paymentMethods.filter(row=>row.amount>0).map(row=>{
+    const start=at;at+=row.amount/paymentTotal*100;
+    return row.color+' '+start.toFixed(3)+'% '+at.toFixed(3)+'%';
+  });
+  const gradient=paymentTotal>0?'conic-gradient('+slices.join(', ')+')':'conic-gradient(#dce9f8 0% 100%)';
+  return <div className="super-report-charts">
+    <section className="super-report-chart-panel" aria-label="Vendas por dia">
+      <h3>Vendas nos últimos 7 dias</h3>
+      <p>Vendas concluídas, excluindo treinamento e cancelamentos.</p>
+      <div className="super-report-bars">
+        {daily.map(day=><div className="super-report-bar-column" key={day.key} title={day.label+' — '+money(day.amount)}>
+          <span className="super-report-bar-value">{day.amount?money(day.amount):'—'}</span>
+          <div className="super-report-bar-track"><span className="super-report-bar-fill"
+            style={{height:day.amount?Math.max(5,day.amount/maximum*100)+'%':'0%'}}/></div>
+          <small>{day.label}</small>
+        </div>)}
+      </div>
+    </section>
+    <section className="super-report-chart-panel" aria-label="Formas de recebimento">
+      <h3>Recebimentos por forma</h3>
+      <p>Valores acumulados registrados no caixa.</p>
+      <div className="super-report-payment-chart">
+        <div className="super-report-donut" style={{background:gradient}} aria-label={'Recebimentos no período: '+money(paymentTotal)}>
+          <div><strong>{money(paymentTotal)}</strong><span>Registrados</span></div>
+        </div>
+        <div className="super-report-legend">
+          {paymentMethods.map(row=><div key={row.name}><i style={{background:row.color}} aria-hidden="true"/><span>{row.name}</span><strong>{money(row.amount)}</strong></div>)}
+        </div>
+      </div>
+    </section>
+  </div>;
+}
+
 export function PaymentModal({cart,products,customers,role,onClose,onDone,onCustomerSaved,initialMethod='cash',initialFocus}:{
   cart:any[];products:R[];customers:R[];role:string;onClose:()=>void;onDone:(sale:R)=>void;onCustomerSaved:()=>Promise<void>;
   initialMethod?:'cash'|'pix'|'card';initialFocus?:'customer'|'discount';
@@ -241,6 +293,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [sales,setSales]=useState<R[]>([]);
   const [receipt,setReceipt]=useState<R|null>(null);
   const [products,setProducts]=useState<R[]>([]);
+  const [categories,setCategories]=useState<R[]>([]);
   const [movements,setMovements]=useState<R[]>([]);
   const [finance,setFinance]=useState<R[]>([]);
   const [settleAmounts,setSettleAmounts]=useState<Record<string,string>>({});
@@ -306,15 +359,16 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     if(!api){setError('Abra pelo aplicativo Electron.');return;}
     try{
       const manager=role!=='Caixa';
-      const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules,who,sp,purchasesNow]=await Promise.all([
+      const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules,who,sp,purchasesNow,cats]=await Promise.all([
         api.sessionCurrent(),api.salesList(),api.list('products'),manager?api.stockHistory():Promise.resolve([]),
         manager?api.financeList():Promise.resolve([]),manager?api.report():Promise.resolve({}),
         manager?api.sessionsList():Promise.resolve([]),
         manager?api.batchesList():Promise.resolve([]),manager?api.promotionsList():Promise.resolve([]),manager?api.bundleList():Promise.resolve([]),
-        api.authStatus(),manager?api.list('suppliers'):Promise.resolve([]),manager?api.purchaseList():Promise.resolve([])
+        api.authStatus(),manager?api.list('suppliers'):Promise.resolve([]),manager?api.purchaseList():Promise.resolve([]),
+        manager?api.list('categories'):Promise.resolve([])
       ]);
       setSession(s);setSales(sl);setProducts(pr);setMovements(m);setFinance(fin);setSummary(r);setOtherSessions(other);setBatches(lots);setPromotions(priceRules);setBundles(groupRules);setError('');
-      setSuppliers(sp);setPurchases(purchasesNow);setSettleAmounts({});
+      setSuppliers(sp);setPurchases(purchasesNow);setCategories(cats);setSettleAmounts({});
       const possibleManagers=(who.operators||[]).filter((x:R)=>x.role==='Administrador'||x.role==='Gerente');
       setManagerOperators(possibleManagers);
       setManagerSelection(current=>current||possibleManagers[0]?.id||'');
@@ -414,7 +468,31 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     {view==='sales'&&<div className="panel commerce-section"><h2>Histórico de vendas</h2><p>O cancelamento só é permitido no mesmo turno aberto e atualiza os movimentos locais. Estornos de Pix/cartão devem ser realizados externamente.</p><div className="commerce-table"><table><thead><tr><th>Data</th><th>Venda</th><th>Cliente</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{sales.map(s=><tr key={s.id}><td>{pretty(s.created_at)}</td><td title={s.id}>{s.id.slice(0,8)}</td><td>{s.customer_id?.slice(0,8)||'Consumidor final'}</td><td>{money(s.total_cents)}</td><td>{s.is_training?'TREINAMENTO — '+statusText[s.status]:statusText[s.status]}</td><td><button className="secondary" type="button" disabled={busy} onClick={async()=>{try{setReceipt(await api!.saleGet(s.id));setError('');}catch(err){setError(errorMessage(err));}}}>Comprovante</button> {s.status==='completed'&&<button disabled={busy||session?.id!==s.session_id} className="secondary button-danger" onClick={()=>{
             if(window.confirm('Cancelar venda? Estoque e registros locais serão revertidos. Pix e cartão exigem reembolso externo manual.')) void action(()=>api!.salesCancel(s.id),'Venda cancelada e estoque restaurado.',true);
           }}>Cancelar venda</button>}</td></tr>)}</tbody></table>{sales.length===0&&<p className="commerce-empty">Nenhuma venda foi realizada ainda.</p>}</div></div>}
-    {view==='inventory'&&<><div className="panel commerce-section"><h2>Movimentar estoque</h2><p>Entradas e ajustes registrados no histórico. O saldo do cadastro não pode ser alterado diretamente.</p>
+    {view==='inventory'&&<>
+      <div className="panel commerce-section super-inventory-overview">
+        <div className="commerce-heading"><div><h2>Controle de estoque</h2><p>Saldo real dos produtos. Alerta de atenção: até 5 unidades ou kg, sem configurar mínimo.</p></div>
+          <span className="count-chip">{products.length} produtos cadastrados</span></div>
+        <div className="super-inventory-grid">
+          <div className="super-inventory-stat"><strong>{products.length}</strong><span>Produtos ativos</span></div>
+          <div className="super-inventory-stat"><strong>{products.filter(p=>Number(p.stock_milli||0)>0).length}</strong><span>Em estoque</span></div>
+          <div className="super-inventory-stat super-inventory-warning"><strong>{products.filter(p=>Number(p.stock_milli||0)>0&&Number(p.stock_milli||0)<=5000).length}</strong><span>Atenção (até 5)</span></div>
+          <div className="super-inventory-stat super-inventory-danger"><strong>{products.filter(p=>Number(p.stock_milli||0)<=0).length}</strong><span>Sem estoque</span></div>
+        </div>
+        <div className="commerce-table super-inventory-table"><table><thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th>Estoque atual</th><th>Situação</th></tr></thead>
+          <tbody>{products.slice(0,100).map(p=><tr key={p.id}>
+            <td>{p.code||'—'}</td>
+            <td className="super-stock-product">{p.image_data?<img src={p.image_data} alt="" loading="lazy"/>:<span className="super-stock-empty"><Package size={18}/></span>}<strong>{p.name}</strong></td>
+            <td>{categories.find(c=>c.id===p.category_id)?.name||'Sem categoria'}</td>
+            <td>{(Number(p.stock_milli||0)/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {p.unit}</td>
+            <td><span className={'super-stock-status '+(Number(p.stock_milli||0)<=0?'out':Number(p.stock_milli||0)<=5000?'low':'good')}>{Number(p.stock_milli||0)<=0?'Sem estoque':Number(p.stock_milli||0)<=5000?'Atenção':'Em estoque'}</span></td>
+          </tr>)}</tbody></table>{products.length>100&&<p className="commerce-warning">Mostrando os primeiros 100 itens. Use o cadastro de produtos para consultar todo o catálogo.</p>}</div>
+        <div className="super-inventory-actions">
+          <button className="primary" type="button" onClick={()=>{setStockKind('receipt');setStockDirection('positive');document.getElementById('inventory-move-form')?.scrollIntoView({block:'center',behavior:'smooth'});}}><Plus size={16}/> Entrada de estoque</button>
+          <button className="secondary" type="button" onClick={()=>{setStockKind('adjustment');setStockDirection('negative');document.getElementById('inventory-move-form')?.scrollIntoView({block:'center',behavior:'smooth'});}}><ArrowDownToLine size={16}/> Saída de estoque</button>
+          <button className="secondary" type="button" onClick={()=>{setStockKind('adjustment');setStockDirection('positive');document.getElementById('inventory-move-form')?.scrollIntoView({block:'center',behavior:'smooth'});}}><RotateCcw size={16}/> Ajuste de estoque</button>
+        </div>
+      </div>
+      <div className="panel commerce-section" id="inventory-move-form"><h2>Movimentar estoque</h2><p>Entradas e ajustes registrados no histórico. O saldo do cadastro não pode ser alterado diretamente.</p>
       <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(async()=>{
         const q=parseFixed(stockQuantity,3,'Quantidade');
         const delta=stockDirection==='negative'?-q:q;
@@ -561,7 +639,16 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         <div><h2>Relatório gerencial acumulado</h2><p>Exporte localmente; nenhum dado é enviado a serviços externos.</p></div>
         <div className="report-actions">{(['pdf','csv','xlsx'] as const).map(format=><button key={format} className="secondary" disabled={busy} onClick={()=>void exportReport(format)}>Exportar {format.toUpperCase()}</button>)}</div>
       </div>
-      <div className="report-grid">{reportRows(summary).map(row=><div className="stat" key={row.key}><span className="report-label">{row.label}</span><strong className="report-number">{row.type==='money'?money(row.raw):row.value}</strong><span className="stat-bottom">Acumulado local</span></div>)}</div>
+      <div className="super-report-kpis">
+        <div className="stat"><span>Vendas (R$)</span><strong>{money(summary.sales_total_cents||0)}</strong><small>Faturamento acumulado</small></div>
+        <div className="stat"><span>Quantidade de vendas</span><strong>{summary.sales_count||0}</strong><small>Concluídas</small></div>
+        <div className="stat"><span>Ticket médio</span><strong>{money(summary.sales_count?Math.round((summary.sales_total_cents||0)/summary.sales_count):0)}</strong><small>Por venda concluída</small></div>
+        <div className="stat"><span>Descontos</span><strong>{money(summary.discounts_cents||0)}</strong><small>Concedidos</small></div>
+      </div>
+      <ReportCharts sales={sales} summary={summary}/>
+      <details className="super-report-details"><summary>Ver todos os indicadores do relatório</summary>
+        <div className="report-grid">{reportRows(summary).map(row=><div className="stat" key={row.key}><span className="report-label">{row.label}</span><strong className="report-number">{row.type==='money'?money(row.raw):row.value}</strong><span className="stat-bottom">Acumulado local</span></div>)}</div>
+      </details>
       <div className="panel commerce-section"><h2>Relatório detalhado por item vendido</h2>
         <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(async()=>{setItemReport(await api!.reportItems({
           from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined,

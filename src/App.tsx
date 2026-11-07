@@ -371,26 +371,30 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       setPasswordTarget(null);setOperatorPassword('');setRepeatPassword('');
     }catch(e){setError(friendlyError(e));}
   }
-  return <div className={'shell'+(view==='checkout'?' cashier-shell mode-light':'')}>
-    <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><ShoppingCart size={22}/></div><div><strong>PDV SUPER</strong><span>Gestão comercial local</span></div></div>
-      <div className="workspace"><div className="workspace-avatar">PS</div><div><strong>Estabelecimento local</strong><span>Funcionamento offline • perfis e caixas independentes</span></div></div>
-      <nav aria-label="Navegação principal">
-        {menus.map(section => <div className="menu-section" key={section.title}>
-          <div className="menu-title">{section.title}</div>
-          {section.ids.filter(canVisit).map((id:string) => {
-            const Icon = icons[id];
-            return <button type="button" key={id} className={'nav-item '+(view === id ? 'selected' : '')} aria-current={view === id ? 'page' : undefined} onClick={() => selectView(id)}>
-              <Icon size={18}/><span>{titles[id] || definitions[id]?.label}</span>{view === id && <ChevronRight size={16}/>}
-            </button>;
-          })}
-        </div>)}
-      </nav>
-      <div className="sidebar-footer"><Database size={17}/><div><strong>SQLite local</strong><span>Sem serviços pagos</span></div><ShieldCheck size={17}/></div>
-    </aside>
+  return <div className={'shell super-shell'+(view==='checkout'?' cashier-shell mode-light':'')}>
     <main className="main">
-      <header className="topbar"><div className="breadcrumbs"><span>PDV SUPER</span><ChevronRight size={16}/><strong>{titles[view] || definitions[view]?.label}</strong></div>
-        <div className="top-actions"><span title="Operador autenticado">{user.name} · {user.role}</span><button className="secondary" onClick={()=>void onLogout()}>Sair</button><span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Modo local'}</span><span className="version">Versão 0.4.0</span></div>
+      <header className="topbar super-topbar">
+        <div className="super-top-brand" aria-label="PDV SUPER">
+          <span className="super-brand-icon"><ShoppingCart size={23}/></span>
+          <strong>PDV SUPER</strong>
+        </div>
+        <nav className="super-top-navigation" aria-label="Navegação principal">
+          {menus.map(section => <div className="menu-section" key={section.title}>
+            <div className="menu-title">{section.title}</div>
+            {section.ids.filter(canVisit).map((id:string) => {
+              const Icon = icons[id];
+              return <button type="button" key={id} className={'nav-item '+(view === id ? 'selected' : '')}
+                aria-current={view === id ? 'page' : undefined} onClick={() => selectView(id)}>
+                <Icon size={16}/><span>{titles[id] || definitions[id]?.label}</span>
+              </button>;
+            })}
+          </div>)}
+        </nav>
+        <div className="top-actions super-top-actions">
+          <span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Local'}</span>
+          <span className="super-user" title="Operador autenticado"><UserRoundCog size={18}/><span>{user.name} · {user.role}</span></span>
+          <button className="super-logout" onClick={()=>void onLogout()}>Sair</button>
+        </div>
       </header>
       <section className="content">
         {notice && <div className="notice success" role="status"><Check size={17}/>{notice}<button aria-label="Fechar aviso" onClick={() => setNotice('')}><X size={15}/></button></div>}

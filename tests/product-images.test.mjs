@@ -59,7 +59,8 @@ test('UI de cadastro e caixa usa miniatura e tabela do referencial visual',()=>{
   assert.match(app,/type="file" accept="image\/jpeg,image\/png,image\/webp"/);
   assert.match(app,/Foto do produto/);
   assert.match(app,/product-thumbnail/);
-  assert.match(cashier,/cashier-table-head/);
+  assert.match(cashier,/cashier-product-results/);
+  assert.match(cashier,/cashier-checkout-side/);
   assert.match(cashier,/cashier-item-unit-price/);
   assert.match(cashier,/cashier-item-photo/);
   assert.match(cashier,/productPhotos/);

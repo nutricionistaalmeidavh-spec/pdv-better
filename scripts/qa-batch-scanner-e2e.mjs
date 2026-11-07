@@ -41,7 +41,7 @@ try{
  await search.waitFor();
  await page.getByRole('button',{name:'Abrir catálogo'}).click();
  await page.locator('.cashier-product-results').getByText('Café teste 250g').waitFor();
- await page.getByRole('button',{name:'Fechar catálogo'}).last().click();
+  // Catálogo permanente: leitor HID usa campo de busca sem fechar a grade.
  await search.fill(createBatchLabel(a.code,batchB.code));
  await search.press('Enter');
  await page.locator('.cashier-item').filter({hasText:'Lote TESTE-FISICO'}).waitFor({timeout:20000});
