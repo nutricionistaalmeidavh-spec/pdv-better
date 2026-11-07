@@ -28,6 +28,15 @@ const formField=(scope,label,tag='input')=>scope.locator('label').filter({hasTex
 const stockForm=()=>page.locator('.commerce-section').filter({has:page.getByRole('heading',{name:'Movimentar estoque'})}).locator('form');
 const historyPanel=()=>page.locator('.commerce-section').filter({has:page.getByRole('heading',{name:'Histórico de movimentações'})});
 const receipt=()=>page.getByRole('dialog',{name:'Comprovante não fiscal da venda'});
+async function closeShiftWithManager(amount){
+  const form=shiftPanel().locator('form');
+  for(let i=0;i<5;i++)await form.locator('input').nth(i).fill(i===0?amount:'0,00');
+  await form.getByRole('button',{name:'Revisar fechamento e solicitar gerente'}).click();
+  const review=page.getByRole('dialog',{name:'Confirmar fechamento de caixa'});
+  await review.locator('input[type="password"]').fill(password);
+  await review.getByRole('button',{name:'Autorizar e fechar caixa'}).click();
+  await page.getByRole('status').filter({hasText:'Fechamento autorizado.'}).waitFor();
+}
 async function nav(name,heading){
   await menu(name).click();
   await page.getByRole('heading',{name:heading,exact:true}).waitFor();
@@ -200,11 +209,9 @@ try{
   // F32: fechamento do próprio turno com contagem exata.
   await nav('Controle de caixa','Controle de caixa');
   assert.equal((await call('sessionCurrent')).expected_cash_cents,10500);
-  await formField(shiftPanel(),'Dinheiro contado (R$)').fill('105,00');
-  await shiftPanel().getByRole('button',{name:'Conferir e fechar caixa'}).click();
-  await page.getByRole('status').filter({hasText:'Caixa fechado.'}).waitFor();
+  await closeShiftWithManager('105,00');
   assert.equal(await call('sessionCurrent'),null);
-  assert.match(String(await error('sessionClose',{countedCashCents:'105,00'})),/caixa aberto/i);
+  assert.match(String(await error('sessionClose',{countedCashCents:'105,00',managerApproval:{operatorId:admin.id,password}})),/caixa aberto/i);
   // Terminal B fica aberto e não é fechado por A.
   assert.equal(otherTerminal.secureCall('getCurrentSession',[],ctxB).id,remoteShift.id);
   assert.equal((await call('sessionsList')).length,1);
@@ -216,9 +223,7 @@ try{
   await page.getByRole('status').filter({hasText:'Caixa aberto para vendas.'}).waitFor();
   const shift2=await call('sessionCurrent');
   assert.equal(shift2.expected_cash_cents,5000);
-  await formField(shiftPanel(),'Dinheiro contado (R$)').fill('40,00');
-  await shiftPanel().getByRole('button',{name:'Conferir e fechar caixa'}).click();
-  await page.getByRole('status').filter({hasText:'Caixa fechado.'}).waitFor();
+  await closeShiftWithManager('40,00');
   assert.equal(await call('sessionCurrent'),null);
   assert.equal((await call('sessionsList')).length,1);
   pass('F33','fechamento com divergência de -R$ 10,00 registrado');

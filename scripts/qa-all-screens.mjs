@@ -18,7 +18,7 @@ const now=()=>new Date().toISOString();
 const nav=(page,label)=>page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:label,exact:true});
 const names=[
   ['dashboard','Visão geral'],['checkout','Frente de caixa'],['cash','Controle de caixa'],
-  ['sales','Vendas'],['inventory','Estoque'],['finance','Financeiro'],['reports','Relatórios'],
+  ['sales','Vendas'],['inventory','Estoque'],['purchases','Compras'],['finance','Financeiro'],['reports','Relatórios'],
   ['products','Produtos'],['categories','Categorias'],['customers','Clientes'],
   ['suppliers','Fornecedores'],['operators','Operadores'],['settings','Dispositivos e rede']
 ];

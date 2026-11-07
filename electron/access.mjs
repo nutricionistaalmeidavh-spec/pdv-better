@@ -93,6 +93,24 @@ export function createAccess(db){
    setHash(id,input?.password);
    return {operatorId:id,passwordUpdated:true};
  }
+ function verifyManagerApproval(input,terminalId='legacy'){
+   const id=String(input?.operatorId||'');
+   const key='manager-approval:'+tokenId(terminalId)+':'+id;
+   const blocked=failures.get(key);
+   if(blocked?.until>Date.now())throw new Error('Autorização gerencial temporariamente bloqueada.');
+   const user=db.prepare("SELECT id,role FROM operators WHERE id=? AND active=1").get(id);
+   const stored=credential(id);
+   const salt=Buffer.from(stored?.salt||'00'.repeat(16),'hex');
+   const actual=scryptSync(typeof input?.password==='string'?input.password:'',salt,64);
+   const expected=Buffer.from(stored?.hash||'00'.repeat(64),'hex');
+   if(!user||!['Administrador','Gerente'].includes(user.role)||!stored||!timingSafeEqual(actual,expected)){
+     const count=(blocked?.count||0)+1;
+     failures.set(key,{count,until:count>=5?Date.now()+60000:0});
+     throw new Error('Autorização gerencial inválida: informe gerente ativo e senha correta.');
+   }
+   failures.delete(key);
+   return user;
+ }
  const logout=token=>{sessions.delete(token);return {loggedOut:true};};
  const ensureLastAdmin=(method,args)=>{
    if(method!=='archive'&&method!=='save')return;
@@ -104,5 +122,5 @@ export function createAccess(db){
    const count=db.prepare("SELECT COUNT(*) AS n FROM operators WHERE role='Administrador' AND active=1").get().n;
    if(count<=1 && (method==='archive'||args[1]?.role!=='Administrador'))throw new Error('Não é permitido remover o último administrador.');
  };
- return {status,bootstrap,login,logout,current,authorize,setPassword,ensureLastAdmin};
+ return {status,bootstrap,login,logout,current,authorize,setPassword,ensureLastAdmin,verifyManagerApproval};
 }

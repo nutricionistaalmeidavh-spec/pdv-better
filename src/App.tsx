@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Tags, Users, Truck, UserRoundCog,
   Search, Plus, Pencil, Archive, X, Check, AlertTriangle, Database, RotateCcw,
   ChevronRight, Minus, Settings, ShieldCheck, ArrowRight, Trash2, Keyboard,
-  Wallet, ClipboardList, BarChart3, Boxes, ReceiptText
+  Wallet, ClipboardList, BarChart3, Boxes, ReceiptText, PackageCheck
 } from 'lucide-react';
 import { entities, entityOrder } from '../shared/contract.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
@@ -22,15 +22,15 @@ const definitions: Record<string, any> = entities;
 const icons: Record<string, any> = {
   dashboard: LayoutDashboard, checkout: ShoppingCart, products: Package, categories: Tags,
   customers: Users, suppliers: Truck, operators: UserRoundCog,
-  cash: Wallet, sales: ReceiptText, inventory: Boxes, finance: ClipboardList, reports: BarChart3, settings: Settings
+  cash: Wallet, sales: ReceiptText, inventory: Boxes, purchases: PackageCheck, finance: ClipboardList, reports: BarChart3, settings: Settings
 };
 const menus = [
   {title:'OPERAÇÃO', ids:['dashboard','checkout','cash','sales']},
-  {title:'GESTÃO', ids:['inventory','finance','reports']},
+  {title:'GESTÃO', ids:['inventory','purchases','finance','reports']},
   {title:'CADASTROS', ids:entityOrder},
   {title:'SISTEMA', ids:['settings']}
 ];
-const titles: Record<string,string> = {dashboard:'Visão geral',checkout:'Frente de caixa',cash:'Controle de caixa',sales:'Vendas',inventory:'Estoque',finance:'Financeiro',reports:'Relatórios',settings:'Dispositivos e rede'};
+const titles: Record<string,string> = {dashboard:'Visão geral',checkout:'Frente de caixa',cash:'Controle de caixa',sales:'Vendas',inventory:'Estoque',purchases:'Compras',finance:'Financeiro',reports:'Relatórios',settings:'Dispositivos e rede'};
 const formatValue = (field:any, value:any):string => {
   if (value === null || value === undefined) return '';
   if (field.type === 'money') return (Number(value)/100).toFixed(2);
@@ -110,18 +110,23 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     catch{/* A ausência de armazenamento temporário não impede uma venda */ }
   },[cart]);
   useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
-  useEffect(() => { if(view==='checkout' && bridge) void bridge.sessionCurrent().then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
+  useEffect(() => { if((view==='checkout'||view==='dashboard') && bridge) void bridge.sessionCurrent().then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
   useEffect(() => {
     if (view === 'checkout') searchInput.current?.focus();
   }, [view]);
   useEffect(() => {
     const onKey = (ev:KeyboardEvent) => {
       if (ev.key === 'Escape' && editing) setEditing(null);
-      if (ev.key === 'F2' && !editing) { ev.preventDefault(); setView('checkout'); searchInput.current?.focus(); }
+      const target=ev.target;
+      const editingText=target instanceof HTMLElement && !!target.closest('input,textarea,select,[contenteditable="true"]');
+      const dialogActive=!!document.querySelector('[role="dialog"][aria-modal="true"]');
+      if (ev.key === 'F2' && !editing && !paymentOpen && !editingText && !dialogActive) {
+        ev.preventDefault(); setView('checkout'); searchInput.current?.focus();
+      }
     };
     window.addEventListener('keydown',onKey);
     return () => window.removeEventListener('keydown',onKey);
-  }, [editing]);
+  }, [editing,paymentOpen]);
   const rows:Row[] = records[view] || [];
   const filteredRows = useMemo(() => rows.filter(row =>
     !search || Object.values(row).some(value => String(value??'').toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
@@ -278,6 +283,17 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         {loading ? <div className="loading">Carregando dados do estabelecimento…</div> : <>
           {view === 'dashboard' && <>
             <div className="page-heading"><div><div className="eyebrow">INÍCIO</div><h1>Bem-vindo ao PDV Better</h1><p>Seu comércio organizado em um único lugar, mesmo sem internet.</p></div><button className="primary" onClick={() => selectView('checkout')}><ShoppingCart size={17}/> Abrir frente de caixa</button></div>
+            {(!products.length||!session)&&<div className="panel glass-panel" aria-label="Primeiros passos">
+              <h2>Primeiros passos</h2>
+              <p>Prepare o catálogo, abra seu caixa com o valor real de troco e faça a primeira venda.</p>
+              <div className="quick-grid">
+                <button className="secondary" type="button" onClick={()=>{selectView('products');setForm(newForm('products'));setEditing({});}}>
+                  {products.length?'Produto cadastrado — adicionar outro':'1. Cadastrar primeiro produto'}
+                </button>
+                <button className="secondary" type="button" onClick={()=>selectView('cash')}>{session?'Caixa já aberto':'2. Abrir caixa e informar troco'}</button>
+                <button className="primary" type="button" onClick={()=>selectView('checkout')}>3. Iniciar venda</button>
+              </div>
+            </div>}
             <div className="stat-grid">
               {entityOrder.slice(0,4).filter(kind=>canVisit(kind)).map((kind:string) => {
                 const Icon = icons[kind];
@@ -320,7 +336,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
                   {matchingProducts.map(row => <button className="product-option" key={row.id} onClick={() => addProduct(row)}>
                     <div className="product-icon"><Package size={19}/></div><div className="product-info"><strong>{row.name}</strong><span>{row.code || 'Sem código'} · {row.unit} · Saldo {Number(row.stock_milli || 0)/1000}</span></div><strong className="product-price">{money(row.sale_price_cents)}</strong><Plus size={19} className="add-icon"/>
                   </button>)}
-                  {!matchingProducts.length && <div className="empty-state"><Search size={25}/><strong>Nenhum produto encontrado</strong><p>Cadastre produtos ou tente outra pesquisa.</p><button className="secondary" onClick={() => selectView('products')}>Ir para produtos</button></div>}
+                  {!matchingProducts.length && <div className="empty-state"><Search size={25}/><strong>Nenhum produto encontrado</strong><p>Cadastre produtos ou tente outra pesquisa.</p><button className="secondary" onClick={() => {selectView('products');setForm(newForm('products'));setEditing({});}}>Cadastrar novo produto</button></div>}
                 </div>
               </div>
               <div className="panel cart-panel glass-panel">
@@ -354,7 +370,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
               </div>
             </div>
           </>}
-          {['cash','sales','inventory','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
+          {['cash','sales','inventory','purchases','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
           {view==='settings' && <SystemSettings/>}
           {activeSchema && <>
             <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div>{view==='products'&&allowed(user.role,'importCatalogCsv')&&<label className="secondary" style={{display:'inline-flex',alignItems:'center',gap:8,padding:12}}>
@@ -383,7 +399,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
        <label className="form-field">Confirmar senha<input type="password" required minLength={8} maxLength={128} value={repeatPassword} autoComplete="new-password" onChange={e=>setRepeatPassword(e.target.value)}/></label>
       </div>{error&&<p role="alert">{error}</p>}<footer className="dialog-footer"><button type="button" className="secondary" onClick={()=>setPasswordTarget(null)}>Cancelar</button><button type="submit" className="primary">Salvar acesso</button></footer></form>
     </section></div>}
-    {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} role={user.role} onClose={()=>setPaymentOpen(false)} onDone={completeSale}/>}
+    {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} role={user.role} onClose={()=>setPaymentOpen(false)} onDone={completeSale} onCustomerSaved={()=>reload('customers')}/>}
     {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
     {editing && activeSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
       <section className="dialog" role="dialog" aria-modal="true" aria-label={(editing.id ? 'Editar ' : 'Adicionar ') + activeSchema.singular}>

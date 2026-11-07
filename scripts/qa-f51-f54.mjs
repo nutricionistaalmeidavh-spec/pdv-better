@@ -116,9 +116,9 @@ try{
   assert.notEqual(a.id,b.id);
   assert.equal((await call(host,'sessionsList')).length,2);
   assert.equal((await call(client,'sessionCurrent')).id,b.id);
-  await call(client,'sessionClose',{countedCashCents:'10,00'});
+  await call(client,'sessionClose',{counts:{cash:'10,00',pix:'0,00',card_credit:'0,00',card_debit:'0,00',card:'0,00'},managerApproval:{operatorId:operator.id,password}});
   assert.equal((await call(host,'sessionCurrent')).id,a.id);
-  await call(host,'sessionClose',{countedCashCents:'70,00'});
+  await call(host,'sessionClose',{counts:{cash:'70,00',pix:'0,00',card_credit:'0,00',card_debit:'0,00',card:'0,00'},managerApproval:{operatorId:operator.id,password}});
   assert.equal((await call(host,'sessionsList')).length,0);
   // Sem fallback automático/copiar banco local: o cliente ainda não foi configurado nele.
   await client.getByRole('button',{name:'Sair',exact:true}).click();
@@ -156,7 +156,7 @@ try{
   await call(host,'sessionOpen',{openingCashCents:'9,00'});
   assert.match(String(await error(host,'backupRestore')),/feche todos os caixas/i);
   assert.equal(existsSync(join(hostDir,'pdv-better.sqlite.restore-pending.json')),false);
-  await call(host,'sessionClose',{countedCashCents:'9,00'});
+  await call(host,'sessionClose',{counts:{cash:'9,00',pix:'0,00',card_credit:'0,00',card_debit:'0,00',card:'0,00'},managerApproval:{operatorId:operator.id,password}});
 
   await hostApp.evaluate(({dialog,app:electronApp},filePath)=>{
     dialog.showOpenDialog=async()=>({canceled:false,filePaths:[filePath]});

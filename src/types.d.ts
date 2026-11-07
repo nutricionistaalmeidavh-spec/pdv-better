@@ -23,6 +23,9 @@ interface PdvBridge {
   bundleSet(input:any):Promise<any>;
   bundleList():Promise<any[]>;
   bundleArchive(id:string):Promise<any>;
+  purchaseCreate(input:any):Promise<any>;
+  purchaseReceive(id:string):Promise<any>;
+  purchaseList():Promise<any[]>;
   financeCreate(input: any): Promise<any>;
   financeList(): Promise<any[]>;
   financeSettle(input: any): Promise<any>;

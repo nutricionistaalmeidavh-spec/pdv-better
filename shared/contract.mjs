@@ -1,5 +1,5 @@
 // Modelo canônico de entidades: formulário, validação, SQLite e lista usam este arquivo.
-export const CONTRACT_VERSION = 9;
+export const CONTRACT_VERSION = 10;
 export const roleNames = Object.freeze(['Caixa','Gerente','Administrador']);
 export const entityOrder = ['products', 'categories', 'customers', 'suppliers', 'operators'];
 export const entities = {
@@ -53,7 +53,7 @@ export function assertEntity(kind) {
   if (!Object.prototype.hasOwnProperty.call(entities, kind)) throw new Error('Entidade não reconhecida.');
   return entities[kind];
 }
-export const paymentMethods = Object.freeze([{id:'cash',label:'Dinheiro'}, {id:'pix',label:'Pix (confirmação manual)'}, {id:'card',label:'Cartão (maquininha externa)'}, {id:'credit',label:'Fiado / a receber'}]);
+export const paymentMethods = Object.freeze([{id:'cash',label:'Dinheiro'}, {id:'pix',label:'Pix (confirmação manual)'}, {id:'card',label:'Cartão legado (maquininha)'}, {id:'card_credit',label:'Cartão de crédito (manual)'}, {id:'card_debit',label:'Cartão de débito (manual)'}, {id:'credit',label:'Fiado / a receber'}]);
 export const inventoryKinds = Object.freeze(['receipt','adjustment']);
 export const cashMovementKinds = Object.freeze(['reinforcement','withdrawal']);
 export const financeTypes = Object.freeze(['payable','receivable']);
@@ -69,7 +69,9 @@ export const reportFields = Object.freeze([
   {key:'discounts_cents',label:'Descontos concedidos',type:'money'},
   {key:'cash_cents',label:'Dinheiro em vendas',type:'money'},
   {key:'pix_cents',label:'Pix informado',type:'money'},
-  {key:'card_cents',label:'Cartão informado',type:'money'},
+  {key:'card_cents',label:'Cartão legado informado',type:'money'},
+  {key:'card_credit_cents',label:'Cartão de crédito informado',type:'money'},
+  {key:'card_debit_cents',label:'Cartão de débito informado',type:'money'},
   {key:'credit_cents',label:'Fiado registrado',type:'money'},
   {key:'receivables_open_cents',label:'Contas a receber em aberto',type:'money'},
   {key:'payables_open_cents',label:'Contas a pagar em aberto',type:'money'},
@@ -86,6 +88,7 @@ export const apiChannels = Object.freeze({
   stockMove: 'pdv:stock:move', batchReceive: 'pdv:stock:batch-receive', batchesList: 'pdv:stock:batches',
   promotionSet: 'pdv:products:promotion-set', promotionsList: 'pdv:products:promotions',
   bundleSet: 'pdv:products:bundle-set', bundleList: 'pdv:products:bundles', bundleArchive: 'pdv:products:bundle-archive', stockHistory: 'pdv:stock:history',
+  purchaseCreate: 'pdv:purchase:create', purchaseReceive: 'pdv:purchase:receive', purchaseList: 'pdv:purchase:list',
   financeCreate: 'pdv:finance:create', financeList: 'pdv:finance:list', financeSettle: 'pdv:finance:settle',
   report: 'pdv:report:summary', reportItems: 'pdv:report:items', reportCompare: 'pdv:report:compare', reportItemsExport: 'pdv:report:items-export', reportExport: 'pdv:report:export',
   lanStatus: 'pdv:lan:status', lanHost: 'pdv:lan:host', lanJoin: 'pdv:lan:join', lanLocal: 'pdv:lan:local',
