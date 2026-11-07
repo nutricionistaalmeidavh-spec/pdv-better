@@ -25,6 +25,12 @@ try{
   await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
   const invite=page.locator('.guided-tour-invite');
   await invite.waitFor({state:'visible',timeout:15000});
+  // O convite inicial não deve obstruir formulários fora do dashboard.
+  const navigation=page.getByRole('navigation',{name:'Navegação principal'});
+  await navigation.getByRole('button',{name:'Produtos',exact:true}).click();
+  await invite.waitFor({state:'hidden'});
+  await navigation.getByRole('button',{name:'Visão geral',exact:true}).click();
+  await invite.waitFor({state:'visible'});
   await page.screenshot({path:join(out,'tour-convite.png')});
   await invite.getByRole('button',{name:'Começar tour'}).click();
   const dlg=page.getByRole('dialog',{name:'Tour guiado do PDV SUPER'});
