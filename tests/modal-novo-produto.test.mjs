@@ -27,8 +27,8 @@ test('modal de cadastro prioriza foto e campos da imagem de referencia',()=>{
   assert.match(css,/\.product-advanced-fields/);
 });
 
-test('fluxo visual cobre dialog aberto sobre a frente de caixa',()=>{
+test('QA visual existente captura formulario de adicionar produto e edicao com foto',()=>{
   const script=source('scripts/qa-all-screens.mjs');
-  assert.match(script,/Caixa - novo produto - janela de cadastro/);
-  assert.match(script,/getByRole\('dialog',\{name:'Cadastro de Produto'\}\)/);
+  assert.match(script,/capture\('Cadastro - adicionar '\+singular\+' - formulario'\)/);
+  assert.match(script,/capture\('Cadastro - produto - foto enviada e miniatura'\)/);
 });
