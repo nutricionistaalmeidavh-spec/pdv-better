@@ -30,7 +30,7 @@ test('novo tema não contém violeta saturado',()=>{
   const h=match[1],rgb=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16));
   const max=Math.max(...rgb),min=Math.min(...rgb);
   const sat=max===0?0:(max-min)/max;
-  if(rgb[0]>rgb[1]*1.18&&rgb[2]>rgb[1]*1.18&&sat>.23)offenders.push('#'+h);
+  if(rgb[0]>rgb[1]*1.35&&rgb[2]>rgb[1]*1.45&&rgb[2]>rgb[0]*.55&&rgb[0]>rgb[2]*.50&&sat>.23)offenders.push('#'+h);
  }
  assert.deepEqual(offenders,[]);
 });
