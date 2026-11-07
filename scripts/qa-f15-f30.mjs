@@ -182,7 +182,7 @@ try{
   await page.getByRole('button',{name:'Fechar catálogo'}).last().click();
   await page.keyboard.press('F9');
   await cart().getByText('Pronto para a próxima venda').waitFor();
-  await page.getByRole('button',{name:/Vendas em espera \\(1\\)/}).click();
+  await page.getByRole('button',{name:'Vendas em espera (1)'}).click();
   await page.getByRole('button',{name:'Retomar Venda em espera'}).waitFor();
   assert.equal((await call('salesList')).length,0,'espera não pode registrar venda');
   await page.keyboard.press('F11');
