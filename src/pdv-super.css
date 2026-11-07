@@ -1071,3 +1071,259 @@ select option {color:var(--super-text);background:white}
  .shell.super-shell .super-report-donut{width:160px}
  .shell.super-shell .super-report-legend{display:grid;grid-template-columns:repeat(2,1fr)}
 }
+
+
+/* --------------------------------------------------------------------------
+   PDV SUPER — refino transversal de telas secundárias
+   UI real: cadastros, vendas, compras, financeiro, relatórios e configurações.
+   Apenas apresentação. Sem alteracoes de dados, IPC, pagamento ou regra fiscal.
+   -------------------------------------------------------------------------- */
+.shell.super-shell .commerce-screen,
+.shell.super-shell .system-settings,
+.shell.super-shell .p2-finance-stack {min-width:0}
+.shell.super-shell .commerce-screen {gap:18px}
+.shell.super-shell .commerce-screen .page-heading,
+.shell.super-shell .system-settings .page-heading {margin-bottom:4px}
+.shell.super-shell .commerce-screen .page-heading h1,
+.shell.super-shell .system-settings .page-heading h1 {font-size:clamp(24px,2vw,29px);line-height:1.16}
+.shell.super-shell .commerce-screen .page-heading p,
+.shell.super-shell .system-settings .page-heading p,
+.shell.super-shell .data-panel+.info-bar p {font-size:13px;line-height:1.5}
+.shell.super-shell .commerce-screen :is(.commerce-section,.finance-p2-detail),
+.shell.super-shell .system-settings .settings-block,
+.shell.super-shell .data-panel {
+  border:1px solid #c8dcef;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 7px 22px #123c7512;
+}
+.shell.super-shell .commerce-screen .commerce-section,
+.shell.super-shell .system-settings .settings-block {padding:22px}
+.shell.super-shell .commerce-screen .commerce-section>h2,
+.shell.super-shell .commerce-screen .commerce-heading h2,
+.shell.super-shell .system-settings .settings-block h2 {
+  color:#0b2a58;font-size:17px;letter-spacing:-.25px;line-height:1.3;
+}
+.shell.super-shell .commerce-screen .commerce-section>h2 {padding-left:12px;border-left:4px solid #0b73ed}
+.shell.super-shell .commerce-screen .commerce-section>p,
+.shell.super-shell .commerce-screen .commerce-heading p,
+.shell.super-shell .system-settings .settings-block>p {
+  color:#526d8b;font-size:12px;line-height:1.55;
+}
+.shell.super-shell .commerce-screen .commerce-heading {
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;flex-wrap:wrap;margin-bottom:17px;
+}
+.shell.super-shell .commerce-screen :is(.commerce-form,.commerce-inline-form) label,
+.shell.super-shell .system-settings .settings-label {
+  color:#23456c;font-size:12px;font-weight:750;line-height:1.3;min-width:0;
+}
+.shell.super-shell .commerce-screen :is(.commerce-form,.commerce-inline-form) :is(input,select),
+.shell.super-shell .system-settings .settings-label input {
+  min-height:43px;font-size:13px;border-color:#b7cee9;
+  background:#fff;border-radius:9px;
+}
+.shell.super-shell .commerce-screen :is(.commerce-form,.commerce-inline-form) :is(input,select):disabled,
+.shell.super-shell .system-settings .settings-label input:disabled {
+  background:#edf3fa;color:#6a7f98;cursor:not-allowed;
+}
+.shell.super-shell .commerce-screen .commerce-inline-form {
+  gap:14px;align-items:end;grid-template-columns:repeat(auto-fit,minmax(min(100%,185px),1fr));
+}
+.shell.super-shell .commerce-screen .commerce-inline-form>button {min-height:43px;white-space:normal}
+.shell.super-shell .commerce-screen .commerce-table {
+  max-width:100%;scrollbar-color:#b6cde8 #f6faff;
+}
+.shell.super-shell .commerce-screen .commerce-table th,
+.shell.super-shell .data-panel th {
+  background:#e9f3ff;color:#173c6a;font-size:11px;
+  letter-spacing:.035em;line-height:1.3;
+}
+.shell.super-shell .commerce-screen .commerce-table td,
+.shell.super-shell .data-panel td {
+  font-size:12px;line-height:1.45;vertical-align:middle;
+}
+.shell.super-shell .commerce-screen .commerce-table tbody tr:nth-child(even),
+.shell.super-shell .data-panel tbody tr:nth-child(even) {background:#f9fbff}
+.shell.super-shell .commerce-screen .commerce-table tbody tr:hover,
+.shell.super-shell .data-panel tbody tr:hover {background:#eaf4ff}
+.shell.super-shell .commerce-screen .commerce-table button,
+.shell.super-shell .data-panel .actions-col button {min-height:32px}
+.shell.super-shell .commerce-screen .commerce-empty-state {
+  padding:18px 20px;text-align:center;font-size:12px;line-height:1.5;
+  color:#55749b;background:#f6faff;border-top:1px solid #d5e4f4;
+}
+.shell.super-shell .commerce-screen .commerce-warning {
+  margin-top:14px;font-size:12px;line-height:1.5;
+}
+.shell.super-shell .commerce-screen .report-actions {gap:8px}
+.shell.super-shell .commerce-screen .report-actions button {min-height:36px}
+
+/* Compras: separar as etapas e dar área útil à montagem do pedido. */
+.shell.super-shell .commerce-screen[data-module="purchases"] :is(.purchase-order-card,.purchase-receipt-card){
+  border-top:3px solid #0b6fe7;
+}
+.shell.super-shell .commerce-screen[data-module="purchases"] .purchase-order-card>.commerce-inline-form {
+  margin:18px 0;gap:12px;
+}
+.shell.super-shell .commerce-screen[data-module="purchases"] .purchase-order-card>.commerce-inline-form:first-of-type {
+  grid-template-columns:minmax(210px,1.4fr) minmax(185px,1fr) minmax(170px,.8fr);
+}
+.shell.super-shell .commerce-screen[data-module="purchases"] .purchase-order-card>.commerce-inline-form:nth-of-type(2) {
+  grid-template-columns:minmax(220px,1.5fr) minmax(130px,.6fr) minmax(155px,.75fr) auto;
+}
+.shell.super-shell .commerce-screen[data-module="purchases"] :is(.purchase-order-card,.purchase-receipt-card) .commerce-table {
+  margin:16px 0;border:1px solid #d7e5f4;border-radius:10px;
+}
+.shell.super-shell .commerce-screen[data-module="purchases"] .purchase-order-card>.primary {
+  margin-top:4px;min-height:44px;
+}
+.shell.super-shell .commerce-screen[data-module="purchases"] .purchase-receipt-card .commerce-table td details {
+  white-space:normal;max-width:360px;
+}
+
+/* Financeiro: indicadores mais compactos e grupos de ação bem identificados. */
+.shell.super-shell .commerce-screen[data-module="finance"] .p2-finance-stack .report-grid {
+  grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0 20px;
+}
+.shell.super-shell .commerce-screen[data-module="finance"] .p2-finance-stack .report-grid .stat {
+  min-width:0;min-height:108px;padding:17px 18px;border-top:3px solid #167de9;
+}
+.shell.super-shell .commerce-screen[data-module="finance"] .p2-finance-stack .report-grid .stat>span {
+  color:#486988;font-size:12px;
+}
+.shell.super-shell .commerce-screen[data-module="finance"] .p2-finance-stack .report-grid .stat>strong {
+  margin:10px 0 0;color:#084ba9;font-size:clamp(20px,2vw,26px);
+  line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;
+}
+.shell.super-shell .commerce-screen[data-module="finance"] :is(.finance-entry-card,.finance-accounts-card) {
+  border-top:3px solid #167de9;
+}
+.shell.super-shell .commerce-screen[data-module="finance"] .finance-entry-card .commerce-inline-form {
+  margin-top:18px;
+}
+.shell.super-shell .commerce-screen[data-module="finance"] .finance-accounts-card .commerce-table {
+  margin:14px -22px -22px;max-width:calc(100% + 44px);
+}
+.shell.super-shell .commerce-screen[data-module="finance"] .finance-kanban-column {
+  background:#f4f8ff;border:1px solid #d1e2f2;border-radius:12px;
+}
+.shell.super-shell .commerce-screen[data-module="finance"] .finance-kanban-item {
+  padding:14px;border-radius:10px;
+}
+.shell.super-shell .commerce-screen[data-module="finance"] .finance-kanban-item:focus-visible {
+  outline-offset:0!important;
+}
+.shell.super-shell .commerce-screen[data-module="finance"] .finance-p2-detail {
+  background:#f9fcff;border-left:4px solid #0b6fe7;
+}
+
+/* Cadastros: pesquisa e tabelas alinhadas à linguagem do caixa. */
+.shell.super-shell .data-panel .data-toolbar {
+  gap:14px;padding:10px 20px;min-height:68px;flex-wrap:wrap;
+  background:linear-gradient(180deg,#fff,#f8fbff);
+}
+.shell.super-shell .data-panel .search-field.narrow {
+  flex:1 1 310px;width:min(100%,460px);margin:0;min-height:44px;
+}
+.shell.super-shell .data-panel .count-chip {font-size:11px;padding:9px 12px}
+.shell.super-shell .data-panel .table-wrap {border:0;border-radius:0}
+.shell.super-shell .data-panel th,
+.shell.super-shell .data-panel td {padding:13px 17px}
+.shell.super-shell .data-panel-products .product-thumbnail {
+  width:43px;height:43px;object-fit:contain;border-radius:9px;
+  background:#f5faff;
+}
+.shell.super-shell .data-panel .actions-col {min-width:124px}
+.shell.super-shell .data-panel .empty-state {min-height:180px;background:#fbfdff}
+.shell.super-shell .dialog:not(.product-editor-dialog) {width:min(690px,calc(100vw - 28px))}
+.shell.super-shell .dialog:not(.product-editor-dialog) .form-grid {gap:16px;padding:23px 25px}
+.shell.super-shell .dialog:not(.product-editor-dialog) .form-field>span {font-size:12px}
+.shell.super-shell .dialog:not(.product-editor-dialog) .form-field :is(input,select) {
+  min-height:44px;font-size:13px;
+}
+.shell.super-shell .dialog:not(.product-editor-dialog) .dialog-footer {gap:10px}
+.shell.super-shell .dialog:not(.product-editor-dialog) .dialog-footer button {min-height:42px}
+.shell.super-shell .dialog:not(.product-editor-dialog) .form-error {margin:0 25px 14px}
+
+/* Dispositivos, rede e backups: cartões e abas com legibilidade consistente. */
+.shell.super-shell .system-settings .settings-tabs {
+  display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+  padding:7px;margin:14px 0 18px;background:#e5effb;
+  border:1px solid #cedef0;border-radius:12px;width:fit-content;max-width:100%;
+}
+.shell.super-shell .system-settings .settings-tabs button {
+  min-height:40px;padding:10px 15px;display:inline-flex;align-items:center;
+  justify-content:center;gap:8px;color:#234b7c;font-size:12px;font-weight:800;
+  background:transparent;white-space:nowrap;
+}
+.shell.super-shell .system-settings .settings-tabs button[aria-selected="true"] {
+  background:linear-gradient(115deg,#0a87ef,#075bd1);color:#fff;
+  box-shadow:0 4px 12px #1759a02d;
+}
+.shell.super-shell .system-settings .settings-grid {
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;align-items:start;
+}
+.shell.super-shell .system-settings .settings-block {
+  display:flex;flex-direction:column;align-items:stretch;gap:13px;
+  min-width:0;border-top:3px solid #0876e9;
+}
+.shell.super-shell .system-settings .settings-block h2 {
+  display:flex;align-items:center;gap:9px;margin:0 0 2px;
+}
+.shell.super-shell .system-settings .settings-block h2 svg {color:#075ec8;flex-shrink:0}
+.shell.super-shell .system-settings .settings-block>p {margin:0}
+.shell.super-shell .system-settings .settings-block .settings-label {
+  display:flex;flex-direction:column;gap:7px;overflow-wrap:anywhere;
+}
+.shell.super-shell .system-settings .settings-block .settings-info {
+  max-width:100%;border-radius:9px;padding:12px;overflow-wrap:anywhere;
+}
+.shell.super-shell .system-settings .settings-block button {min-height:40px;align-self:flex-start;white-space:normal}
+.shell.super-shell .system-settings :is(.settings-note,.settings-wide) {grid-column:1/-1}
+.shell.super-shell .system-settings .settings-note {
+  display:flex;gap:11px;align-items:flex-start;padding:15px 18px;
+  border:1px solid #cbdcf0;border-radius:11px;
+  background:#eaf3ff;color:#31567f;font-size:12px;line-height:1.55;
+}
+.shell.super-shell .system-settings .settings-note svg {flex-shrink:0;color:#095fba}
+.shell.super-shell .system-settings .settings-note p {margin:0;overflow-wrap:anywhere}
+.shell.super-shell .system-settings .settings-block code {overflow-wrap:anywhere}
+
+/* Uso com telas menores e acessibilidade: rolagem somente onde necessário. */
+@media (max-width: 1080px) {
+  .shell.super-shell .commerce-screen[data-module="purchases"] .purchase-order-card>.commerce-inline-form:first-of-type,
+  .shell.super-shell .commerce-screen[data-module="purchases"] .purchase-order-card>.commerce-inline-form:nth-of-type(2) {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .shell.super-shell .commerce-screen[data-module="finance"] .p2-finance-stack .report-grid {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media (max-width: 760px) {
+  .shell.super-shell .commerce-screen .commerce-section,
+  .shell.super-shell .system-settings .settings-block {padding:16px}
+  .shell.super-shell .commerce-screen .commerce-heading {align-items:stretch}
+  .shell.super-shell .commerce-screen .commerce-inline-form,
+  .shell.super-shell .commerce-screen[data-module="purchases"] .purchase-order-card>.commerce-inline-form:first-of-type,
+  .shell.super-shell .commerce-screen[data-module="purchases"] .purchase-order-card>.commerce-inline-form:nth-of-type(2) {grid-template-columns:1fr}
+  .shell.super-shell .commerce-screen .commerce-inline-form>button {width:100%}
+  .shell.super-shell .system-settings .settings-grid {grid-template-columns:1fr}
+  .shell.super-shell .system-settings .settings-tabs {width:100%;gap:5px}
+  .shell.super-shell .system-settings .settings-tabs button {flex:1 1 auto;white-space:normal}
+  .shell.super-shell .data-panel .data-toolbar {padding:14px}
+  .shell.super-shell .data-panel .search-field.narrow {flex-basis:100%}
+  .shell.super-shell .dialog:not(.product-editor-dialog) .form-grid {grid-template-columns:1fr}
+  .shell.super-shell .commerce-screen[data-module="finance"] .finance-accounts-card .commerce-table {margin:12px -16px -16px}
+}
+@media (max-width: 480px) {
+  .shell.super-shell .commerce-screen[data-module="finance"] .p2-finance-stack .report-grid {grid-template-columns:1fr}
+  .shell.super-shell .system-settings .settings-tabs button {font-size:11px;padding:9px}
+  .shell.super-shell .data-panel .count-chip {white-space:normal}
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell.super-shell .commerce-screen *,
+  .shell.super-shell .system-settings *,
+  .shell.super-shell .data-panel * {scroll-behavior:auto;transition-duration:.01ms}
+}
