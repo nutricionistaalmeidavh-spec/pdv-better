@@ -92,7 +92,7 @@ async function start() {
     if(!['pdf','csv','xlsx'].includes(format)) throw new Error('Formato não suportado.');
     const selected=await dialog.showSaveDialog(window,{
       title:'Exportar relatório gerencial',
-      defaultPath:'PDV-Better-Relatorio.'+format,
+      defaultPath:'PDV-SUPER-Relatorio.'+format,
       filters:[{name:format.toUpperCase(),extensions:[format]}]
     });
     if(selected.canceled || !selected.filePath)return {cancelled:true};
@@ -128,7 +128,7 @@ async function start() {
     const data=await domain('financeOverview',input?.filters||{});
     const selected=await dialog.showSaveDialog(window,{
       title:'Exportar fluxo financeiro operacional',
-      defaultPath:'PDV-Better-Fluxo-Financeiro.'+format,
+      defaultPath:'PDV-SUPER-Fluxo-Financeiro.'+format,
       filters:[{name:format.toUpperCase(),extensions:[format]}]
     });
     if(selected.canceled||!selected.filePath)return {cancelled:true};
@@ -161,7 +161,7 @@ async function start() {
       const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>'+
         'body{font:11px system-ui;color:#222}h1{font-size:20px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px;text-align:left}'+
         'tr{break-inside:avoid}thead{display:table-header-group}footer{margin-top:20px}'+
-        '</style></head><body><h1>PDV Better — Fluxo operacional</h1>'+
+        '</style></head><body><h1>PDV SUPER — Fluxo operacional</h1>'+
         '<p>Realizado: entradas R$ '+(data.realized_in_cents/100).toFixed(2)+
         ' · saídas R$ '+(data.realized_out_cents/100).toFixed(2)+'</p>'+
         '<table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Categoria</th><th>Meio</th><th>R$</th></tr></thead><tbody>'+
@@ -312,7 +312,7 @@ async function start() {
   ipcMain.handle(apiChannels.backupCreate,async()=>{
     runtime.authorize('backupCreate');
     if(runtime.isRemote())throw new Error('O backup deve ser feito no computador servidor do banco.');
-    const selected=await dialog.showSaveDialog(window,{title:'Salvar backup SQLite',defaultPath:'PDV-Better-Backup.sqlite',
+    const selected=await dialog.showSaveDialog(window,{title:'Salvar backup SQLite',defaultPath:'PDV-SUPER-Backup.sqlite',
       filters:[{name:'Backup SQLite',extensions:['sqlite']}]});
     if(selected.canceled||!selected.filePath)return {cancelled:true};
     if(path.resolve(selected.filePath)===path.resolve(databaseFile))throw new Error('O backup não pode substituir o banco em uso.');
