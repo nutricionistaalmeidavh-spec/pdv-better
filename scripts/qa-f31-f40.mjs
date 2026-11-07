@@ -61,12 +61,12 @@ try{
   page=await app.firstWindow();
   const pageErrors=[];
   page.on('pageerror',e=>pageErrors.push(e.message));
-  await page.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
   await page.getByRole('textbox',{name:'Nome do administrador'}).fill('Administrador Caixa QA');
   await page.locator('.auth-form input[type="password"]').nth(0).fill(password);
   await page.locator('.auth-form input[type="password"]').nth(1).fill(password);
   await page.getByRole('button',{name:'Criar administrador'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});
 
   const product=await call('save','products',{
     name:'Mercadoria QA 3140',code:'ESTOQUE-3140',unit:'UN',
@@ -76,11 +76,11 @@ try{
   assert.ok(admin?.id && product?.id);
   // Atualizar também o renderer: fixture gravada pelo IPC depois da montagem inicial.
   await page.getByRole('button',{name:'Sair',exact:true}).click();
-  await page.getByRole('heading',{name:'PDV Better',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor();
   await page.getByRole('combobox',{name:'Operador'}).selectOption({label:'Administrador Caixa QA — Administrador'});
   await page.locator('.auth-form input[type="password"]').first().fill(password);
   await page.getByRole('button',{name:'Entrar no PDV'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor();
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
 
   // Sessão local inicial com troco real.
   await nav('Controle de caixa','Controle de caixa');
