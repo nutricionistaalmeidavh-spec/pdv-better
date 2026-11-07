@@ -36,7 +36,7 @@ async function capture(title, {selector=null}={}){
 }
 async function go(label){
   await nav(page,label).click();
-  await page.locator('.page-heading h1').first().waitFor({timeout:20000});
+  await page.locator(label==='Frente de caixa'?'.cashier-heading h1':'.page-heading h1').first().waitFor({timeout:20000});
   await page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:label,exact:true}).waitFor();
   // Always show the page title in visual evidence after switching modules.
   await page.evaluate(() => window.scrollTo({top:0,left:0,behavior:'instant'}));
@@ -217,10 +217,16 @@ async function main(){
     }
   }
   await go('Frente de caixa');
-  await page.locator('button.product-option').nth(0).click();
-  await page.locator('button.product-option').nth(1).click();
+  for(const [mode,label] of [['compact','compacto'],['light','claro'],['dark','escuro']]){
+    await page.getByRole('button',{name:label==='compacto'?'Compacto':label==='claro'?'Claro':'Escuro'}).click();
+    await capture('Caixa Rapido - visual '+label);
+  }
+  await page.getByRole('button',{name:'Abrir catálogo'}).click();
+  await page.locator('button.cashier-product-option').nth(0).click();
+  await page.getByRole('button',{name:'Abrir catálogo'}).click();
+  await page.locator('button.cashier-product-option').nth(1).click();
   await capture('Frente de caixa - carrinho preenchido');
-  await page.getByRole('button',{name:'Receber e concluir venda'}).click();
+  await page.getByRole('button',{name:/Receber pagamento/}).click();
   await page.getByRole('dialog',{name:'Receber venda'}).waitFor();
   await page.getByRole('dialog',{name:'Receber venda'}).getByRole('combobox').first().selectOption({index:1});
   await capture('Frente de caixa - modal de pagamento');
