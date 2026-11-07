@@ -3,7 +3,7 @@ import { Plus,Check,AlertTriangle,ShoppingCart,Package,Wallet,ClipboardList,Rota
 import { money,parseFixed } from '../shared/domain.mjs';
 import { reportRows } from '../shared/report.mjs';
 import { paymentPreview } from '../shared/payment-preview.mjs';
-import { formatCashierAmount } from '../shared/cashier.mjs';
+import { suggestCashierPaymentAmount } from '../shared/cashier.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
 import { SaleReceipt } from './Receipt';
 import { buildLabeledSaleItems } from '../shared/batch-label.mjs';
@@ -56,7 +56,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,initia
   // Apenas sugere o valor após a cotação real (promoções/FEFO). Nunca confirma cobrança.
   useEffect(()=>{
     if(!quote||initialAmountFilled)return;
-    setPayments(rows=>rows.map((row,i)=>i===0?{...row,amount:formatCashierAmount(quote.total_cents)}:row));
+    setPayments(rows=>rows.map((row,i)=>i===0?{...row,amount:suggestCashierPaymentAmount(row.amount,quote.total_cents)}:row));
     setInitialAmountFilled(true);
   },[quote?.total_cents,initialAmountFilled]);
   useEffect(()=>{
