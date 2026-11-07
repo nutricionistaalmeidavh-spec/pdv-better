@@ -38,7 +38,7 @@ test('Glass v2: preserva venda, itens, estoque e caixa fechado ao migrar para sc
     try{assert.equal(again.listSales().length,1);assert.equal(again.listStockMovements(product).length,2);}
     finally{again.close();}
     const verify=new DatabaseSync(path);
-    try{assert.equal(verify.prepare('PRAGMA user_version').get().user_version,10);}
+    try{assert.equal(verify.prepare('PRAGMA user_version').get().user_version,11);}
     finally{verify.close();}
   } finally {rmSync(folder,{recursive:true,force:true});}
 });
