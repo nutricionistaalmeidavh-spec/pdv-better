@@ -133,7 +133,7 @@ async function buildPDF(){
   const bold=await pdf.embedFont(StandardFonts.HelveticaBold);
   const cover=pdf.addPage([842,595]);
   cover.drawRectangle({x:0,y:0,width:842,height:595,color:rgb(0.058,0.074,0.125)});
-  cover.drawText('PDV BETTER', {x:58,y:460,size:34,font:bold,color:rgb(1,1,1)});
+  cover.drawText('PDV SUPER', {x:58,y:460,size:34,font:bold,color:rgb(1,1,1)});
   cover.drawText('AUDITORIA VISUAL | WINDOWS 10/11',{x:58,y:414,size:18,font,color:rgb(0.73,0.83,1)});
   cover.drawText('Electron real  -  SQLite temporario  -  Dados inteiramente ficticios',{x:58,y:374,size:13,font,color:rgb(0.91,0.94,1)});
   cover.drawText('Capturas: '+captures.length+'  |  Gerado em: '+now().replace(/[^\x20-\x7e]/g,''),{x:58,y:330,size:12,font,color:rgb(1,1,1)});
