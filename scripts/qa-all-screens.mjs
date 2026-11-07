@@ -186,7 +186,7 @@ async function main(){
   for(const [,label] of names)if(!buttons.some(s=>s.trim()===label))throw new Error('Falta tela no menu administrativo: '+label);
   for(const [key,label] of names){
     await go(label);
-    await capture('Menu - '+label,{selector:'.page-heading'});
+    await capture('Menu - '+label,{selector:key==='checkout'?'.cashier-heading':'.page-heading'});
     if(['products','categories','customers','suppliers','operators'].includes(key)){
       const singular={products:'produto',categories:'categoria',customers:'cliente',suppliers:'fornecedor',operators:'operador'}[key];
       await page.getByRole('button',{name:'Adicionar '+singular,exact:true}).click();
