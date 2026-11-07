@@ -7,4 +7,5 @@ import './system.css';
 import './auth.css';
 import './cashier.css';
 import './pdv-super.css';
+import './guided-tour.css';
 createRoot(document.getElementById('root')!).render(<AuthGate />);
