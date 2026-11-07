@@ -176,6 +176,25 @@ try{
   await cart().getByText('Café Arábica QA').waitFor();
   pass('F21','rascunho recuperado após logout/login do mesmo operador');
 
+  // P2/P3: favoritos, espera local, recuperação segura e desfazer não registram venda.
+  await page.getByRole('button',{name:'Abrir catálogo'}).click();
+  await page.getByRole('button',{name:'Favoritar Café Arábica QA'}).click();
+  await page.getByRole('button',{name:'Fechar catálogo'}).last().click();
+  await page.keyboard.press('F9');
+  await cart().getByText('Pronto para a próxima venda').waitFor();
+  await page.getByRole('button',{name:/Vendas em espera \\(1\\)/}).click();
+  await page.getByRole('button',{name:'Retomar Venda em espera'}).waitFor();
+  assert.equal((await call('salesList')).length,0,'espera não pode registrar venda');
+  await page.keyboard.press('F11');
+  await cart().getByText('Café Arábica QA').waitFor();
+  await cart().getByRole('button',{name:'Remover Café Arábica QA'}).click();
+  await cart().getByText('Pronto para a próxima venda').waitFor();
+  await page.keyboard.press('Control+z');
+  await cart().getByText('Café Arábica QA').waitFor();
+  assert.equal((await call('salesList')).length,0);
+  assert.equal((await page.locator('.cashier-favorite-chips').getByRole('button',{name:/Café Arábica QA/}).count()),1);
+  console.log('PASS P2/P3: favorito, F9/F11 espera, retomar, Ctrl+Z e nenhuma venda registrada');
+
   // F29: checkout requer sessão; abrir caixa com troco inicial via interface.
   assert.equal(await page.locator('.cashier-payment-panel').getByRole('button',{name:/Receber pagamento/}).isDisabled(),true);
   const closedError=await error('checkout',{key:'qa-without-open',items:[{id:a.id,quantityMilli:1000}],payments:[{method:'cash',amountCents:2550}]});
