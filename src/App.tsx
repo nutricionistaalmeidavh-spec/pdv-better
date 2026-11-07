@@ -12,8 +12,8 @@ import { resolveBatchScan,parseBatchLabel } from '../shared/batch-label.mjs';
 import {applyManualWeight} from '../shared/manual-weight.mjs';
 import {deriveStockAlerts} from '../shared/stock-alerts.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
-import { Cashier, CashierMode } from './Cashier';
-import { normalizeCashierMode, resolveCashierShortcut } from '../shared/cashier.mjs';
+import { Cashier } from './Cashier';
+import { resolveCashierShortcut } from '../shared/cashier.mjs';
 import {
   normalizeHeldSales, holdCashierSale, resumeHeldSale,
   normalizeCashierFavorites, toggleCashierFavorite, canUndoCashierChange
@@ -53,10 +53,6 @@ function friendlyError(error:any) {
 }
 export function App({user,onLogout}:{user:{id:string;name:string;role:string};onLogout:()=>Promise<void>}) {
   const [view,setView] = useState('dashboard');
-  const [cashierMode,setCashierMode] = useState<CashierMode>(()=>{
-    try{return normalizeCashierMode(localStorage.getItem('pdv-better:cashier-mode')) as CashierMode;}
-    catch{return 'dark';}
-  });
   const [initialPaymentMethod,setInitialPaymentMethod] = useState<'cash'|'pix'|'card'>('cash');
   const [initialPaymentFocus,setInitialPaymentFocus] = useState<'customer'|'discount'|undefined>();
 
@@ -119,7 +115,6 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     setRecords(prev => ({...prev,[kind]:current}));
   }
   useEffect(() => { void reloadAll(); }, []);
-  useEffect(()=>{try{localStorage.setItem('pdv-better:cashier-mode',cashierMode);}catch{}},[cashierMode]);
   useEffect(()=>{
     if(view!=='dashboard'||!bridge)return;
     let alive=true;
@@ -362,7 +357,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       setPasswordTarget(null);setOperatorPassword('');setRepeatPassword('');
     }catch(e){setError(friendlyError(e));}
   }
-  return <div className={'shell'+(view==='checkout'?' cashier-shell mode-'+cashierMode:'')}>
+  return <div className={'shell'+(view==='checkout'?' cashier-shell mode-light':'')}>
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><ShoppingCart size={22}/></div><div><strong>PDV SUPER</strong><span>Gestão comercial local</span></div></div>
       <div className="workspace"><div className="workspace-avatar">PS</div><div><strong>Estabelecimento local</strong><span>Funcionamento offline • perfis e caixas independentes</span></div></div>
@@ -432,7 +427,6 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros, vendas, saldos de estoque e financeiro são registrados no SQLite local. Pix e cartão devem ser confirmados externamente antes da conclusão da venda.</p></div></div>
           </>}
           {view === 'checkout' && <Cashier
-            mode={cashierMode} onModeChange={setCashierMode}
             searchRef={searchInput} search={cartSearch}
             onSearchChange={value=>{setCartSearch(value);setCartError('');}}
             onSearchKeyDown={scanKey}
