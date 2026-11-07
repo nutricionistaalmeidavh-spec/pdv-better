@@ -2,14 +2,14 @@
 
 ## Referência e objetivo
 
-Interface de produção do PDV SUPER inspirada nas telas de referência apresentadas pelo usuário: navegação azul-marinho, superfícies brancas/azul-claro, seleção azul viva, valores destacados, botão verde de receber e informações operacionais legíveis.
+Interface de produção do PDV SUPER inspirada nas telas de referência apresentadas pelo usuário: barra de navegação superior azul-marinho, superfícies brancas/azul-claro, seleção azul viva, grade de produtos com fotos, carrinho lateral claro, total destacado em azul, botão verde de receber e informações operacionais legíveis.
 
 As imagens promocionais são referências estéticas, **não capturas fiéis do aplicativo**. O objetivo é aproximar a aplicação real sem desenhar ações inexistentes nem alterar a lógica comercial.
 
 ## Fonte de verdade
 
 `src/pdv-super.css` é o **único tema de produção**, importado por último em `src/main.tsx`. Define os tokens:
-- `--super-navy` = `#071d40`: navegação e painel de pagamento.
+- `--super-navy` = `#071d40`: navegação superior e títulos operacionais (o resumo de pagamento é claro, com total azul).
 - `--super-blue` = `#0964e7`: navegação ativa e ações de gestão.
 - `--super-green` = `#06ab51`: receber pagamento.
 - `--super-bg` = `#eef4fc`; `--super-paper` = `#ffffff`; `--super-border` = `#d6e1ef`.
@@ -19,7 +19,7 @@ As imagens promocionais são referências estéticas, **não capturas fiéis do 
 
 ## Aplicação transversal
 
-Login e primeiro administrador; barra lateral e cabeçalho global; visão geral e cards; frente de caixa; abertura e controle de caixa; vendas; produtos; categorias; clientes; fornecedores; operadores; compras; estoque; financeiro; relatórios; configuração de rede/dispositivos; confirmação de pagamentos; alertas, modais, tabelas e formulários; recibo não fiscal.
+Login e primeiro administrador; **barra superior horizontal em todas as telas**, com navegação por perfil; visão geral e cards; **frente de caixa com catálogo em grade sempre visível**, fotos JPG armazenadas localmente, preço, estoque e favoritos; carrinho e pagamento à direita; abertura e controle de caixa; vendas; **formulário de produto com foto em destaque**; categorias; clientes; fornecedores; operadores; compras; **estoque com tabela real, miniaturas e alerta operacional até 5 UN/KG (não é estoque mínimo configurável)**; financeiro; **relatórios com KPIs e gráficos derivados dos registros reais**; configuração de rede/dispositivos; confirmação de pagamentos; alertas, modais, tabelas e formulários; recibo não fiscal.
 
 A interface apresenta uma única direção visual, sem seletor de modos. Os valores legados de preferência de aparência não são apagados do armazenamento, mas não alteram a aparência. O normalizador histórico permanece para compatibilidade do motor de atalhos.
 
@@ -40,3 +40,11 @@ A interface apresenta uma única direção visual, sem seletor de modos. Os valo
 5. Verificar contraste, foco, ampliação, transbordamento e `prefers-reduced-motion`; impressos permanecem pretos no branco.
 
 O merge depende de aprovação dos gates e revisão dos prints, não só da existência do CSS.
+
+## Referência detalhada das imagens de 07/11/2026
+
+- A tela de vendas deve manter o catálogo visível à esquerda (imagem, nome, preço, saldo, categoria) e carrinho à direita; os botões realmente adicionam itens, consultam o catálogo e abrem a confirmação de pagamento.
+- A foto do produto é opcional, convertida em JPEG compacto pelo frontend, guardada em `products.image_data` no SQLite local e incluída no backup. Não há importação remota ou assinatura.
+- A tela de estoque usa dados reais e alerta informativo de saldo até 5; não rotular esse limite como configuração de estoque mínimo.
+- Os gráficos de relatórios exibem sete dias de vendas concluídas e composição real dos meios de recebimento; **não usar números inventados da imagem promocional**.
+- As interfaces continuam 100% não fiscais e exigem confirmação manual de pagamentos externos.
