@@ -16,7 +16,7 @@ let page;
 const completed=new Set();
 const navigation=name=>page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name,exact:true});
 const search=()=>page.getByRole('textbox',{name:'Pesquisar ou ler código de barras'});
-const cart=()=>page.locator('.cart-panel');
+const cart=()=>page.locator('.cashier-cart-area');
 const payment=()=>page.getByRole('dialog',{name:'Receber venda'});
 const receipt=()=>page.getByRole('dialog',{name:'Comprovante não fiscal da venda'});
 const pass=(id,why)=>{completed.add(id);console.log('PASS '+id+': '+why);};
@@ -29,20 +29,22 @@ async function error(method,...args){
 }
 async function toCheckout(){
   await navigation('Frente de caixa').click();
-  await page.getByRole('heading',{name:'Frente de caixa',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'Caixa Rápido',exact:true}).waitFor();
   await search().waitFor();
 }
 async function choose(name){
-  await page.locator('.product-list').getByRole('button',{name:new RegExp(name,'i')}).click();
+  const open=page.getByRole('button',{name:'Abrir catálogo'});
+  if(await open.count())await open.click();
+  await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:new RegExp(name,'i')}).click();
 }
 async function clearCart(){
-  if(await cart().getByText('Seu carrinho está vazio').count())return;
+  if(await cart().getByText('Pronto para a próxima venda').count())return;
   page.once('dialog',dialog=>dialog.accept());
-  await cart().getByRole('button',{name:'Limpar rascunho'}).click();
-  await cart().getByText('Seu carrinho está vazio').waitFor();
+  await cart().getByRole('button',{name:'Cancelar'}).click();
+  await cart().getByText('Pronto para a próxima venda').waitFor();
 }
 async function checkout({kind='cash',amount,customerId=null,discount='0,00',split=null,expectedError=null}){
-  await cart().getByRole('button',{name:'Receber e concluir venda'}).click();
+  await page.locator('.cashier-payment-panel').getByRole('button',{name:/Receber pagamento/}).click();
   const dlg=payment();
   await dlg.waitFor();
   await dlg.locator('.form-grid label').filter({hasText:'Desconto em reais'}).locator('input').fill(discount);
@@ -126,28 +128,29 @@ try{
   await toCheckout();
   // F15: busca por nome e código parcial, além de inexistente.
   await search().fill('Café Arábica');
-  assert.equal(await page.locator('.product-list').getByRole('button',{name:/Café Arábica QA/}).count(),1);
-  assert.equal(await page.locator('.product-list').getByRole('button',{name:/Biscoito Integral QA/}).count(),0);
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Café Arábica QA/}).count(),1);
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Biscoito Integral QA/}).count(),0);
   await search().fill('QA-BISC-2002');
-  assert.equal(await page.locator('.product-list').getByRole('button',{name:/Biscoito Integral QA/}).count(),1);
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Biscoito Integral QA/}).count(),1);
   await search().fill('NAO-EXISTE');
   await page.getByText('Nenhum produto encontrado').waitFor();
   await search().fill('');
   pass('F15','busca por nome/SKU, filtragem e estado sem resultado');
 
   // F17: filtro real de categoria no catálogo de frente de caixa.
-  await page.locator('.category-filter').getByRole('button',{name:'Bebidas QA'}).click();
-  assert.equal(await page.locator('.product-list').getByRole('button',{name:/Café Arábica QA/}).count(),1);
-  assert.equal(await page.locator('.product-list').getByRole('button',{name:/Biscoito Integral QA/}).count(),0);
-  await page.locator('.category-filter').getByRole('button',{name:'Todos'}).click();
-  assert.equal(await page.locator('.product-list').getByRole('button',{name:/Biscoito Integral QA/}).count(),1);
+  await page.getByRole('button',{name:'Abrir catálogo'}).click();
+  await page.locator('.cashier-filters').getByRole('button',{name:'Bebidas QA'}).click();
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Café Arábica QA/}).count(),1);
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Biscoito Integral QA/}).count(),0);
+  await page.locator('.cashier-filters').getByRole('button',{name:'Todos'}).click();
+  assert.equal(await page.locator('.cashier-product-results button.cashier-product-option').filter({hasText:/Biscoito Integral QA/}).count(),1);
   pass('F17','filtro por categoria e retorno a todos os produtos');
 
   // F16: simulamos somente a digitação de um leitor HID: SKU + Enter no input real.
   await search().fill('QA-CAFE-1001');
   await search().press('Enter');
   await cart().getByText('Café Arábica QA').waitFor();
-  assert.equal(await cart().getByText('1 UN').count(),1);
+  assert.equal(await cart().locator('.cashier-item-stepper').getByText('1 UN',{exact:true}).count(),1);
   pass('F16','SKU + Enter adiciona produto como leitura HID (sem scanner físico)');
 
   // F18/F19: seleção visual, acréscimo, redução e remoção.
@@ -155,9 +158,9 @@ try{
   await cart().getByText('Biscoito Integral QA').waitFor();
   pass('F18','seleção de produto atualiza rascunho e total');
   await cart().getByRole('button',{name:'Aumentar Biscoito Integral QA'}).click();
-  await cart().locator('.cart-line').filter({hasText:'Biscoito Integral QA'}).getByText('2 UN').waitFor();
+  await cart().locator('.cashier-item').filter({hasText:'Biscoito Integral QA'}).getByText('2 UN',{exact:true}).waitFor();
   await cart().getByRole('button',{name:'Diminuir Biscoito Integral QA'}).click();
-  await cart().locator('.cart-line').filter({hasText:'Biscoito Integral QA'}).getByText('1 UN').waitFor();
+  await cart().locator('.cashier-item').filter({hasText:'Biscoito Integral QA'}).getByText('1 UN',{exact:true}).waitFor();
   await cart().getByRole('button',{name:'Remover Biscoito Integral QA'}).click();
   assert.equal(await cart().getByText('Biscoito Integral QA').count(),0);
   pass('F19','aumento, redução e remoção sem perder os demais itens');
@@ -173,11 +176,30 @@ try{
   await cart().getByText('Café Arábica QA').waitFor();
   pass('F21','rascunho recuperado após logout/login do mesmo operador');
 
+  // P2/P3: favoritos, espera local, recuperação segura e desfazer não registram venda.
+  await page.getByRole('button',{name:'Abrir catálogo'}).click();
+  await page.getByRole('button',{name:'Favoritar Café Arábica QA'}).click();
+  await page.getByRole('button',{name:'Fechar catálogo'}).last().click();
+  await page.keyboard.press('F9');
+  await cart().getByText('Pronto para a próxima venda').waitFor();
+  await page.getByRole('button',{name:'Vendas em espera (1)'}).click();
+  await page.getByRole('button',{name:'Retomar Venda em espera'}).waitFor();
+  assert.equal((await call('salesList')).length,0,'espera não pode registrar venda');
+  await page.keyboard.press('F11');
+  await cart().getByText('Café Arábica QA').waitFor();
+  await cart().getByRole('button',{name:'Remover Café Arábica QA'}).click();
+  await cart().getByText('Pronto para a próxima venda').waitFor();
+  await page.keyboard.press('Control+z');
+  await cart().getByText('Café Arábica QA').waitFor();
+  assert.equal((await call('salesList')).length,0);
+  assert.equal((await page.locator('.cashier-favorite-chips').getByRole('button',{name:/Café Arábica QA/}).count()),1);
+  console.log('PASS P2/P3: favorito, F9/F11 espera, retomar, Ctrl+Z e nenhuma venda registrada');
+
   // F29: checkout requer sessão; abrir caixa com troco inicial via interface.
-  assert.equal(await cart().getByRole('button',{name:'Abra o caixa para vender'}).isDisabled(),true);
+  assert.equal(await page.locator('.cashier-payment-panel').getByRole('button',{name:/Receber pagamento/}).isDisabled(),true);
   const closedError=await error('checkout',{key:'qa-without-open',items:[{id:a.id,quantityMilli:1000}],payments:[{method:'cash',amountCents:2550}]});
   assert.match(String(closedError),/caixa aberto/i);
-  await cart().getByRole('button',{name:'Ir para abertura de caixa'}).click();
+  await page.locator('.cashier-payment-panel').getByRole('button',{name:'Abrir caixa para receber'}).click();
   await page.getByRole('heading',{name:'Controle de caixa',exact:true}).waitFor();
   await page.locator('.commerce-section').filter({hasText:'Abrir novo caixa'}).getByRole('textbox',{name:'Valor inicial de troco (R$)'}).fill('100,50');
   await page.getByRole('button',{name:'Abrir caixa',exact:true}).click();
@@ -187,6 +209,22 @@ try{
   assert.equal(session.expected_cash_cents,10050);
   pass('F29','venda bloqueada com caixa fechado; abertura em R$ 100,50 persistida');
   await toCheckout();
+  await page.locator('.cashier-session-open').waitFor();
+  // P1 — atalhos devem preparar a confirmação, jamais registrar pagamento.
+  for(const [key,method] of [['F6','pix'],['F7','card'],['F8','cash']]){
+    await page.keyboard.press(key);
+    const dlg=payment();await dlg.waitFor();
+    assert.equal(await dlg.getByRole('combobox',{name:'Forma de pagamento 1'}).inputValue(),method);
+    await dlg.getByRole('button',{name:'Voltar ao carrinho'}).click();
+    await dlg.waitFor({state:'hidden'});
+  }
+  await page.keyboard.press('F3');
+  await payment().waitFor();
+  assert.equal(await payment().getByRole('combobox',{name:/Cliente \(obrigatório/})
+    .evaluate(el=>document.activeElement===el),true);
+  await page.keyboard.press('Escape');
+  await payment().waitFor({state:'hidden'});
+  assert.equal((await call('salesList')).length,0,'atalhos não podem concluir venda sozinhos');
 
   // F20: sem balança configurada informa erro, com balança TCP local lê 0,750 kg.
   await choose('Queijo a Granel QA');
@@ -295,8 +333,8 @@ try{
   await toCheckout();
   await choose('Biscoito Integral QA');
   page.once('dialog',dialog=>dialog.accept());
-  await cart().getByRole('button',{name:'Limpar rascunho'}).click();
-  await cart().getByText('Seu carrinho está vazio').waitFor();
+  await cart().getByRole('button',{name:'Cancelar'}).click();
+  await cart().getByText('Pronto para a próxima venda').waitFor();
   pass('F21','limpeza do rascunho confirmada sem criar venda adicional');
 
   assert.deepEqual(pageErrors,[], 'Renderer sem erros não tratados');

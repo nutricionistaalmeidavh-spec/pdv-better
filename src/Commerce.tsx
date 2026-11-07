@@ -3,6 +3,7 @@ import { Plus,Check,AlertTriangle,ShoppingCart,Package,Wallet,ClipboardList,Rota
 import { money,parseFixed } from '../shared/domain.mjs';
 import { reportRows } from '../shared/report.mjs';
 import { paymentPreview } from '../shared/payment-preview.mjs';
+import { suggestCashierPaymentAmount } from '../shared/cashier.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
 import {normalizePayments} from '../shared/commerce.mjs';
 import { SaleReceipt } from './Receipt';
@@ -16,8 +17,9 @@ const statusText:Record<string,string>={...commerceLabels.status,...commerceLabe
 function Message({error,success}:{error:string;success:string}){
   return <>{error && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}</div>}{success && <div className="notice success" role="status"><Check size={17}/>{success}</div>}</>;
 }
-export function PaymentModal({cart,products,customers,role,onClose,onDone,onCustomerSaved}:{
+export function PaymentModal({cart,products,customers,role,onClose,onDone,onCustomerSaved,initialMethod='cash',initialFocus}:{
   cart:any[];products:R[];customers:R[];role:string;onClose:()=>void;onDone:(sale:R)=>void;onCustomerSaved:()=>Promise<void>;
+  initialMethod?:'cash'|'pix'|'card';initialFocus?:'customer'|'discount';
 }){
   const subtotal=cart.reduce((sum,row)=>sum+Math.round(row.priceCents*row.quantityMilli/1000),0);
   const [discount,setDiscount]=useState('0,00');
@@ -25,7 +27,8 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
   const [newCustomerName,setNewCustomerName]=useState('');
   const [extraCustomers,setExtraCustomers]=useState<R[]>([]);
   const [customerBusy,setCustomerBusy]=useState(false);
-  const [payments,setPayments]=useState([{method:'cash',amount:'0,00'}]);
+  const [payments,setPayments]=useState<Array<{method:string;amount:string}>>([{method:initialMethod,amount:'0,00'}]);
+  const [initialAmountFilled,setInitialAmountFilled]=useState(false);
   const [itemMethods,setItemMethods]=useState<Record<string,string>>({});
   const [splitByQuantity,setSplitByQuantity]=useState(false);
   const [splitQuantities,setSplitQuantities]=useState<Record<string,string>>({});
@@ -57,6 +60,19 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
     return ()=>{mounted=false;};
   },[cart,discountCents,discountError,selectedBatches]);
   total=quote?.total_cents??total;
+  // Apenas sugere o valor após a cotação real (promoções/FEFO). Nunca confirma cobrança.
+  useEffect(()=>{
+    if(!quote||initialAmountFilled)return;
+    setPayments(rows=>rows.map((row,i)=>i===0?{...row,amount:suggestCashierPaymentAmount(row.amount,quote.total_cents)}:row));
+    setInitialAmountFilled(true);
+  },[quote?.total_cents,initialAmountFilled]);
+  useEffect(()=>{
+    const onKey=(ev:KeyboardEvent)=>{
+      if(ev.key==='Escape'&&!pending){ev.preventDefault();onClose();}
+    };
+    window.addEventListener('keydown',onKey);
+    return ()=>window.removeEventListener('keydown',onKey);
+  },[pending,onClose]);
   const payment=paymentPreview(total,payments);
   const selectedAssignments=Object.values(itemMethods).filter(Boolean).length;
   const explicitItems=quote?.lines||[];
@@ -135,14 +151,14 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
       <form onSubmit={send} className="dialog-form">
         <div className="form-grid">
           <label className="form-field"><span>Subtotal</span><input value={money(subtotal)} readOnly/></label>
-          <label className="form-field"><span>Desconto em reais</span><input value={discount} inputMode="decimal" onChange={e=>setDiscount(e.target.value)}/></label>
+          <label className="form-field"><span>Desconto em reais</span><input autoFocus={initialFocus==='discount'} value={discount} inputMode="decimal" onChange={e=>setDiscount(e.target.value)}/></label>
           <label className="form-field"><span>Promoções automáticas</span><input value={money(quote?.promotion_discount_cents??0)} readOnly/></label>
           <label className="form-field"><span>Total com desconto</span><input value={money(total)} readOnly/></label>
           {role!=='Caixa'&&<label className="form-field">
             <span>Venda de treinamento — simulação sem estoque, caixa ou faturamento</span>
             <input type="checkbox" checked={training} onChange={e=>setTraining(e.target.checked)}/>
           </label>}
-          <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{[...customers,...extraCustomers.filter(r=>!customers.some(item=>item.id===r.id))].map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+          <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select autoFocus={initialFocus==='customer'} value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{[...customers,...extraCustomers.filter(r=>!customers.some(item=>item.id===r.id))].map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
         </div>
         <div className="payment-inputs"><h3>Cadastro rápido de cliente</h3>
           <p>Não encontrou o cliente? Cadastre sem perder o carrinho nem os valores informados.</p>
@@ -388,6 +404,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       <div className="panel commerce-section"><h2>Sangria / reforço</h2><p>Movimentações auditáveis em dinheiro, vinculadas ao turno aberto.</p><form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.cashMove({kind,amountCents:amount,note:reason}),'Movimentação de caixa registrada.');}}>
         <label>Operação<select value={kind} onChange={e=>setKind(e.target.value)}>{cashMovementKinds.map(k=><option value={k} key={k}>{commerceLabels.cash[k]}</option>)}</select></label>
         <label>Valor (R$)<input value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value)}/></label>
+      <label>Categoria<input maxLength={80} value={financeCategory} onChange={e=>setFinanceCategory(e.target.value)} placeholder="Ex.: Infraestrutura"/></label>
         <label>Motivo<input value={reason} onChange={e=>setReason(e.target.value)} placeholder="Descreva o motivo"/></label>
         <button disabled={!session||busy} className="secondary" type="submit">Registrar movimentação</button></form>
         {!session&&<p className="commerce-warning">É necessário abrir o caixa antes de movimentar dinheiro.</p>}
@@ -519,7 +536,6 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
       <label>Descrição<input required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Ex.: aluguel"/></label>
       <label>Valor (R$)<input value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value)}/></label>
-      <label>Categoria<input maxLength={80} value={financeCategory} onChange={e=>setFinanceCategory(e.target.value)} placeholder="Ex.: Infraestrutura"/></label>
       <label>Vencimento<input type="date" value={dueOn} onChange={e=>setDueOn(e.target.value)}/></label>
       <button disabled={busy} className="primary" type="submit"><Plus size={16}/>Criar lançamento</button></form></div>
       <div className="panel commerce-section"><div className="commerce-heading"><div><h2>Contas a pagar e receber</h2><p>O fiado aparece automaticamente como conta a receber.</p></div><label>Quitação<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}>{paymentMethods.filter(m=>m.id!=='credit').map(m=><option value={m.id} key={m.id}>{m.label}</option>)}</select></label></div>

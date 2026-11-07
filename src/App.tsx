@@ -12,6 +12,12 @@ import { resolveBatchScan,parseBatchLabel } from '../shared/batch-label.mjs';
 import {applyManualWeight} from '../shared/manual-weight.mjs';
 import {deriveStockAlerts} from '../shared/stock-alerts.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
+import { Cashier, CashierMode } from './Cashier';
+import { normalizeCashierMode, resolveCashierShortcut } from '../shared/cashier.mjs';
+import {
+  normalizeHeldSales, holdCashierSale, resumeHeldSale,
+  normalizeCashierFavorites, toggleCashierFavorite, canUndoCashierChange
+} from '../shared/cashier-workflow.mjs';
 import { SaleReceipt } from './Receipt';
 import { SystemSettings } from './SystemSettings';
 import {allowed} from '../shared/access.mjs';
@@ -47,6 +53,13 @@ function friendlyError(error:any) {
 }
 export function App({user,onLogout}:{user:{id:string;name:string;role:string};onLogout:()=>Promise<void>}) {
   const [view,setView] = useState('dashboard');
+  const [cashierMode,setCashierMode] = useState<CashierMode>(()=>{
+    try{return normalizeCashierMode(localStorage.getItem('pdv-better:cashier-mode')) as CashierMode;}
+    catch{return 'dark';}
+  });
+  const [initialPaymentMethod,setInitialPaymentMethod] = useState<'cash'|'pix'|'card'>('cash');
+  const [initialPaymentFocus,setInitialPaymentFocus] = useState<'customer'|'discount'|undefined>();
+
   const [records,setRecords] = useState<Record<string, Row[]>>({});
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState('');
@@ -66,6 +79,15 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       return Array.isArray(saved)?saved.filter(x=>typeof x.id==='string'&&Number.isSafeInteger(x.quantityMilli)&&x.quantityMilli>0&&Number.isSafeInteger(x.priceCents)&&x.priceCents>=0):[];
     } catch{return [];}
   });
+  const [heldSales,setHeldSales] = useState<any[]>(()=>{
+    try{return normalizeHeldSales(JSON.parse(localStorage.getItem('pdv-better:held-v1:'+user.id)||'[]'));}
+    catch{return [];}
+  });
+  const [favoriteIds,setFavoriteIds] = useState<string[]>(()=>{
+    try{return normalizeCashierFavorites(JSON.parse(localStorage.getItem('pdv-better:favorites-v1:'+user.id)||'[]'));}
+    catch{return [];}
+  });
+  const [undoCart,setUndoCart] = useState<{before:CartItem[];after:CartItem[]}|null>(null);
   const [cartSearch,setCartSearch] = useState('');
   const [categoryFilter,setCategoryFilter] = useState('all');
   const [cartError,setCartError] = useState('');
@@ -97,6 +119,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     setRecords(prev => ({...prev,[kind]:current}));
   }
   useEffect(() => { void reloadAll(); }, []);
+  useEffect(()=>{try{localStorage.setItem('pdv-better:cashier-mode',cashierMode);}catch{}},[cashierMode]);
   useEffect(()=>{
     if(view!=='dashboard'||!bridge)return;
     let alive=true;
@@ -112,21 +135,38 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
   useEffect(() => { if((view==='checkout'||view==='dashboard') && bridge) void bridge.sessionCurrent().then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
   useEffect(() => {
-    if (view === 'checkout') searchInput.current?.focus();
-  }, [view]);
+    if (view === 'checkout' && !paymentOpen && !receipt) searchInput.current?.focus();
+  }, [view,paymentOpen,receipt]);
   useEffect(() => {
     const onKey = (ev:KeyboardEvent) => {
-      if (ev.key === 'Escape' && editing) setEditing(null);
-      const target=ev.target;
-      const editingText=target instanceof HTMLElement && !!target.closest('input,textarea,select,[contenteditable="true"]');
-      const dialogActive=!!document.querySelector('[role="dialog"][aria-modal="true"]');
-      if (ev.key === 'F2' && !editing && !paymentOpen && !editingText && !dialogActive) {
-        ev.preventDefault(); setView('checkout'); searchInput.current?.focus();
-      }
+      if (ev.key === 'Escape' && editing) { setEditing(null); return; }
+      const target=ev.target as HTMLElement|null;
+      const editable=Boolean(target&&(target.isContentEditable||['INPUT','TEXTAREA','SELECT'].includes(target.tagName)));
+      const shortcutKey=ev.ctrlKey&&ev.key.toLowerCase()==='z'?'Ctrl+Z':ev.key;
+      const action = resolveCashierShortcut(shortcutKey,{
+        checkout:view==='checkout',session:Boolean(session),hasCart:cart.length>0,
+        hasHeld:heldSales.length>0,canUndo:canUndoCashierChange(cart,undoCart),
+        dialog:Boolean(editing||paymentOpen||receipt||passwordTarget||document.querySelector('[role="dialog"][aria-modal="true"]')),editable
+      });
+      if(!action)return;
+      ev.preventDefault();
+      if(action==='search'){
+        if(editable)return;
+        if(view!=='checkout')setView('checkout');
+        searchInput.current?.focus();
+      } else if(action==='customer') openPayment(undefined,'customer');
+      else if(action==='discount') openPayment(undefined,'discount');
+      else if(action==='pix') openPayment('pix');
+      else if(action==='card') openPayment('card');
+      else if(action==='cash') openPayment('cash');
+      else if(action==='payment') openPayment();
+      else if(action==='hold') holdCurrentSale('');
+      else if(action==='resume') resumeSale(heldSales[0].id);
+      else if(action==='undo') undoLastCartChange();
     };
     window.addEventListener('keydown',onKey);
     return () => window.removeEventListener('keydown',onKey);
-  }, [editing,paymentOpen]);
+  }, [editing,view,session,cart,heldSales,undoCart,records,paymentOpen,receipt,passwordTarget]);
   const rows:Row[] = records[view] || [];
   const filteredRows = useMemo(() => rows.filter(row =>
     !search || Object.values(row).some(value => String(value??'').toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
@@ -136,10 +176,75 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const pageRows = filteredRows.slice(page*pageSize,(page+1)*pageSize);
   const products:Row[] = records.products || [];
   const categories:Row[] = records.categories || [];
+  const favoriteProducts = favoriteIds.map(id=>products.find(row=>row.id===id)).filter(Boolean) as Row[];
+  const undoAvailable=canUndoCashierChange(cart,undoCart);
   const matchingProducts = useMemo(()=>filterCheckoutProducts(products,categoryFilter,cartSearch),[products,categoryFilter,cartSearch]);
   const todayLocal=(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');})();
   const stockAlerts=deriveStockAlerts(products,stockBatches,todayLocal);
   const total = cartTotalCents(cart);
+  function openPayment(method?:'cash'|'pix'|'card',focus?:'customer'|'discount'){
+    if(!session||!cart.length)return;
+    setInitialPaymentMethod(method||'cash');
+    setInitialPaymentFocus(focus);
+    setPaymentOpen(true);
+  }
+  function holdCurrentSale(label:string){
+    try{
+      const next=holdCashierSale(heldSales,cart,{
+        id:crypto.randomUUID(),label,createdAt:new Date().toISOString()
+      });
+      // Primeiro persiste a espera. Se falhar, a venda ativa permanece intacta.
+      localStorage.setItem('pdv-better:held-v1:'+user.id,JSON.stringify(next));
+      setHeldSales(next);setCart([]);setUndoCart(null);setCartError('');
+      setNotice('Venda colocada em espera neste terminal. Nenhum estoque foi reservado.');
+    }catch(err){setCartError('Não foi possível colocar a venda em espera. '+friendlyError(err));}
+  }
+  function resumeSale(id:string){
+    if(cart.length){
+      setCartError('Guarde ou limpe o carrinho atual antes de retomar outra venda.');
+      return;
+    }
+    try{
+      const result=resumeHeldSale(heldSales,id,products);
+      // Recuperação contra queda: gravar carrinho ativo antes de retirar a espera.
+      localStorage.setItem('pdv-better:draft-v1:'+user.id,JSON.stringify(result.items));
+      localStorage.setItem('pdv-better:held-v1:'+user.id,JSON.stringify(result.remaining));
+      setHeldSales(result.remaining);setCart(result.items as CartItem[]);
+      setUndoCart(null);setCartError(result.warnings.join(' '));
+      setNotice(result.warnings.length?'Venda retomada; confira as alterações de catálogo e preços.':'Venda retomada no caixa.');
+      searchInput.current?.focus();
+    }catch(err){setCartError('Não foi possível retomar a venda. '+friendlyError(err));}
+  }
+  function removeHeldSale(id:string){
+    if(!window.confirm('Excluir este rascunho em espera? Nenhuma venda será cancelada no banco.'))return;
+    try{
+      const next=heldSales.filter(sale=>sale.id!==id);
+      localStorage.setItem('pdv-better:held-v1:'+user.id,JSON.stringify(next));
+      setHeldSales(next);setCartError('');
+      setNotice('Rascunho em espera excluído neste terminal.');
+    }catch(err){setCartError('Não foi possível excluir a espera. '+friendlyError(err));}
+  }
+  function favoriteProduct(id:string){
+    try{
+      const next=toggleCashierFavorite(favoriteIds,id);
+      localStorage.setItem('pdv-better:favorites-v1:'+user.id,JSON.stringify(next));
+      setFavoriteIds(next);setCartError('');
+    }catch(err){setCartError('Não foi possível atualizar favoritos. '+friendlyError(err));}
+  }
+  function removeCartItem(id:string){
+    const next=cart.filter(line=>line.id!==id);
+    if(next.length===cart.length)return;
+    setUndoCart({before:cart,after:next});setCart(next);
+    setCartError('');
+  }
+  function clearCurrentCart(){
+    if(!cart.length||!window.confirm('Limpar o rascunho da venda?'))return;
+    setUndoCart({before:cart,after:[]});setCart([]);setCartError('');
+  }
+  function undoLastCartChange(){
+    if(!canUndoCashierChange(cart,undoCart)||!undoCart)return;
+    setCart(undoCart.before);setUndoCart(null);setCartError('');
+  }
   function startForm(row?:Row) {
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
     setForm({...base,...(row ? {id:row.id} : {})});
@@ -182,15 +287,15 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     catch(err) { setError('Não foi possível desativar. ' + friendlyError(err)); }
   }
   function addProduct(row:Row) {
-    try { setCart(addToCart(cart,row,1000)); setCartError(''); setCartSearch(''); searchInput.current?.focus(); }
+    try { setCart(addToCart(cart,row,1000)); setUndoCart(null); setCartError(''); setCartSearch(''); searchInput.current?.focus(); }
     catch(err) { setCartError(friendlyError(err)); }
   }
   function changeQuantity(item:CartItem,delta:number) {
     const quantity = item.quantityMilli + delta;
-    if (quantity <= 0) { setCart(prev => prev.filter(line => line.id !== item.id)); return; }
+    if (quantity <= 0) { removeCartItem(item.id); return; }
     try {
       lineTotalCents(item.priceCents,quantity);
-      setCart(prev => prev.map(line => line.id === item.id ? {...line,quantityMilli:quantity} : line));
+      setCart(prev => prev.map(line => line.id === item.id ? {...line,quantityMilli:quantity} : line));setUndoCart(null);
       setCartError('');
     } catch(err) { setCartError(friendlyError(err)); }
   }
@@ -209,6 +314,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
           if(existing && existing.batchId!==scanned.batch.id)
             throw new Error('Este produto já está no carrinho com outro lote ou sem lote. Remova a linha e leia a etiqueta novamente.');
           const updated=addToCart(cart,scanned.product,1000);
+          setUndoCart(null);
           setCart(updated.map(row=>row.id===scanned.product.id
             ? {...row,batchId:scanned.batch.id,batchCode:scanned.batch.code}:row));
           setCartError('');setCartSearch('');searchInput.current?.focus();
@@ -229,12 +335,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       const milli=await bridge.scaleRead();
       if(!Number.isSafeInteger(milli)||milli<=0)throw new Error('Peso inválido da balança.');
       lineTotalCents(item.priceCents,milli);
-      setCart(old=>old.map(line=>line.id===item.id?{...line,quantityMilli:milli}:line));
+      setCart(old=>old.map(line=>line.id===item.id?{...line,quantityMilli:milli}:line));setUndoCart(null);
     }catch(err){setCartError(friendlyError(err));}
     finally{setReadingScale(false);}
   }
   async function completeSale(sale:Row) {
-    setPaymentOpen(false);setCart([]);setReceipt(sale);
+    setPaymentOpen(false);setCart([]);setUndoCart(null);setReceipt(sale);
     try {await reload('products');if(bridge)setSession(await bridge.sessionCurrent());}catch(err){setCartError(friendlyError(err));}
     setNotice(sale.is_training?'Simulação de treinamento '+sale.id.slice(0,8)+' registrada: sem faturamento, caixa ou baixa de estoque.':
       'Venda '+sale.id.slice(0,8)+' concluída, total '+money(sale.total_cents)+'. Troco: '+money(sale.change_cents)+'. Comprovante não fiscal.');
@@ -256,7 +362,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       setPasswordTarget(null);setOperatorPassword('');setRepeatPassword('');
     }catch(e){setError(friendlyError(e));}
   }
-  return <div className="shell">
+  return <div className={'shell'+(view==='checkout'?' cashier-shell mode-'+cashierMode:'')}>
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Package size={21}/></div><div><strong>PDV Better</strong><span>by ArtiSys</span></div></div>
       <div className="workspace"><div className="workspace-avatar">PB</div><div><strong>Estabelecimento local</strong><span>Funcionamento offline • perfis e caixas independentes</span></div></div>
@@ -325,51 +431,32 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             </div>
             <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros, vendas, saldos de estoque e financeiro são registrados no SQLite local. Pix e cartão devem ser confirmados externamente antes da conclusão da venda.</p></div></div>
           </>}
-          {view === 'checkout' && <>
-            <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO / F2</div><h1>Frente de caixa</h1><p>Busque produtos, revise quantidades e registre o pagamento no caixa aberto.</p></div><span className="draft-label">{session ? 'Caixa aberto' : 'Caixa fechado'}</span></div>
-            <div className="checkout-grid">
-              <div className="panel products-panel glass-panel">
-                <div className="panel-header"><div><h2>Selecionar produtos</h2><p>Busque por nome, SKU ou código de barras</p></div><span className="count-chip">{matchingProducts.length} exibidos</span></div>
-                <label className="search-field"><Search size={19}/><input ref={searchInput} autoComplete="off" disabled={scanningBatch} aria-label="Pesquisar ou ler código de barras" placeholder="Digite ou leia o código do produto…" value={cartSearch} onChange={ev => {setCartSearch(ev.target.value);setCartError('');}} onKeyDown={scanKey}/><span className="kbd">Enter</span></label>
-                <div className="category-filter" aria-label="Filtrar produtos por categoria"><button type="button" className={categoryFilter==='all'?'active':''} aria-pressed={categoryFilter==='all'} onClick={()=>setCategoryFilter('all')}>Todos</button>{categories.map(c=><button type="button" key={c.id} className={categoryFilter===c.id?'active':''} aria-pressed={categoryFilter===c.id} onClick={()=>setCategoryFilter(c.id)}>{c.name}</button>)}</div>
-                <div className="product-list glass-product-grid">
-                  {matchingProducts.map(row => <button className="product-option" key={row.id} onClick={() => addProduct(row)}>
-                    <div className="product-icon"><Package size={19}/></div><div className="product-info"><strong>{row.name}</strong><span>{row.code || 'Sem código'} · {row.unit} · Saldo {Number(row.stock_milli || 0)/1000}</span></div><strong className="product-price">{money(row.sale_price_cents)}</strong><Plus size={19} className="add-icon"/>
-                  </button>)}
-                  {!matchingProducts.length && <div className="empty-state"><Search size={25}/><strong>Nenhum produto encontrado</strong><p>Cadastre produtos ou tente outra pesquisa.</p><button className="secondary" onClick={() => {selectView('products');setForm(newForm('products'));setEditing({});}}>Cadastrar novo produto</button></div>}
-                </div>
-              </div>
-              <div className="panel cart-panel glass-panel">
-                <div className="panel-header"><div><h2>Rascunho da venda</h2><p>{cart.length} {cart.length === 1 ? 'produto' : 'produtos'} na seleção</p></div><ShoppingCart size={19}/></div>
-                {cartError && <div className="cart-error" role="alert">{cartError}</div>}
-                <div className="cart-lines">
-                  {cart.length === 0 ? <div className="empty-cart"><ShoppingCart size={32}/><strong>Seu carrinho está vazio</strong><p>Selecione um produto para começar.</p></div> :
-                    cart.map(line => <div className="cart-line" key={line.id}><div className="cart-line-top"><div><strong>{line.name}</strong><span>{money(line.priceCents)} / {line.unit}{line.batchId?' · Lote físico '+(line.batchCode||line.batchId.slice(0,8)):''}</span></div><button className="icon-btn" title="Remover do carrinho" aria-label={'Remover '+line.name} onClick={() => setCart(old => old.filter(item => item.id !== line.id))}><X size={17}/></button></div>
-                      <div className="cart-line-bottom"><div className="stepper"><button aria-label={'Diminuir '+line.name} onClick={() => changeQuantity(line,-(line.unit === 'KG' ? 100 : 1000))}><Minus size={15}/></button><span>{(line.quantityMilli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {line.unit}</span><button aria-label={'Aumentar '+line.name} onClick={() => changeQuantity(line,line.unit === 'KG' ? 100 : 1000)}><Plus size={15}/></button></div><strong>{money(lineTotalCents(line.priceCents,line.quantityMilli))}</strong></div>
-                      {line.unit==='KG'&&<div className="commerce-inline-form">
-                        <label>Peso manual (kg) — {line.name}
-                          <input aria-label={'Peso manual de '+line.name} inputMode="decimal" placeholder="0,350"
-                            value={manualWeight[line.id]||''}
-                            onChange={e=>setManualWeight(old=>({...old,[line.id]:e.target.value}))}/>
-                        </label>
-                        <button className="secondary" type="button" onClick={()=>{
-                          try{setCart(old=>applyManualWeight(old,line.id,manualWeight[line.id]||''));setCartError('');}
-                          catch(err){setCartError(friendlyError(err));}
-                        }}>Aplicar peso</button>
-                        <button className="plain" disabled={readingScale} onClick={()=>void weighItem(line)}>Ler balança para {line.name}</button>
-                      </div>}
-                    </div>)}
-                </div>
-                <div className="cart-footer">
-                  <div className="total-line"><span>Total estimado</span><strong>{money(total)}</strong></div>
-                  <div className="muted-hint"><AlertTriangle size={15}/> O carrinho é temporário até concluir a venda. O pagamento só será registrado após a confirmação.</div>
-                  <button className="primary full" disabled={!cart.length || !session} onClick={() => setPaymentOpen(true)}>{session ? 'Receber e concluir venda' : 'Abra o caixa para vender'}</button>
-                  {!session && <button className="secondary full" onClick={() => selectView('cash')}>Ir para abertura de caixa</button>}
-                  <button className="plain full" disabled={!cart.length} onClick={() => { if(window.confirm('Limpar o rascunho da venda?')) setCart([]); }}><Trash2 size={16}/> Limpar rascunho</button>
-                </div>
-              </div>
-            </div>
-          </>}
+          {view === 'checkout' && <Cashier
+            mode={cashierMode} onModeChange={setCashierMode}
+            searchRef={searchInput} search={cartSearch}
+            onSearchChange={value=>{setCartSearch(value);setCartError('');}}
+            onSearchKeyDown={scanKey}
+            categories={categories} categoryFilter={categoryFilter} onCategoryFilter={setCategoryFilter}
+            products={matchingProducts} onAddProduct={addProduct}
+            onProducts={()=>{selectView('products');setForm(newForm('products'));setEditing({});}} cart={cart} cartError={cartError}
+            total={total} sessionOpen={Boolean(session)}
+            onRemoveProduct={removeCartItem}
+            onChangeQuantity={changeQuantity} manualWeight={manualWeight}
+            onManualWeightChange={(id,value)=>setManualWeight(old=>({...old,[id]:value}))}
+            onApplyWeight={item=>{
+              try{setCart(applyManualWeight(cart,item.id,manualWeight[item.id]||''));setCartError('');}
+              catch(err){setCartError(friendlyError(err));}
+            }}
+            onReadScale={item=>void weighItem(item)} readingScale={readingScale}
+            onClearCart={clearCurrentCart}
+            onCash={()=>selectView('cash')}
+            onOpenPayment={openPayment}
+            favoriteIds={favoriteIds} favoriteProducts={favoriteProducts}
+            onToggleFavorite={favoriteProduct}
+            heldSales={heldSales} onHold={holdCurrentSale}
+            onResumeHeld={resumeSale} onRemoveHeld={removeHeldSale}
+            canUndo={undoAvailable} onUndo={undoLastCartChange}
+          />}
           {['cash','sales','inventory','purchases','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
           {view==='settings' && <SystemSettings/>}
           {activeSchema && <>
@@ -399,7 +486,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
        <label className="form-field">Confirmar senha<input type="password" required minLength={8} maxLength={128} value={repeatPassword} autoComplete="new-password" onChange={e=>setRepeatPassword(e.target.value)}/></label>
       </div>{error&&<p role="alert">{error}</p>}<footer className="dialog-footer"><button type="button" className="secondary" onClick={()=>setPasswordTarget(null)}>Cancelar</button><button type="submit" className="primary">Salvar acesso</button></footer></form>
     </section></div>}
-    {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} role={user.role} onClose={()=>setPaymentOpen(false)} onDone={completeSale} onCustomerSaved={()=>reload('customers')}/>}
+    {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} role={user.role} initialMethod={initialPaymentMethod} initialFocus={initialPaymentFocus} onClose={()=>setPaymentOpen(false)} onDone={completeSale} onCustomerSaved={()=>reload('customers')}/>}
     {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
     {editing && activeSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
       <section className="dialog" role="dialog" aria-modal="true" aria-label={(editing.id ? 'Editar ' : 'Adicionar ') + activeSchema.singular}>

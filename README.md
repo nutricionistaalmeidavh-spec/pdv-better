@@ -30,6 +30,14 @@ Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato c
 - Administração de operadores, funções e senhas pela interface e histórico de autoria das vendas.
 - SQLite v4 migra os turnos existentes sem apagar dados. Detalhes em docs/03-caixas-perfis.md.
 
+## Caixa Rápido P0–P3 — não fiscal
+- Três modos de frente de caixa: Compacto, Claro e Escuro, sem alteração dos contratos IPC.
+- P2: favoritos rápidos (até 8), vendas em espera (até 12 por operador/terminal), retomada e identificação opcional.
+- P3: retomada com conferência de preços e produtos atuais, validação contra dados corrompidos, desfazer exclusões e atalhos F9/F11/Ctrl+Z.
+- Vendas em espera não baixam nem reservam estoque, não criam venda no SQLite e não são sincronizadas na LAN.
+- Pagamentos externos permanecem manuais e comprovantes seguem **não fiscais**; não há NFC-e, NF-e, CF-e ou SAT.
+- Detalhes e limites em `docs/09-caixa-rapido-p2-p3.md`.
+
 ## Requisitos
 Windows 10/11 x64, Node.js 22 para desenvolvimento e npm.
 

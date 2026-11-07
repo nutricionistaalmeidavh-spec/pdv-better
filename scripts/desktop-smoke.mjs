@@ -77,12 +77,13 @@ try{
   await page.getByRole('button',{name:'Salvar cadastro'}).click();
   await page.getByRole('cell',{name:'Café Smoke'}).waitFor();
   await page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:'Frente de caixa',exact:true}).click();
-  await page.getByRole('button',{name:'Ir para abertura de caixa'}).click();
+  await page.getByRole('button',{name:'Abrir caixa para receber'}).click();
   await page.getByRole('button',{name:'Abrir caixa'}).click();
   await page.getByRole('status').filter({hasText:'Caixa aberto para vendas.'}).waitFor();
   await page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:'Frente de caixa',exact:true}).click();
-  await page.getByRole('button',{name:/Café Smoke/}).click();
-  await page.getByRole('button',{name:'Receber e concluir venda'}).click();
+  await page.getByRole('textbox',{name:'Pesquisar ou ler código de barras'}).fill('SMOKE1001');
+  await page.getByRole('textbox',{name:'Pesquisar ou ler código de barras'}).press('Enter');
+  await page.getByRole('button',{name:/Receber pagamento/}).click();
   await page.getByRole('textbox',{name:'Valor de pagamento 1'}).fill('12,50');
   await page.getByRole('button',{name:'Confirmar e concluir venda'}).click();
   await page.getByRole('status').filter({hasText:'concluída'}).waitFor({timeout:30000});

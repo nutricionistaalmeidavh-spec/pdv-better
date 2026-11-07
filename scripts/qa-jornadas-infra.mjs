@@ -39,7 +39,7 @@ async function login(p){
 }
 async function visit(p,name,heading){
  await nav(p,name).click();
- await p.getByRole('heading',{name:heading,exact:true}).waitFor();
+ await p.getByRole('heading',{name:name==='Frente de caixa'?'Caixa Rápido':heading,exact:true}).waitFor();
 }
 async function product(p,name,sku){
  await visit(p,'Produtos','Produtos');
@@ -87,16 +87,16 @@ try{
  await visit(client,'Frente de caixa','Frente de caixa');
  const search=client.getByRole('textbox',{name:'Pesquisar ou ler código de barras'});
  await search.fill('JORN-LAN-06');await search.press('Enter');
- await client.locator('.cart-line').getByText('Produto LAN Jornada').waitFor();
- await client.locator('.cart-panel').getByRole('button',{name:'Ir para abertura de caixa'}).click();
+ await client.locator('.cashier-item').getByText('Produto LAN Jornada').waitFor();
+ await client.locator('.cashier-payment-panel').getByRole('button',{name:'Abrir caixa para receber'}).click();
  await client.getByRole('heading',{name:'Controle de caixa',exact:true}).waitFor();
  const shift=client.locator('.commerce-section').filter({has:client.getByRole('heading',{name:'Abrir novo caixa'})});
  await field(shift,'Valor inicial de troco (R$)').fill('10,00');
  await shift.getByRole('button',{name:'Abrir caixa'}).click();
  await client.getByRole('status').filter({hasText:'Caixa aberto para vendas.'}).waitFor();
  await visit(client,'Frente de caixa','Frente de caixa');
- await client.locator('.cart-line').getByText('Produto LAN Jornada').waitFor();
- await client.locator('.cart-panel').getByRole('button',{name:'Receber e concluir venda'}).click();
+ await client.locator('.cashier-item').getByText('Produto LAN Jornada').waitFor();
+ await client.locator('.cashier-payment-panel').getByRole('button',{name:/Receber pagamento/}).click();
  const d=client.getByRole('dialog',{name:'Receber venda'});
  await d.getByRole('textbox',{name:'Valor de pagamento 1'}).fill('20,00');
  await d.getByRole('button',{name:'Confirmar e concluir venda'}).click();
