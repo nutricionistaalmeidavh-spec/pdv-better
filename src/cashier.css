@@ -5,6 +5,7 @@
   --cash-highlight:#e9f1ff; --cash-blue:#145aca; --cash-green:#069c4a;
   background:var(--cash-bg); color:var(--cash-text); min-height:100vh;
 }
+.shell.cashier-shell.mode-light { color-scheme:light; }
 .shell.cashier-shell.mode-dark {
   --cash-bg:#08152d; --cash-paper:#101f3d; --cash-text:#f5f9ff;
   --cash-muted:#b6c9e4; --cash-line:#304566; --cash-navy:#0c1734;
