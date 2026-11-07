@@ -77,9 +77,13 @@ async function openShift(p,cash){
 }
 async function closeShift(p,count){
  await visit(p,'Controle de caixa','Controle de caixa');
- await field(shift(p),'Dinheiro contado (R$)').fill(count);
- await shift(p).getByRole('button',{name:'Conferir e fechar caixa'}).click();
- await p.getByRole('status').filter({hasText:'Caixa fechado.'}).waitFor();
+ const form=shift(p).locator('form');
+ for(let i=0;i<5;i++)await form.locator('input').nth(i).fill(i===0?count:'0,00');
+ await form.getByRole('button',{name:'Revisar fechamento e solicitar gerente'}).click();
+ const review=p.getByRole('dialog',{name:'Confirmar fechamento de caixa'});
+ await review.locator('input[type="password"]').fill(adminPass);
+ await review.getByRole('button',{name:'Autorizar e fechar caixa'}).click();
+ await p.getByRole('status').filter({hasText:'Fechamento autorizado.'}).waitFor();
 }
 async function sell(p,code,{method='cash',amount='',customer='',split=null}={}){
  await visit(p,'Frente de caixa','Frente de caixa');
@@ -216,7 +220,7 @@ await journey('J03','Gerente: estoque, financeiro, liquidação e relatório',as
  await field(finance(p),'Quitação').selectOption('cash');
  const row=finance(p).getByRole('row').filter({hasText:'Energia Jornada'});
  p.once('dialog',d=>d.accept());
- await row.getByRole('button',{name:'Liquidar'}).click();
+ await row.getByRole('button',{name:'Dar baixa'}).click();
  await row.getByText('Liquidada').waitFor();
  await visit(p,'Relatórios','Relatórios e indicadores');
  const report=await api(p,'report');
@@ -245,7 +249,7 @@ await journey('J04','Fiado: caixa, cliente, liquidação pelo gestor e saldo',as
  const row=finance(p).getByRole('row').filter({hasText:'Venda fiado '+sale.id});
  await row.getByText('Em aberto').waitFor();
  await field(finance(p),'Quitação').selectOption('cash');
- p.once('dialog',d=>d.accept());await row.getByRole('button',{name:'Liquidar'}).click();
+ p.once('dialog',d=>d.accept());await row.getByRole('button',{name:'Dar baixa'}).click();
  await row.getByText('Liquidada').waitFor();
  assert.equal((await api(p,'sessionCurrent')).expected_cash_cents,6600);
  assert.match(String(await err(p,'salesCancel',sale.id)),/turno|liquidado/i);
