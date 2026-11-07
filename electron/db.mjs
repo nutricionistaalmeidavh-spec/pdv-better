@@ -11,6 +11,7 @@ import {migratePhase8} from './phase8.mjs';
 import {migratePhase9} from './phase9.mjs';
 import {migratePhase10} from './phase10.mjs';
 import {migratePhase11} from './phase11.mjs';
+import {migratePhase12} from './phase12.mjs';
 import {createFinanceP2} from './finance-p2.mjs';
 import {createCommercialPurchases} from './commercial-purchases.mjs';
 import {parseCatalogCsv} from '../shared/catalog-import.mjs';
@@ -52,6 +53,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   migratePhase9(db);
   migratePhase10(db);
   migratePhase11(db);
+  migratePhase12(db);
   const financeP2=createFinanceP2(db);
   const commercialPurchases=createCommercialPurchases(db);
   const access=createAccess(db);
