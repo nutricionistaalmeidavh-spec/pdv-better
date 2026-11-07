@@ -88,8 +88,8 @@ export function createFinanceP2(db){
    const remaining=e.amount_cents-(balances.get(e.id)||0);
    if(!Number.isSafeInteger(remaining)||remaining<0)throw new Error('Saldo financeiro inconsistente.');
    if(e.status==='settled'||!remaining)continue;
-   if(e.due_on&&within(e.due_on))forecasts.push({
-    id:e.id,date:e.due_on,kind:e.type==='payable'?'saida':'entrada',
+   if((e.due_on&&within(e.due_on))||(!e.due_on&&!from&&!to))forecasts.push({
+    id:e.id,date:e.due_on||'Sem vencimento',kind:e.type==='payable'?'saida':'entrada',
     category:e.category||'Sem categoria',description:e.description,
     amount_cents:remaining,source:'forecast',method:'previsto'});
   }
