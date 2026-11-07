@@ -186,6 +186,15 @@ async function main(){
   for(const [,label] of names)if(!buttons.some(s=>s.trim()===label))throw new Error('Falta tela no menu administrativo: '+label);
   for(const [key,label] of names){
     await go(label);
+    // Evidências da interface real aprovada: o tema só é considerado válido
+    // quando o módulo entrega as estruturas e imagens no aplicativo Electron.
+    await page.locator('.super-top-navigation').waitFor({state:'visible'});
+    if(key==='checkout'){
+      await page.locator('.cashier-product-entry').first().waitFor({state:'visible'});
+      await page.locator('.cashier-checkout-side').waitFor({state:'visible'});
+    }
+    if(key==='inventory')await page.locator('.super-inventory-overview .super-stock-product').first().waitFor({state:'visible'});
+    if(key==='reports')await page.locator('.super-report-charts').waitFor({state:'visible'});
     await capture('Menu - '+label,{selector:key==='checkout'?'.cashier-heading':'.page-heading'});
     if(['products','categories','customers','suppliers','operators'].includes(key)){
       const singular={products:'produto',categories:'categoria',customers:'cliente',suppliers:'fornecedor',operators:'operador'}[key];
