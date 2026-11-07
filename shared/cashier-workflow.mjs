@@ -48,7 +48,7 @@ export function normalizeHeldSales(data){
   return result;
 }
 
-export function holdCashierSale(existing,cart,{id,label='',createdAt}={}){
+export function holdCashierSale(existing,cart,{id,label='',createdAt}){
   const items=cleanItems(cart);
   if(!items)throw new Error('Carrinho vazio ou inválido para colocar em espera.');
   if(typeof id!=='string'||!id.trim()||id.length>128)throw new Error('Identificador de espera inválido.');
