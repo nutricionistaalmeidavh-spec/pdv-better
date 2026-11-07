@@ -17,6 +17,58 @@ const statusText:Record<string,string>={...commerceLabels.status,...commerceLabe
 function Message({error,success}:{error:string;success:string}){
   return <>{error && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}</div>}{success && <div className="notice success" role="status"><Check size={17}/>{success}</div>}</>;
 }
+
+/* Indicadores visuais derivados somente do SQLite local, sem números ilustrativos. */
+function ReportCharts({sales,summary}:{sales:R[];summary:R}){
+  const daily=Array.from({length:7},(_,index)=>{
+    const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()-(6-index));
+    const key=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+    const amount=sales.filter(s=>s.status==='completed'&&!s.is_training&&s.created_at&&
+      new Date(s.created_at).toLocaleDateString('en-CA')===key).reduce((total,s)=>total+Number(s.total_cents||0),0);
+    return {key,label:d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),amount};
+  });
+  const maximum=Math.max(1,...daily.map(d=>d.amount));
+  const paymentMethods=[
+    {name:'Dinheiro',amount:Number(summary.cash_cents||0),color:'#0d51c5'},
+    {name:'Pix',amount:Number(summary.pix_cents||0),color:'#178de5'},
+    {name:'Cartão',amount:Number(summary.card_cents||0)+Number(summary.card_credit_cents||0)+Number(summary.card_debit_cents||0),color:'#65b9f5'},
+    {name:'Fiado',amount:Number(summary.credit_cents||0),color:'#b3dcf8'}
+  ];
+  const paymentTotal=paymentMethods.reduce((sum,row)=>sum+row.amount,0);
+  let at=0;
+  const slices=paymentMethods.filter(row=>row.amount>0).map(row=>{
+    const start=at;at+=row.amount/paymentTotal*100;
+    return row.color+' '+start.toFixed(3)+'% '+at.toFixed(3)+'%';
+  });
+  const gradient=paymentTotal>0?'conic-gradient('+slices.join(', ')+')':'conic-gradient(#dce9f8 0% 100%)';
+  return <div className="super-report-charts">
+    <section className="super-report-chart-panel" aria-label="Vendas por dia">
+      <h3>Vendas nos últimos 7 dias</h3>
+      <p>Vendas concluídas, excluindo treinamento e cancelamentos.</p>
+      <div className="super-report-bars">
+        {daily.map(day=><div className="super-report-bar-column" key={day.key} title={day.label+' — '+money(day.amount)}>
+          <span className="super-report-bar-value">{day.amount?money(day.amount):'—'}</span>
+          <div className="super-report-bar-track"><span className="super-report-bar-fill"
+            style={{height:day.amount?Math.max(5,day.amount/maximum*100)+'%':'0%'}}/></div>
+          <small>{day.label}</small>
+        </div>)}
+      </div>
+    </section>
+    <section className="super-report-chart-panel" aria-label="Formas de recebimento">
+      <h3>Recebimentos por forma</h3>
+      <p>Valores acumulados registrados no caixa.</p>
+      <div className="super-report-payment-chart">
+        <div className="super-report-donut" style={{background:gradient}} aria-label={'Recebimentos no período: '+money(paymentTotal)}>
+          <div><strong>{money(paymentTotal)}</strong><span>Registrados</span></div>
+        </div>
+        <div className="super-report-legend">
+          {paymentMethods.map(row=><div key={row.name}><i style={{background:row.color}} aria-hidden="true"/><span>{row.name}</span><strong>{money(row.amount)}</strong></div>)}
+        </div>
+      </div>
+    </section>
+  </div>;
+}
+
 export function PaymentModal({cart,products,customers,role,onClose,onDone,onCustomerSaved,initialMethod='cash',initialFocus}:{
   cart:any[];products:R[];customers:R[];role:string;onClose:()=>void;onDone:(sale:R)=>void;onCustomerSaved:()=>Promise<void>;
   initialMethod?:'cash'|'pix'|'card';initialFocus?:'customer'|'discount';
@@ -587,7 +639,16 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         <div><h2>Relatório gerencial acumulado</h2><p>Exporte localmente; nenhum dado é enviado a serviços externos.</p></div>
         <div className="report-actions">{(['pdf','csv','xlsx'] as const).map(format=><button key={format} className="secondary" disabled={busy} onClick={()=>void exportReport(format)}>Exportar {format.toUpperCase()}</button>)}</div>
       </div>
-      <div className="report-grid">{reportRows(summary).map(row=><div className="stat" key={row.key}><span className="report-label">{row.label}</span><strong className="report-number">{row.type==='money'?money(row.raw):row.value}</strong><span className="stat-bottom">Acumulado local</span></div>)}</div>
+      <div className="super-report-kpis">
+        <div className="stat"><span>Vendas (R$)</span><strong>{money(summary.sales_total_cents||0)}</strong><small>Faturamento acumulado</small></div>
+        <div className="stat"><span>Quantidade de vendas</span><strong>{summary.sales_count||0}</strong><small>Concluídas</small></div>
+        <div className="stat"><span>Ticket médio</span><strong>{money(summary.sales_count?Math.round((summary.sales_total_cents||0)/summary.sales_count):0)}</strong><small>Por venda concluída</small></div>
+        <div className="stat"><span>Descontos</span><strong>{money(summary.discounts_cents||0)}</strong><small>Concedidos</small></div>
+      </div>
+      <ReportCharts sales={sales} summary={summary}/>
+      <details className="super-report-details"><summary>Ver todos os indicadores do relatório</summary>
+        <div className="report-grid">{reportRows(summary).map(row=><div className="stat" key={row.key}><span className="report-label">{row.label}</span><strong className="report-number">{row.type==='money'?money(row.raw):row.value}</strong><span className="stat-bottom">Acumulado local</span></div>)}</div>
+      </details>
       <div className="panel commerce-section"><h2>Relatório detalhado por item vendido</h2>
         <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(async()=>{setItemReport(await api!.reportItems({
           from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined,
