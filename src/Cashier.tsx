@@ -93,7 +93,7 @@ export function Cashier({
           <kbd>F2</kbd>
           <button type="button" aria-label="Abrir catálogo"
             aria-expanded={showCatalog}
-            onClick={()=>searchRef.current?.focus()><Grid2X2 size={20}/></button>
+            onClick={()=>searchRef.current?.focus()}><Grid2X2 size={20}/></button>
         </div>
 
         <section className="cashier-catalog" aria-label="Catálogo de produtos">
