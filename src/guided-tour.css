@@ -33,3 +33,9 @@
 .guided-tour-invite button:focus-visible,.guided-tour-root button:focus-visible{outline:3px solid #9ae9dd;outline-offset:3px;}
 @media (max-width:640px){.guided-tour-invite{right:16px;bottom:16px;padding:17px 32px 17px 14px;}.guided-tour-card{max-height:calc(100dvh - 24px);overflow:auto;}.guided-tour-actions{gap:4px;}}
 @media (prefers-reduced-motion:reduce){.guided-tour-spotlight{transition:none;}}
+
+/* Botão de ajuda sempre visível no cabeçalho da aplicação. */
+.super-tour-help{display:inline-flex!important;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:8px 11px!important;border:1px solid rgba(47,111,110,.25)!important;border-radius:10px!important;background:rgba(227,244,240,.70)!important;color:#275b57!important;font-size:12px!important;font-weight:750!important;white-space:nowrap;}
+.super-tour-help:hover{background:rgba(171,228,217,.82)!important;border-color:rgba(32,149,134,.45)!important;}
+.super-tour-help:focus-visible{outline:3px solid #47bba8;outline-offset:2px;}
+@media (max-width:900px){.super-tour-help span{display:none;}.super-tour-help{padding:8px!important;}}
