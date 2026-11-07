@@ -153,7 +153,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   }
   const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
   const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
-  const noArgs=new Set(['getCurrentSession','listSales','listOpenSessions','report','overview','listFinance','listPurchases','financeOverview']);
+  const noArgs=new Set(['getCurrentSession','listSales','listOpenSessions','report','overview','listFinance','listPurchases']);
   function secureCall(method,args=[],ctx={}){
     if(typeof method!=='string'||typeof operations[method]!=='function') {
       if(method==='setPassword'){
