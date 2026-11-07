@@ -1071,3 +1071,41 @@ select option {color:var(--super-text);background:white}
  .shell.super-shell .super-report-donut{width:160px}
  .shell.super-shell .super-report-legend{display:grid;grid-template-columns:repeat(2,1fr)}
 }
+
+
+/* Relatórios auditáveis: recebimentos declarados, fiado e saldo em aberto separados. */
+.shell.super-shell .super-report-payment-facts {
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;
+  border-top:1px solid #dbe7f4;padding-top:12px;margin-top:5px;
+}
+.shell.super-shell .super-report-payment-facts>div {
+  display:flex;flex-direction:column;gap:5px;min-width:0;
+  background:#f1f7ff;border:1px solid #d9e8f8;border-radius:9px;padding:10px;
+}
+.shell.super-shell .super-report-payment-facts span{
+  font-size:11px;font-weight:750;color:#25476f;
+}
+.shell.super-shell .super-report-payment-facts strong{
+  font-size:17px;font-weight:850;color:#0e4b98;font-variant-numeric:tabular-nums;
+}
+.shell.super-shell .super-report-payment-facts small{
+  font-size:10px;color:#627c9c;line-height:1.5;
+}
+.shell.super-shell .super-report-reconcile-error{
+  background:#fff1eb;border:1px solid #ecbcaa;color:#a53d22;
+  padding:9px 11px;border-radius:8px;margin-top:10px;line-height:1.5;
+}
+.shell.super-shell .super-report-more{
+  display:flex;flex-wrap:wrap;align-items:center;gap:9px;
+  background:#f7fbff;border-top:1px solid #cfdeef;padding:13px;
+}
+.shell.super-shell .super-report-more span {
+  margin-right:auto;color:#41607e;font-size:11px;
+}
+.shell.super-shell .super-report-more button{
+  flex:none;min-width:108px;white-space:nowrap;
+}
+@media(max-width:580px){
+  .shell.super-shell .super-report-payment-facts{grid-template-columns:1fr}
+  .shell.super-shell .super-report-more button{width:100%}
+}
