@@ -1,4 +1,4 @@
-# PDV Better — Marco D (Windows 10/11)
+# PDV SUPER — Marco D (Windows 10/11)
 
 Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato canônico compartilhado e armazenamento SQLite.
 
@@ -30,8 +30,8 @@ Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato c
 - Administração de operadores, funções e senhas pela interface e histórico de autoria das vendas.
 - SQLite v4 migra os turnos existentes sem apagar dados. Detalhes em docs/03-caixas-perfis.md.
 
-## Caixa Rápido P0–P3 — não fiscal
-- Três modos de frente de caixa: Compacto, Claro e Escuro, sem alteração dos contratos IPC.
+## Frente de caixa PDV SUPER P0–P3 — não fiscal
+- Interface unificada PDV SUPER em todas as telas; modos Compacto, Claro e Escuro preservados para compatibilidade, com a mesma direção visual e sem alteração dos contratos IPC.
 - P2: favoritos rápidos (até 8), vendas em espera (até 12 por operador/terminal), retomada e identificação opcional.
 - P3: retomada com conferência de preços e produtos atuais, validação contra dados corrompidos, desfazer exclusões e atalhos F9/F11/Ctrl+Z.
 - Vendas em espera não baixam nem reservam estoque, não criam venda no SQLite e não são sincronizadas na LAN.
@@ -69,3 +69,9 @@ GitHub Actions: valida o Marco B em Windows Server 2022/2025, testa Electron rea
 - docs/02-marco-c.md: configuração LAN, periféricos, backup, limites e QA do Marco C.
 
 Não adicione regras de preços, quantidades, cadastros ou canais IPC duplicadas à UI. Para ampliar o modelo, edite o contrato canônico e seus testes.
+
+## Identidade visual PDV SUPER (novembro/2026)
+- Tema oficial em `src/pdv-super.css`, carregado por último em `src/main.tsx`.
+- Barra lateral azul-marinho, superfícies claras, ações azuis e botão verde de pagamento, aplicados transversalmente ao login, operações, cadastros, gestão, relatórios, configurações e modais.
+- O sistema permanece não fiscal, offline-first e sem dependências pagas; armazenamento SQLite, chaves e appId originais foram preservados para migração sem perda.
+- Executar `npm test`, `npm run build` e a auditoria visual real por screenshots do Electron/Windows; imagens promocionais não substituem esses prints. Ver `DESIGN.md`.
