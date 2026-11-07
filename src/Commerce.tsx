@@ -6,6 +6,7 @@ import { paymentPreview } from '../shared/payment-preview.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
 import {normalizePayments} from '../shared/commerce.mjs';
 import { SaleReceipt } from './Receipt';
+import {FinanceP2Panel} from './FinanceP2';
 import { buildLabeledSaleItems } from '../shared/batch-label.mjs';
 type R=Record<string,any>;
 const methodLabel=(id:string)=>paymentMethods.find(x=>x.id===id)?.label||id;
@@ -281,6 +282,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [reportTraining,setReportTraining]=useState<'exclude'|'only'|'include'>('exclude');
   const [itemReport,setItemReport]=useState<R|null>(null);
   const [financeType,setFinanceType]=useState('payable');
+  const [financeCategory,setFinanceCategory]=useState('');
   const [description,setDescription]=useState('');
   const [dueOn,setDueOn]=useState('');
   const [paymentMethod,setPaymentMethod]=useState('cash');
@@ -512,10 +514,12 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         </tbody></table></div>
       </div>
     </>}
-    {view==='finance'&&<><div className="panel commerce-section"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn}), 'Lançamento registrado.');}}>
+    {view==='finance'&&<FinanceP2Panel entries={finance} onChanged={load}/>}
+    {view==='finance'&&<><div className="panel commerce-section"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn,category:financeCategory}), 'Lançamento registrado.');}}>
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
       <label>Descrição<input required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Ex.: aluguel"/></label>
       <label>Valor (R$)<input value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value)}/></label>
+      <label>Categoria<input maxLength={80} value={financeCategory} onChange={e=>setFinanceCategory(e.target.value)} placeholder="Ex.: Infraestrutura"/></label>
       <label>Vencimento<input type="date" value={dueOn} onChange={e=>setDueOn(e.target.value)}/></label>
       <button disabled={busy} className="primary" type="submit"><Plus size={16}/>Criar lançamento</button></form></div>
       <div className="panel commerce-section"><div className="commerce-heading"><div><h2>Contas a pagar e receber</h2><p>O fiado aparece automaticamente como conta a receber.</p></div><label>Quitação<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}>{paymentMethods.filter(m=>m.id!=='credit').map(m=><option value={m.id} key={m.id}>{m.label}</option>)}</select></label></div>

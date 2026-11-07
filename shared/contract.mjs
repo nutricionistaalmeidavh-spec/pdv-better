@@ -1,5 +1,5 @@
 // Modelo canônico de entidades: formulário, validação, SQLite e lista usam este arquivo.
-export const CONTRACT_VERSION = 10;
+export const CONTRACT_VERSION = 11;
 export const roleNames = Object.freeze(['Caixa','Gerente','Administrador']);
 export const entityOrder = ['products', 'categories', 'customers', 'suppliers', 'operators'];
 export const entities = {
@@ -89,6 +89,7 @@ export const apiChannels = Object.freeze({
   promotionSet: 'pdv:products:promotion-set', promotionsList: 'pdv:products:promotions',
   bundleSet: 'pdv:products:bundle-set', bundleList: 'pdv:products:bundles', bundleArchive: 'pdv:products:bundle-archive', stockHistory: 'pdv:stock:history',
   purchaseCreate: 'pdv:purchase:create', purchaseReceive: 'pdv:purchase:receive', purchaseList: 'pdv:purchase:list',
+  financeSchedule:'pdv:finance:schedule', financeOverview:'pdv:finance:overview', financeExport:'pdv:finance:export',
   financeCreate: 'pdv:finance:create', financeList: 'pdv:finance:list', financeSettle: 'pdv:finance:settle',
   report: 'pdv:report:summary', reportItems: 'pdv:report:items', reportCompare: 'pdv:report:compare', reportItemsExport: 'pdv:report:items-export', reportExport: 'pdv:report:export',
   lanStatus: 'pdv:lan:status', lanHost: 'pdv:lan:host', lanJoin: 'pdv:lan:join', lanLocal: 'pdv:lan:local',
