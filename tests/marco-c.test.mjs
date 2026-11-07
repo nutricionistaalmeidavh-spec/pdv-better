@@ -4,6 +4,7 @@ import { mkdtempSync,rmSync,writeFileSync,existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openCatalog } from '../electron/db.mjs';
+import { CONTRACT_VERSION } from '../shared/contract.mjs';
 import { makeReceipt,drawerPulse,parseScaleWeight,assertDeviceAddress } from '../shared/peripherals.mjs';
 import { sendTcp,readScale } from '../electron/peripherals.mjs';
 import { startLanServer, requestLan, ALLOWED_RPC } from '../electron/lan.mjs';
@@ -82,14 +83,14 @@ test('backup usa snapshot SQLite consistente e restauração rejeita arquivo cor
    store.save('products',{name:'Produto Backup',sale_price_cents:'1,00',stock_milli:'5',unit:'UN'});
    await store.backupTo(backup);
    assert.ok(existsSync(backup));
-   assert.equal(verifyDatabase(backup).version,11);
+   assert.equal(verifyDatabase(backup).version,CONTRACT_VERSION);
    const snapshot=openCatalog(backup);
    try{assert.equal(snapshot.list('products')[0].name,'Produto Backup');}
    finally{snapshot.close();}
    const corrupt=join(dir,'corrupt.sqlite');writeFileSync(corrupt,'not a SQLite database');
    assert.throws(()=>stageRestore(corrupt,source),/inválid|corrompid/i);
    const staged=stageRestore(backup,source);
-   assert.ok(existsSync(staged.stagedPath));assert.equal(staged.version,11);
+   assert.ok(existsSync(staged.stagedPath));assert.equal(staged.version,CONTRACT_VERSION);
    assert.equal(store.list('products').length,1);
  }finally{store.close();rmSync(dir,{recursive:true,force:true});}
 });
@@ -107,7 +108,7 @@ test('restauração agendada troca banco íntegro e preserva cópia de seguranç
     assert.equal(scheduleRestore(source,active).pending,true);
     const result=applyPendingRestore(active);
     assert.equal(result.restored,true);
-    assert.equal(verifyDatabase(result.previous).version,11);
+    assert.equal(verifyDatabase(result.previous).version,CONTRACT_VERSION);
     store=openCatalog(active);
     assert.equal(store.list('products')[0].name,'Restaurado');
     store.close();
