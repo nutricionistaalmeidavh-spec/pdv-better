@@ -165,7 +165,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     };
     window.addEventListener('keydown',onKey);
     return () => window.removeEventListener('keydown',onKey);
-  }, [editing,view,session,cart,heldSales,undoCart,products,paymentOpen,receipt,passwordTarget]);
+  }, [editing,view,session,cart,heldSales,undoCart,records,paymentOpen,receipt,passwordTarget]);
   const rows:Row[] = records[view] || [];
   const filteredRows = useMemo(() => rows.filter(row =>
     !search || Object.values(row).some(value => String(value??'').toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
