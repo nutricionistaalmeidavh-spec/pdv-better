@@ -9,6 +9,8 @@ import {migrateCrossSku} from './cross-sku.mjs';
 import {migratePhase7} from './phase7.mjs';
 import {migratePhase8} from './phase8.mjs';
 import {migratePhase9} from './phase9.mjs';
+import {migratePhase10} from './phase10.mjs';
+import {createCommercialPurchases} from './commercial-purchases.mjs';
 import {parseCatalogCsv} from '../shared/catalog-import.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
@@ -46,6 +48,8 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   migratePhase7(db);
   migratePhase8(db);
   migratePhase9(db);
+  migratePhase10(db);
+  const commercialPurchases=createCommercialPurchases(db);
   const access=createAccess(db);
   function list(kind, search = '') {
     const schema = assertEntity(kind);
@@ -143,9 +147,9 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   function overview() {
     return Object.fromEntries(entityOrder.map(kind => [kind, db.prepare('SELECT COUNT(*) AS n FROM "' + kind + '" WHERE active=1').get().n]));
   }
-  const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce};
-  const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales']);
-  const noArgs=new Set(['getCurrentSession','listSales','listOpenSessions','report','overview','listFinance']);
+  const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases};
+  const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase']);
+  const noArgs=new Set(['getCurrentSession','listSales','listOpenSessions','report','overview','listFinance','listPurchases']);
   function secureCall(method,args=[],ctx={}){
     if(typeof method!=='string'||typeof operations[method]!=='function') {
       if(method==='setPassword'){
@@ -164,7 +168,8 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
       if(!own.some(x=>x.id===sale.id))throw new Error('Permissão insuficiente: venda de outro terminal.');
     }
     if(method==='listStockMovements'&&user.role==='Caixa')throw new Error('Permissão insuficiente.');
-    const context={terminalId:ctx.terminalId,operatorId:user.id,role:user.role};
+    const approvedBy=method==='closeSession'?access.verifyManagerApproval(args[0]?.managerApproval,ctx.terminalId).id:null;
+    const context={terminalId:ctx.terminalId,operatorId:user.id,role:user.role,approvedBy};
     return sessionAware.has(method)?operations[method](...args,context):operations[method](...args);
   }
   return { ...operations,secureCall,

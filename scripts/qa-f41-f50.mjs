@@ -126,19 +126,19 @@ try{
   await input(listPanel(),'Quitação','select').selectOption('cash');
   const payableRow=listPanel().getByRole('row').filter({hasText:'Aluguel fictício QA'});
   page.once('dialog',d=>d.accept());
-  await payableRow.getByRole('button',{name:'Liquidar'}).click();
-  await page.getByRole('status').filter({hasText:'Conta liquidada.'}).waitFor();
+  await payableRow.getByRole('button',{name:'Dar baixa'}).click();
+  await page.getByRole('status').filter({hasText:'Baixa financeira registrada.'}).waitFor();
   assert.equal((await api('financeList')).find(x=>x.id===payable.id).status,'settled');
   assert.equal((await api('sessionCurrent')).expected_cash_cents,9000); // 100 + 20 - 30
   await input(listPanel(),'Quitação','select').selectOption('pix');
   const manualRow=listPanel().getByRole('row').filter({hasText:'Cobrança fictícia QA'});
   page.once('dialog',d=>d.accept());
-  await manualRow.getByRole('button',{name:'Liquidar'}).click();
-  await page.getByRole('status').filter({hasText:'Conta liquidada.'}).waitFor();
+  await manualRow.getByRole('button',{name:'Dar baixa'}).click();
+  await page.getByRole('status').filter({hasText:'Baixa financeira registrada.'}).waitFor();
   assert.equal((await api('financeList')).find(x=>x.id===manual.id).status,'settled');
   assert.equal((await api('sessionCurrent')).expected_cash_cents,9000);
-  assert.equal(await payableRow.getByRole('button',{name:'Liquidar'}).count(),0);
-  assert.equal(await manualRow.getByRole('button',{name:'Liquidar'}).count(),0);
+  assert.equal(await payableRow.getByRole('button',{name:'Dar baixa'}).count(),0);
+  assert.equal(await manualRow.getByRole('button',{name:'Dar baixa'}).count(),0);
   await payableRow.getByText('Liquidada').waitFor();
   await manualRow.getByText('Liquidada').waitFor();
   assert.match(String(await error('financeSettle',{id:payable.id,method:'cash'})),/já liquidada/i);
