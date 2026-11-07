@@ -1,4 +1,4 @@
-name: QA PDV Better — Windows Desktop
+name: QA PDV SUPER — Windows Desktop
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -99,7 +99,7 @@ jobs:
           $destination = Join-Path $env:RUNNER_TEMP "PDV-Better-Installed"
           $p = Start-Process -FilePath $installer.FullName -ArgumentList "/S", "/D=$destination" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Instalação falhou com código $($p.ExitCode)" }
-          $exe = Join-Path $destination "PDV Better.exe"
+          $exe = Join-Path $destination "PDV SUPER.exe"
           if (!(Test-Path $exe)) { throw "Executável instalado ausente: $exe" }
           $env:PDV_TEST_APP_EXECUTABLE = $exe
           $env:PDV_TEST_USER_DATA = Join-Path $env:RUNNER_TEMP "PDV-Better-Installed-Data"
