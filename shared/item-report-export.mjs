@@ -1,4 +1,5 @@
 // Exportação offline com a mesma lista de linhas para CSV, XLSX e PDF.
+import {localDateTimeLabel} from './report-analytics.mjs';
 const columns=[
  ['created_at','Data'],['sale_id','Venda'],['product_name','Produto'],
  ['brand','Marca'],['producer','Produtor'],['variant_group','Grupo de variantes'],['variant_label','Variante'],
@@ -8,8 +9,8 @@ const columns=[
  ['operator_id','Operador'],['terminal_id','Terminal']
 ];
 function rows(report){
-  if(!report||!Array.isArray(report.rows)||report.rows.length>100000)throw new Error('Relatório de itens inválido ou excessivo.');
-  return report.rows.map(row=>Object.fromEntries(columns.map(([key])=>[key,row[key]??''])));
+  if(!report||!Array.isArray(report.rows))throw new Error('Relatório de itens inválido.');
+  return report.rows.map(row=>Object.fromEntries(columns.map(([key])=>[key,key==='created_at'?localDateTimeLabel(row[key]):row[key]??''])));
 }
 function safeText(v){
   const value=String(v??'');
@@ -40,7 +41,7 @@ export function itemReportHtml(report){
     'body{font-family:Arial,sans-serif;color:#232733;padding:14px}h1{font-size:21px}'+
     'table{border-collapse:collapse;width:100%;font-size:9px}th,td{padding:5px;border:1px solid #bbb;text-align:left;overflow-wrap:anywhere}'+
     'thead{display:table-header-group}tr{page-break-inside:avoid}footer{margin-top:16px}'+
-    '</style></head><body><h1>Relatório detalhado por item — PDV Plus</h1>'+
+    '</style></head><body><h1>Relatório detalhado por item — PDV SUPER</h1>'+
     '<p>Registros: '+items.length+' · Total líquido (centavos): '+total+'</p>'+
     '<table><thead><tr>'+header+'</tr></thead><tbody>'+body+'</tbody></table>'+
     '<footer>Documento gerencial não fiscal. Valores de pagamento externo confirmados manualmente.</footer></body></html>';

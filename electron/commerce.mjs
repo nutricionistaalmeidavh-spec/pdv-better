@@ -7,6 +7,7 @@ import {bestPromotionPrice,localBusinessDate,strictDate} from './nexus-features.
 import {optimizeCrossSkuDiscounts} from './cross-sku.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
 import {allocateDiscounts} from '../shared/item-allocation.mjs';
+import {localDateKey} from '../shared/report-analytics.mjs';
 const now=()=>new Date().toISOString();
 function atomic(db,fn) {
   try{db.exec('BEGIN IMMEDIATE');}catch(error){throw normalizeSqliteError(error);}
@@ -553,12 +554,11 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     const producer=filters?.producer?assertLabel(filters.producer,'Produtor',200):null;
     const variantGroup=filters?.variantGroup?assertLabel(filters.variantGroup,'Família de variantes',200):null;
     const sales=all("SELECT s.*,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id ORDER BY s.created_at,s.id");
-    if(sales.length>10000)throw new Error('Período muito grande; reduza os filtros do relatório.');
     const rows=[];
     for(const s of sales){
       if(status!=='all'&&s.status!==status)continue;
       if((training==='exclude'&&s.is_training)||(training==='only'&&!s.is_training))continue;
-      const day=s.created_at?.slice(0,10);
+      const day=localDateKey(s.created_at);
       if((from&&day<from)||(to&&day>to)||(operatorId&&s.operator_id!==operatorId))continue;
       const items=all('SELECT * FROM sale_items WHERE sale_id=? ORDER BY rowid',s.id);
       const discounts=allocateDiscounts(items.map(x=>x.line_total_cents),s.discount_cents);
