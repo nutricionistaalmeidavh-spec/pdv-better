@@ -77,10 +77,24 @@ async function openShift(p,cash){
 }
 async function closeShift(p,count){
  await visit(p,'Controle de caixa','Controle de caixa');
- const form=shift(p).locator('form');
- for(let i=0;i<5;i++)await form.locator('input').nth(i).fill(i===0?count:'0,00');
- await form.getByRole('button',{name:'Revisar fechamento e solicitar gerente'}).click();
+ const shiftForm=shift(p).locator('form');
+ await shiftForm.getByRole('button',{name:'Revisar fechamento e solicitar gerente'}).waitFor({state:'visible'});
+ // O renderer atualiza o turno após navegar; preencher somente quando o formulário
+ // definitivo está montado e confirmar a persistência dos valores controlados.
+ for(const [i,value] of [count,'0,00','0,00','0,00','0,00'].entries()){
+   const control=shiftForm.locator('input').nth(i);
+   await control.fill(value);
+   assert.equal(await control.inputValue(),value,'Contagem controlada preservada no campo '+i);
+ }
+ const typed=await shiftForm.locator('input').evaluateAll(xs=>xs.slice(0,5).map(x=>x.value));
+ if(typed[0]!==count||typed.slice(1).some(x=>x!=='0,00')){
+   // Uma atualização tardia do turno pode remontar o formulário uma única vez.
+   for(const [i,value] of [count,'0,00','0,00','0,00','0,00'].entries())
+     await shiftForm.locator('input').nth(i).fill(value);
+ }
+ await shiftForm.getByRole('button',{name:'Revisar fechamento e solicitar gerente'}).click();
  const review=p.getByRole('dialog',{name:'Confirmar fechamento de caixa'});
+ await review.waitFor({state:'visible',timeout:5000});
  await review.locator('input[type="password"]').fill(adminPass);
  await review.getByRole('button',{name:'Autorizar e fechar caixa'}).click();
  await p.getByRole('status').filter({hasText:'Fechamento autorizado.'}).waitFor();
