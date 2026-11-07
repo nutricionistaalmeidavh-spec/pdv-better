@@ -16,8 +16,6 @@ type PaymentMethod = 'cash'|'pix'|'card';
 type HeldSale = {id:string;label:string;createdAt:string;items:CartLine[]};
 
 type CashierProps = {
-  mode:CashierMode;
-  onModeChange:(mode:CashierMode)=>void;
   searchRef:React.RefObject<HTMLInputElement|null>;
   search:string;
   onSearchChange:(value:string)=>void;
@@ -26,6 +24,7 @@ type CashierProps = {
   categoryFilter:string;
   onCategoryFilter:(id:string)=>void;
   products:Row[];
+  productPhotos:Record<string,string>;
   onAddProduct:(product:Row)=>void;
   onProducts:()=>void;
   cart:CartLine[];
@@ -53,15 +52,9 @@ type CashierProps = {
   onUndo:()=>void;
 };
 
-const variants:{id:CashierMode;label:string}[]=[
-  {id:'compact',label:'Compacto'},
-  {id:'light',label:'Claro'},
-  {id:'dark',label:'Escuro'}
-];
-
 export function Cashier({
-  mode,onModeChange,searchRef,search,onSearchChange,onSearchKeyDown,
-  categories,categoryFilter,onCategoryFilter,products,onAddProduct,onProducts,
+  searchRef,search,onSearchChange,onSearchKeyDown,
+  categories,categoryFilter,onCategoryFilter,products,productPhotos,onAddProduct,onProducts,
   cart,cartError,total,sessionOpen,onRemoveProduct,onChangeQuantity,
   manualWeight,onManualWeightChange,onApplyWeight,onReadScale,readingScale,
   onClearCart,onCash,onOpenPayment,
@@ -78,20 +71,14 @@ export function Cashier({
     if(canReceive)onOpenPayment(method,focus);
   };
 
-  return <section className="cashier-mode" aria-label="Caixa Rápido">
+  return <section className="cashier-mode" aria-label="Frente de caixa PDV SUPER">
     <header className="cashier-heading">
       <div className="cashier-heading-title">
         <span className="cashier-bolt"><ShoppingCart size={24}/></span>
-        <div><span className="cashier-kicker">ArtiSys · Frente de caixa</span>
-          <h1>Caixa Rápido</h1>
-          <p>Leitura, conferência e recebimento em uma só tela.</p>
+        <div><span className="cashier-kicker">FRENTE DE CAIXA</span>
+          <h1>PDV SUPER</h1>
+          <p>Leitura, conferência e recebimento em uma única tela.</p>
         </div>
-      </div>
-      <div className="cashier-mode-picker" aria-label="Escolher visual do caixa">
-        {variants.map(variant=><button key={variant.id} type="button"
-          className={mode===variant.id?'is-active':''}
-          aria-pressed={mode===variant.id}
-          onClick={()=>onModeChange(variant.id)}>{variant.label}</button>)}
       </div>
     </header>
 
@@ -127,7 +114,7 @@ export function Cashier({
             {products.map(product=><div className="cashier-product-entry" key={product.id}>
               <button type="button" className="cashier-product-option"
                 onClick={()=>{onAddProduct(product);setCatalogOpen(false);}}>
-                <span className="cashier-product-icon"><Package size={17}/></span>
+                <span className="cashier-product-icon cashier-item-photo">{product.image_data?<img src={product.image_data} alt="" loading="lazy"/>:<Package size={17}/>}</span>
                 <span className="cashier-product-description"><strong>{product.name}</strong>
                   <small>{product.code||'Sem código'} · {product.unit} · Saldo {Number(product.stock_milli||0)/1000}</small>
                 </span>
@@ -166,6 +153,7 @@ export function Cashier({
               {sessionOpen?'Caixa aberto':'Caixa fechado'}</span>
           </div>
           {cartError&&<div className="cashier-error" role="alert"><AlertTriangle size={17}/>{cartError}</div>}
+          <div className="cashier-table-head" aria-hidden="true"><span>Item</span><span>Qtd</span><span>Valor</span><span>Total</span><span/></div>
           <div className="cashier-cart-items">
             {cart.length===0
               ? <div className="cashier-empty">
@@ -174,10 +162,10 @@ export function Cashier({
                 </div>
               : cart.map(item=><div className="cashier-item" key={item.id}>
                 <div className="cashier-item-main">
-                  <div className="cashier-item-icon"><Package size={22}/></div>
+                  <div className="cashier-item-icon cashier-item-photo">{productPhotos[item.id]?<img src={productPhotos[item.id]} alt="" loading="lazy"/>:<Package size={22}/>}</div>
                   <div className="cashier-item-name">
                     <strong>{item.name}</strong>
-                    <small>{item.code||'Sem código'} · {money(item.priceCents)} / {item.unit}{item.batchId?' · Lote '+(item.batchCode||item.batchId.slice(0,8)):''}</small>
+                    <small>{item.code||'Sem código'} · {item.unit}{item.batchId?' · Lote '+(item.batchCode||item.batchId.slice(0,8)):''}</small>
                   </div>
                   <div className="cashier-item-stepper">
                     <button type="button" aria-label={'Diminuir '+item.name}
@@ -186,6 +174,7 @@ export function Cashier({
                     <button type="button" aria-label={'Aumentar '+item.name}
                       onClick={()=>onChangeQuantity(item,item.unit==='KG'?100:1000)}><Plus size={16}/></button>
                   </div>
+                  <strong className="cashier-item-unit-price">{money(item.priceCents)}</strong>
                   <strong className="cashier-item-total">{money(lineTotalCents(item.priceCents,item.quantityMilli))}</strong>
                   <button type="button" className="cashier-item-remove" aria-label={'Remover '+item.name}
                     onClick={()=>onRemoveProduct(item.id)}><Trash2 size={17}/></button>
@@ -215,9 +204,10 @@ export function Cashier({
       <aside className="cashier-payment-panel" aria-label="Resumo e recebimento">
         <div className="cashier-payment-top">
           <span className="cashier-payment-eyebrow">{cart.length} {cart.length===1?'item':'itens'} no carrinho</span>
-          <div className="cashier-subtotal"><span>Subtotal estimado</span><strong>{money(total)}</strong></div>
+          <div className="cashier-subtotal"><span>Subtotal</span><strong>{money(total)}</strong></div>
+          <div className="cashier-discount"><span>Desconto no recebimento</span><strong>{money(0)}</strong></div>
           <span className="cashier-payment-divider"/>
-          <span className="cashier-payment-label">Total estimado</span>
+          <span className="cashier-payment-label">Total a pagar</span>
           <strong className="cashier-grand-total">{money(total)}</strong>
           <p>Promoções e descontos definitivos são calculados na conferência do pagamento.</p>
         </div>

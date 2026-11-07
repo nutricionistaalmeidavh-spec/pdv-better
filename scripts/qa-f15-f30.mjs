@@ -29,7 +29,7 @@ async function error(method,...args){
 }
 async function toCheckout(){
   await navigation('Frente de caixa').click();
-  await page.getByRole('heading',{name:'Caixa Rápido',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor();
   await search().waitFor();
 }
 async function choose(name){
@@ -102,12 +102,12 @@ try{
   page=await app.firstWindow();
   const pageErrors=[];
   page.on('pageerror',err=>pageErrors.push(err.message));
-  await page.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
   await page.getByRole('textbox',{name:'Nome do administrador'}).fill('Admin Vendas QA');
   await page.locator('.auth-form input[type="password"]').nth(0).fill(password);
   await page.locator('.auth-form input[type="password"]').nth(1).fill(password);
   await page.getByRole('button',{name:'Criar administrador'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});
 
   const cat=await call('save','categories',{name:'Bebidas QA'});
   const grocery=await call('save','categories',{name:'Mercearia QA'});
@@ -119,11 +119,11 @@ try{
   // O fixture foi gravado pelo IPC após o primeiro carregamento da UI;
   // relogar força o App a carregar a fonte canônica, sem mocks nem recarga artificial.
   await page.getByRole('button',{name:'Sair',exact:true}).click();
-  await page.getByRole('heading',{name:'PDV Better',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor();
   await page.getByRole('combobox',{name:'Operador'}).selectOption({label:'Admin Vendas QA — Administrador'});
   await page.locator('.auth-form input[type="password"]').first().fill(password);
   await page.getByRole('button',{name:'Entrar no PDV'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor();
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
 
   await toCheckout();
   // F15: busca por nome e código parcial, além de inexistente.
@@ -167,11 +167,11 @@ try{
 
   // F21: rascunho continua salvo por operador após sair e autenticar novamente.
   await page.getByRole('button',{name:'Sair',exact:true}).click();
-  await page.getByRole('heading',{name:'PDV Better',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor();
   await page.getByRole('combobox',{name:'Operador'}).selectOption({label:'Admin Vendas QA — Administrador'});
   await page.locator('.auth-form input[type="password"]').first().fill(password);
   await page.getByRole('button',{name:'Entrar no PDV'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor();
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
   await toCheckout();
   await cart().getByText('Café Arábica QA').waitFor();
   pass('F21','rascunho recuperado após logout/login do mesmo operador');

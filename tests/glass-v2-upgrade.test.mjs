@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { openCatalog } from '../electron/db.mjs';
+import { CONTRACT_VERSION } from '../shared/contract.mjs';
 
 test('Glass v2: preserva venda, itens, estoque e caixa fechado ao migrar para schema v3 canônico',()=>{
   const folder=mkdtempSync(join(tmpdir(),'pdv-glass-v2-')); const path=join(folder,'legacy.sqlite');
@@ -38,7 +39,7 @@ test('Glass v2: preserva venda, itens, estoque e caixa fechado ao migrar para sc
     try{assert.equal(again.listSales().length,1);assert.equal(again.listStockMovements(product).length,2);}
     finally{again.close();}
     const verify=new DatabaseSync(path);
-    try{assert.equal(verify.prepare('PRAGMA user_version').get().user_version,11);}
+    try{assert.equal(verify.prepare('PRAGMA user_version').get().user_version,CONTRACT_VERSION);}
     finally{verify.close();}
   } finally {rmSync(folder,{recursive:true,force:true});}
 });

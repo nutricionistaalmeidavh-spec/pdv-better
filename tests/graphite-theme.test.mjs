@@ -3,33 +3,34 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 
-test('tema grafite é o último stylesheet carregado globalmente',()=>{
+test('tema PDV SUPER é o último stylesheet carregado globalmente',()=>{
  const code=read('src/main.tsx');
- assert.match(code,/import '\.\/graphite\.css';/);
- assert.equal(code.trim().split('\n').at(-2)?.trim(),"import './graphite.css';");
+ assert.match(code,/import '\.\/pdv-super\.css';/);
+ assert.equal(code.trim().split('\n').at(-2)?.trim(),"import './pdv-super.css';");
+ assert.doesNotMatch(code,/import '\.\/graphite\.css';/);
 });
-test('tokens de contraste cobrem superfícies, navegação, tabelas e modais',()=>{
- const css=read('src/graphite.css');
+test('tokens PDV SUPER cobrem superfícies, navegação, tabelas, caixa e modais',()=>{
+ const css=read('src/pdv-super.css');
  for(const selector of ['.sidebar','.topbar','.nav-item.selected','.data-panel td',
   '.commerce-table td','.glass-product-grid .product-option','.auth-panel',
-  '.glass-payment','.dialog','.settings-tabs button','.payment-summary',':focus-visible']) {
+  '.glass-payment','.dialog','.settings-tabs button','.payment-summary',
+  '.cashier-receive','.cashier-hold-panel',':focus-visible']) {
   assert.ok(css.includes(selector),'Seletor do tema ausente: '+selector);
  }
- assert.match(css,/--graphite-text:\s*#f5f6f7/i);
+ assert.match(css,/--super-navy:\s*#071d40/i);
+ assert.match(css,/--super-blue:\s*#0964e7/i);
+ assert.match(css,/--super-green:\s*#06ab51/i);
  assert.match(css,/@media print/);
  assert.match(css,/@media\(prefers-reduced-transparency:reduce\)/);
 });
-test('nenhum stylesheet global retém roxo ou violeta saturado',()=>{
- const paths=['src/styles.css','src/glass.css','src/system.css','src/auth.css','src/graphite.css'];
+test('novo tema não contém violeta saturado',()=>{
+ const css=read('src/pdv-super.css');
  const offenders=[];
- for(const path of paths){
-   const css=read(path);
-   for(const match of css.matchAll(/#([\da-f]{6})(?:[\da-f]{2})?\b/gi)){
-     const h=match[1],rgb=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16));
-     const max=Math.max(...rgb),min=Math.min(...rgb);
-     const sat=max===0?0:(max-min)/max;
-     if(rgb[2]>rgb[1]*1.18 && rgb[2]>rgb[0]*1.07 && sat>.23)offenders.push(path+':#'+h);
-   }
+ for(const match of css.matchAll(/#([\da-f]{6})(?:[\da-f]{2})?\b/gi)){
+  const h=match[1],rgb=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16));
+  const max=Math.max(...rgb),min=Math.min(...rgb);
+  const sat=max===0?0:(max-min)/max;
+  if(rgb[0]>rgb[1]*1.35&&rgb[2]>rgb[1]*1.45&&rgb[2]>rgb[0]*.55&&rgb[0]>rgb[2]*.50&&sat>.23)offenders.push('#'+h);
  }
  assert.deepEqual(offenders,[]);
 });

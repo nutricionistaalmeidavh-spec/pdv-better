@@ -31,7 +31,7 @@ try {
   const page = await app.firstWindow();
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(e.message));
-  await page.getByRole('heading', {name: 'PDV Better', exact: true}).waitFor({timeout: 30000});
+  await page.getByRole('heading', {name: 'PDV SUPER', exact: true}).waitFor({timeout: 30000});
 
   // F01: configuração inicial, validação de confirmação e unicidade do administrador.
   assert.equal((await page.evaluate(() => window.pdv.authStatus())).setupRequired, true);
@@ -43,7 +43,7 @@ try {
   assert.equal((await page.evaluate(() => window.pdv.authStatus())).setupRequired, true);
   await page.locator('.auth-form input[type="password"]').nth(1).fill(adminPassword);
   await page.getByRole('button', {name: 'Criar administrador'}).click();
-  await page.getByRole('heading', {name: 'Bem-vindo ao PDV Better'}).waitFor({timeout: 30000});
+  await page.getByRole('heading', {name: 'Bem-vindo ao PDV SUPER'}).waitFor({timeout: 30000});
   const state = await page.evaluate(() => window.pdv.authStatus());
   assert.equal(state.setupRequired, false);
   assert.equal(state.operators.filter(x => x.role === 'Administrador').length, 1);
@@ -51,7 +51,7 @@ try {
   success('F01', 'bootstrap único; validação de confirmação e sessão administrativa');
 
   // F04: o painel inicial realmente carrega depois de autenticar.
-  await page.getByRole('heading', {name: 'Bem-vindo ao PDV Better'}).waitFor();
+  await page.getByRole('heading', {name: 'Bem-vindo ao PDV SUPER'}).waitFor();
   await page.getByRole('button', {name: /Preparar uma venda/}).waitFor();
   assert.match(await page.locator('.top-actions').innerText(), /Administrador QA\s*·\s*Administrador/);
   success('F04', 'dashboard autenticado, identificação do usuário e ação inicial');
@@ -75,11 +75,11 @@ try {
   await menu(page, 'Dispositivos e rede').click();
   await page.getByRole('heading', {name: 'Dispositivos, rede e backups'}).waitFor();
   await menu(page, 'Visão geral').click();
-  await page.getByRole('heading', {name: 'Bem-vindo ao PDV Better'}).waitFor();
+  await page.getByRole('heading', {name: 'Bem-vindo ao PDV SUPER'}).waitFor();
 
   // F03: sair encerra autenticação e retorna ao gate.
   await page.getByRole('button', {name: 'Sair', exact: true}).click();
-  await page.getByRole('heading', {name: 'PDV Better', exact: true}).waitFor();
+  await page.getByRole('heading', {name: 'PDV SUPER', exact: true}).waitFor();
   assert.match(await errorOf(page, 'overview'), /não autenticada|autenticad|expirada/i);
   assert.equal(await menu(page, 'Operadores').count(), 0);
 
@@ -88,10 +88,10 @@ try {
   await passwordField(page).fill('senha-incorreta');
   await page.getByRole('button', {name: 'Entrar no PDV'}).click();
   await page.getByRole('alert').getByText(/credenciais inválidas/i).waitFor();
-  assert.equal(await page.getByRole('heading', {name: 'Bem-vindo ao PDV Better'}).count(), 0);
+  assert.equal(await page.getByRole('heading', {name: 'Bem-vindo ao PDV SUPER'}).count(), 0);
   await passwordField(page).fill(cashierPassword);
   await page.getByRole('button', {name: 'Entrar no PDV'}).click();
-  await page.getByRole('heading', {name: 'Bem-vindo ao PDV Better'}).waitFor();
+  await page.getByRole('heading', {name: 'Bem-vindo ao PDV SUPER'}).waitFor();
   assert.match(await page.locator('.top-actions').innerText(), /Caixa QA\s*·\s*Caixa/);
   success('F02', 'senha inválida rejeitada e login correto do operador persistido');
 
@@ -118,7 +118,7 @@ try {
 
   // F06: atalho F2 a partir de outra tela abre o PDV e foca a pesquisa.
   await page.keyboard.press('F2');
-  await page.getByRole('heading', {name: 'Caixa Rápido', exact: true}).waitFor();
+  await page.getByRole('heading', {name: 'PDV SUPER', exact: true}).waitFor();
   const search = page.getByRole('textbox', {name: 'Pesquisar ou ler código de barras'});
   await search.waitFor();
   await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Pesquisar ou ler código de barras', null, {timeout: 5000});
@@ -127,12 +127,12 @@ try {
 
   // F03: alternar operador no mesmo terminal e reautenticar administrador.
   await page.getByRole('button', {name: 'Sair', exact: true}).click();
-  await page.getByRole('heading', {name: 'PDV Better', exact: true}).waitFor();
+  await page.getByRole('heading', {name: 'PDV SUPER', exact: true}).waitFor();
   assert.match(await errorOf(page, 'overview'), /não autenticada|autenticad|expirada/i);
   await page.getByRole('combobox', {name: 'Operador'}).selectOption({label: 'Administrador QA — Administrador'});
   await passwordField(page).fill(adminPassword);
   await page.getByRole('button', {name: 'Entrar no PDV'}).click();
-  await page.getByRole('heading', {name: 'Bem-vindo ao PDV Better'}).waitFor();
+  await page.getByRole('heading', {name: 'Bem-vindo ao PDV SUPER'}).waitFor();
   assert.match(await page.locator('.top-actions').innerText(), /Administrador QA\s*·\s*Administrador/);
   assert.equal(await menu(page, 'Operadores').count(), 1);
   success('F03', 'logout revoga sessão e alternância Caixa → Administrador preserva permissões');

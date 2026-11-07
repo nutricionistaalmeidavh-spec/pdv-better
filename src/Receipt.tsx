@@ -17,7 +17,7 @@ export function SaleReceipt({sale,onClose}:{sale:any;onClose:()=>void}){
     <section className="dialog receipt-dialog glass-payment" role="dialog" aria-modal="true" aria-label="Comprovante não fiscal da venda">
       <header className="dialog-head receipt-actions"><div><div className="eyebrow">{sale.is_training?'SIMULAÇÃO DE TREINAMENTO':'VENDA CONCLUÍDA'}</div><h2>Comprovante</h2></div><button className="secondary" onClick={onClose} aria-label="Fechar comprovante"><X size={16}/>Fechar</button></header>
       <div className="receipt-content">
-        <div className="receipt-brand"><ReceiptText size={23}/><h3>PDV Better</h3><p>{sale.is_training?'SIMULAÇÃO — SEM VALOR FISCAL OU FINANCEIRO':'Comprovante de venda não fiscal'}</p></div>
+        <div className="receipt-brand"><ReceiptText size={23}/><h3>PDV SUPER</h3><p>{sale.is_training?'SIMULAÇÃO — SEM VALOR FISCAL OU FINANCEIRO':'Comprovante de venda não fiscal'}</p></div>
         <div className="receipt-sep"/>
         <p><strong>Venda:</strong> {sale.id}</p>
         <p><strong>Data:</strong> {new Date(sale.created_at).toLocaleString('pt-BR')}</p>

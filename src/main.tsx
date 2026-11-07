@@ -6,5 +6,5 @@ import './glass.css';
 import './system.css';
 import './auth.css';
 import './cashier.css';
-import './graphite.css';
+import './pdv-super.css';
 createRoot(document.getElementById('root')!).render(<AuthGate />);

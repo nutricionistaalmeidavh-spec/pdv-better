@@ -21,7 +21,7 @@ async function launch(){
 const navigation=(page,label)=>page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:label,exact:true});
 const wait=async(page)=>{
   // Login real pela ponte IPC em vez de contornar perfis no teste.
-  await page.getByRole('heading',{name:'PDV Better'}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'PDV SUPER'}).waitFor({timeout:30000});
   const create=page.getByRole('button',{name:'Criar administrador'});
   const login=page.getByRole('button',{name:'Entrar no PDV'});
   const setup=await page.evaluate(async()=> (await window.pdv.authStatus()).setupRequired);
@@ -39,7 +39,7 @@ const wait=async(page)=>{
   }
   page.on('console', msg=>console.log('Renderer console:',msg.type(),msg.text()));
   page.on('pageerror', error=>console.error('Renderer exception:',error.message));
-  try{await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});}
+  try{await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});}
   catch(error){
     console.error('Janela atual:',page.url());
     console.error('Conteúdo visível:',(await page.locator('body').innerText().catch(()=>'' )).slice(0,1400));

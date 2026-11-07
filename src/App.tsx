@@ -12,8 +12,9 @@ import { resolveBatchScan,parseBatchLabel } from '../shared/batch-label.mjs';
 import {applyManualWeight} from '../shared/manual-weight.mjs';
 import {deriveStockAlerts} from '../shared/stock-alerts.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
-import { Cashier, CashierMode } from './Cashier';
-import { normalizeCashierMode, resolveCashierShortcut } from '../shared/cashier.mjs';
+import { Cashier } from './Cashier';
+import {encodeProductImage} from './product-image';
+import { resolveCashierShortcut } from '../shared/cashier.mjs';
 import {
   normalizeHeldSales, holdCashierSale, resumeHeldSale,
   normalizeCashierFavorites, toggleCashierFavorite, canUndoCashierChange
@@ -53,10 +54,6 @@ function friendlyError(error:any) {
 }
 export function App({user,onLogout}:{user:{id:string;name:string;role:string};onLogout:()=>Promise<void>}) {
   const [view,setView] = useState('dashboard');
-  const [cashierMode,setCashierMode] = useState<CashierMode>(()=>{
-    try{return normalizeCashierMode(localStorage.getItem('pdv-better:cashier-mode')) as CashierMode;}
-    catch{return 'dark';}
-  });
   const [initialPaymentMethod,setInitialPaymentMethod] = useState<'cash'|'pix'|'card'>('cash');
   const [initialPaymentFocus,setInitialPaymentFocus] = useState<'customer'|'discount'|undefined>();
 
@@ -69,6 +66,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [editing,setEditing] = useState<Row|null>(null);
   const [form,setForm] = useState<Row>({});
   const [saving,setSaving] = useState(false);
+  const [photoBusy,setPhotoBusy] = useState(false);
   const [importingCsv,setImportingCsv] = useState(false);
   const [stockBatches,setStockBatches]=useState<Row[]>([]);
   const [stockAlertsLoaded,setStockAlertsLoaded]=useState(false);
@@ -119,7 +117,6 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     setRecords(prev => ({...prev,[kind]:current}));
   }
   useEffect(() => { void reloadAll(); }, []);
-  useEffect(()=>{try{localStorage.setItem('pdv-better:cashier-mode',cashierMode);}catch{}},[cashierMode]);
   useEffect(()=>{
     if(view!=='dashboard'||!bridge)return;
     let alive=true;
@@ -169,12 +166,13 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   }, [editing,view,session,cart,heldSales,undoCart,records,paymentOpen,receipt,passwordTarget]);
   const rows:Row[] = records[view] || [];
   const filteredRows = useMemo(() => rows.filter(row =>
-    !search || Object.values(row).some(value => String(value??'').toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
+    !search || Object.entries(row).some(([key,value]) => key!=='image_data' && String(value??'').toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
   ),[rows,search]);
   const pageSize = 75;
   const pageCount = Math.max(1,Math.ceil(filteredRows.length/pageSize));
   const pageRows = filteredRows.slice(page*pageSize,(page+1)*pageSize);
   const products:Row[] = records.products || [];
+  const productPhotos=useMemo(()=>Object.fromEntries(products.map(row=>[row.id,String(row.image_data||'')])),[products]);
   const categories:Row[] = records.categories || [];
   const favoriteProducts = favoriteIds.map(id=>products.find(row=>row.id===id)).filter(Boolean) as Row[];
   const undoAvailable=canUndoCashierChange(cart,undoCart);
@@ -251,9 +249,20 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     setEditing(row || {});
     setError('');
   }
+  async function uploadProductPhoto(ev:React.ChangeEvent<HTMLInputElement>){
+    const file=ev.target.files?.[0];
+    ev.target.value='';
+    if(!file)return;
+    setPhotoBusy(true);setError('');
+    try{
+      const data=await encodeProductImage(file);
+      setForm(old=>({...old,image_data:data}));
+    }catch(error){setError(friendlyError(error));}
+    finally{setPhotoBusy(false);}
+  }
   async function saveRecord(ev:React.FormEvent) {
     ev.preventDefault();
-    if (!bridge || saving) return;
+    if (!bridge || saving || photoBusy) return;
     setSaving(true); setError('');
     try {
       const saved = await bridge.save(view, form);
@@ -362,10 +371,10 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       setPasswordTarget(null);setOperatorPassword('');setRepeatPassword('');
     }catch(e){setError(friendlyError(e));}
   }
-  return <div className={'shell'+(view==='checkout'?' cashier-shell mode-'+cashierMode:'')}>
+  return <div className={'shell'+(view==='checkout'?' cashier-shell mode-light':'')}>
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><Package size={21}/></div><div><strong>PDV Better</strong><span>by ArtiSys</span></div></div>
-      <div className="workspace"><div className="workspace-avatar">PB</div><div><strong>Estabelecimento local</strong><span>Funcionamento offline • perfis e caixas independentes</span></div></div>
+      <div className="brand"><div className="brand-mark"><ShoppingCart size={22}/></div><div><strong>PDV SUPER</strong><span>Gestão comercial local</span></div></div>
+      <div className="workspace"><div className="workspace-avatar">PS</div><div><strong>Estabelecimento local</strong><span>Funcionamento offline • perfis e caixas independentes</span></div></div>
       <nav aria-label="Navegação principal">
         {menus.map(section => <div className="menu-section" key={section.title}>
           <div className="menu-title">{section.title}</div>
@@ -380,7 +389,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       <div className="sidebar-footer"><Database size={17}/><div><strong>SQLite local</strong><span>Sem serviços pagos</span></div><ShieldCheck size={17}/></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="breadcrumbs"><span>PDV Better</span><ChevronRight size={16}/><strong>{titles[view] || definitions[view]?.label}</strong></div>
+      <header className="topbar"><div className="breadcrumbs"><span>PDV SUPER</span><ChevronRight size={16}/><strong>{titles[view] || definitions[view]?.label}</strong></div>
         <div className="top-actions"><span title="Operador autenticado">{user.name} · {user.role}</span><button className="secondary" onClick={()=>void onLogout()}>Sair</button><span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Modo local'}</span><span className="version">Versão 0.4.0</span></div>
       </header>
       <section className="content">
@@ -388,7 +397,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         {error && !editing && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}<button onClick={() => {setLoading(true); void reloadAll();}}><RotateCcw size={15}/>Tentar novamente</button></div>}
         {loading ? <div className="loading">Carregando dados do estabelecimento…</div> : <>
           {view === 'dashboard' && <>
-            <div className="page-heading"><div><div className="eyebrow">INÍCIO</div><h1>Bem-vindo ao PDV Better</h1><p>Seu comércio organizado em um único lugar, mesmo sem internet.</p></div><button className="primary" onClick={() => selectView('checkout')}><ShoppingCart size={17}/> Abrir frente de caixa</button></div>
+            <div className="page-heading"><div><div className="eyebrow">INÍCIO</div><h1>Bem-vindo ao PDV SUPER</h1><p>Seu comércio organizado em um único lugar, mesmo sem internet.</p></div><button className="primary" onClick={() => selectView('checkout')}><ShoppingCart size={17}/> Abrir frente de caixa</button></div>
             {(!products.length||!session)&&<div className="panel glass-panel" aria-label="Primeiros passos">
               <h2>Primeiros passos</h2>
               <p>Prepare o catálogo, abra seu caixa com o valor real de troco e faça a primeira venda.</p>
@@ -432,12 +441,11 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros, vendas, saldos de estoque e financeiro são registrados no SQLite local. Pix e cartão devem ser confirmados externamente antes da conclusão da venda.</p></div></div>
           </>}
           {view === 'checkout' && <Cashier
-            mode={cashierMode} onModeChange={setCashierMode}
             searchRef={searchInput} search={cartSearch}
             onSearchChange={value=>{setCartSearch(value);setCartError('');}}
             onSearchKeyDown={scanKey}
             categories={categories} categoryFilter={categoryFilter} onCategoryFilter={setCategoryFilter}
-            products={matchingProducts} onAddProduct={addProduct}
+            products={matchingProducts} productPhotos={productPhotos} onAddProduct={addProduct}
             onProducts={()=>{selectView('products');setForm(newForm('products'));setEditing({});}} cart={cart} cartError={cartError}
             total={total} sessionOpen={Boolean(session)}
             onRemoveProduct={removeCartItem}
@@ -468,8 +476,8 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
               {allowed(user.role,"save",[view])&&<button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button>}</div>
             <div className="panel data-panel">
               <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{filteredRows.length} cadastros</span></div>
-              <div className="table-wrap"><table><thead><tr>{activeSchema.fields.slice(0,4).map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
-              <tbody>{pageRows.map(row => <tr key={row.id}>{activeSchema.fields.slice(0,4).map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col">{view==='operators'&&<button className="secondary" type="button" onClick={()=>{setPasswordTarget(row);setOperatorPassword('');setRepeatPassword('');}}>Definir senha</button>}{view==='products'&&<button title="Imprimir etiqueta" className="icon-btn" onClick={()=>void bridge?.devicePrint({kind:'label',productId:row.id}).catch(err=>setError(friendlyError(err)))}><Tags size={16}/></button>}{allowed(user.role,"save",[view])&&<button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button>}{allowed(user.role,"archive",[view])&&<button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button>}</td></tr>)}</tbody></table>
+              <div className="table-wrap"><table><thead><tr>{view==='products'&&<th className="photo-column">Foto</th>}{activeSchema.fields.slice(0,4).map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
+              <tbody>{pageRows.map(row => <tr key={row.id}>{view==='products'&&<td className="photo-column">{row.image_data?<img className="product-thumbnail" alt={'Foto de '+row.name} src={row.image_data}/>:<span className="product-thumbnail product-thumbnail-empty" aria-label="Produto sem foto"><Package size={19}/></span>}</td>}{activeSchema.fields.slice(0,4).map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col">{view==='operators'&&<button className="secondary" type="button" onClick={()=>{setPasswordTarget(row);setOperatorPassword('');setRepeatPassword('');}}>Definir senha</button>}{view==='products'&&<button title="Imprimir etiqueta" className="icon-btn" onClick={()=>void bridge?.devicePrint({kind:'label',productId:row.id}).catch(err=>setError(friendlyError(err)))}><Tags size={16}/></button>}{allowed(user.role,"save",[view])&&<button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button>}{allowed(user.role,"archive",[view])&&<button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button>}</td></tr>)}</tbody></table>
                 {!filteredRows.length && <div className="empty-state"><Package size={26}/><strong>{search ? 'Nenhum resultado para a pesquisa' : 'Ainda não há cadastros'}</strong><p>{search ? 'Experimente outro termo.' : 'Use o botão Adicionar para começar.'}</p></div>}
               </div>
               {filteredRows.length > pageSize && <div className="pagination"><span>Página {page+1} de {pageCount} · {filteredRows.length} registros</span><div><button className="secondary" disabled={page===0} onClick={() => setPage(p => Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={page>=pageCount-1} onClick={() => setPage(p => Math.min(pageCount-1,p+1))}>Próxima</button></div></div>}
@@ -492,7 +500,22 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       <section className="dialog" role="dialog" aria-modal="true" aria-label={(editing.id ? 'Editar ' : 'Adicionar ') + activeSchema.singular}>
         <header className="dialog-head"><div><div className="eyebrow">{editing.id ? 'EDIÇÃO' : 'NOVO CADASTRO'}</div><h2>{editing.id ? 'Editar ' : 'Adicionar '}{activeSchema.singular.toLowerCase()}</h2></div><button aria-label="Fechar formulário" className="icon-btn" disabled={saving} onClick={() => setEditing(null)}><X size={20}/></button></header>
         <form onSubmit={saveRecord} className="dialog-form">
-          <div className="form-grid">{activeSchema.fields.map((field:any) => <label className="form-field" key={field.key}><span>{field.label}{field.required && <em> *</em>}</span>
+          <div className="form-grid">{activeSchema.fields.map((field:any) => field.type==='image'
+            ? <div className="form-field product-photo-field" key={field.key}>
+                <span>Foto do produto</span>
+                <div className="product-photo-editor">
+                  {form.image_data?<img src={form.image_data} alt="Prévia da foto do produto"/>:<div className="product-photo-placeholder"><Package size={28}/><small>Sem foto</small></div>}
+                  <div className="product-photo-actions">
+                    <label className="secondary product-photo-button">Selecionar imagem
+                      <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Selecionar foto do produto"
+                        disabled={saving||photoBusy} onChange={ev=>void uploadProductPhoto(ev)}/>
+                    </label>
+                    {form.image_data&&<button type="button" className="secondary" disabled={saving||photoBusy} onClick={()=>setForm(old=>({...old,image_data:''}))}>Remover foto</button>}
+                    <small>{photoBusy?'Compactando foto…':'JPG, PNG ou WebP. Salva no SQLite e acompanha o backup.'}</small>
+                  </div>
+                </div>
+              </div>
+            : <label className="form-field" key={field.key}><span>{field.label}{field.required && <em> *</em>}</span>
             {field.type === 'select' ? <select required={field.required} value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}>{field.values.map((value:string) => <option key={value} value={value}>{value}</option>)}</select> :
              field.type === 'reference' ? <select value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}><option value="">Sem categoria</option>{(records[field.entity] || []).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select> :
              <input required={field.required} type={field.type === 'money' || field.type === 'quantity' ? 'text' : 'text'} autoComplete="off"
@@ -501,7 +524,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
              placeholder={field.type === 'money' ? '0,00' : field.type === 'quantity' ? '0,000' : field.label}/>}
           </label>)}</div>
           {error && <div className="form-error" role="alert"><AlertTriangle size={16}/>{error}</div>}
-          <footer className="dialog-footer"><button type="button" className="secondary" disabled={saving} onClick={() => setEditing(null)}>Cancelar</button><button type="submit" className="primary" disabled={saving}>{saving ? 'Salvando…' : 'Salvar cadastro'}<Check size={17}/></button></footer>
+          <footer className="dialog-footer"><button type="button" className="secondary" disabled={saving} onClick={() => setEditing(null)}>Cancelar</button><button type="submit" className="primary" disabled={saving||photoBusy}>{saving ? 'Salvando…' : 'Salvar cadastro'}<Check size={17}/></button></footer>
         </form>
       </section>
     </div>}

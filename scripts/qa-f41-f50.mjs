@@ -60,12 +60,12 @@ try{
   page=await app.firstWindow();
   const errors=[];
   page.on('pageerror',e=>errors.push(e.message));
-  await page.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
   await page.getByRole('textbox',{name:'Nome do administrador'}).fill('Admin Financeiro QA');
   await page.locator('.auth-form input[type="password"]').nth(0).fill('FinanceiroQA2026!');
   await page.locator('.auth-form input[type="password"]').nth(1).fill('FinanceiroQA2026!');
   await page.getByRole('button',{name:'Criar administrador'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});
 
   // Fixtures via IPC autorizado e SQLite real.
   const product=await api('save','products',{

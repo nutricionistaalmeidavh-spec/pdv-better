@@ -78,11 +78,11 @@ async function login(label, value) {
   await page.getByRole('combobox', {name:'Operador'}).selectOption({label});
   await page.locator('.auth-form input[type="password"]').first().fill(value);
   await page.getByRole('button', {name:'Entrar no PDV'}).click();
-  await page.getByRole('heading', {name:'Bem-vindo ao PDV Better'}).waitFor({timeout:20000});
+  await page.getByRole('heading', {name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:20000});
 }
 async function logout() {
   await page.getByRole('button', {name:'Sair',exact:true}).click();
-  await page.getByRole('heading', {name:'PDV Better',exact:true}).waitFor();
+  await page.getByRole('heading', {name:'PDV SUPER',exact:true}).waitFor();
 }
 function pass(id, message) {passed.add(id); console.log('PASS '+id+': '+message);}
 try {
@@ -95,12 +95,12 @@ try {
   page = await app.firstWindow();
   const errors=[];
   page.on('pageerror',e=>errors.push(e.message));
-  await page.getByRole('heading', {name:'PDV Better', exact:true}).waitFor({timeout:30000});
+  await page.getByRole('heading', {name:'PDV SUPER', exact:true}).waitFor({timeout:30000});
   await page.getByRole('textbox', {name:'Nome do administrador'}).fill('Administrador Cadastro QA');
   await page.locator('.auth-form input[type="password"]').nth(0).fill(passwords.admin);
   await page.locator('.auth-form input[type="password"]').nth(1).fill(passwords.admin);
   await page.getByRole('button',{name:'Criar administrador'}).click();
-  await page.getByRole('heading', {name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+  await page.getByRole('heading', {name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});
 
   // F08 — Categoria real com edição, desativação de categoria vazia e proteção de vínculo.
   await add('Categorias','Categoria',[['Nome da categoria','Bebidas QA']]);

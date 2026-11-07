@@ -40,14 +40,14 @@ async function launch(folder){
   });
   const page=await app.firstWindow();
   page.on('pageerror',e=>pageErrors.push(e.message));
-  await page.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
   return {app,page};
 }
 async function login(page,label,password){
   await page.getByRole('combobox',{name:'Operador'}).selectOption({label});
   await page.locator('.auth-form input[type="password"]').first().fill(password);
   await page.getByRole('button',{name:'Entrar no PDV'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:25000});
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:25000});
 }
 async function freePort(){
   const server=createServer();
@@ -90,7 +90,7 @@ try{
   await host.locator('.auth-form input[type="password"]').nth(0).fill(adminPassword);
   await host.locator('.auth-form input[type="password"]').nth(1).fill(adminPassword);
   await host.getByRole('button',{name:'Criar administrador'}).click();
-  await host.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+  await host.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});
 
   const product=await call(host,'save','products',{
     name:'Produto de Excecoes QA',code:'QA-EXC-001',unit:'UN',

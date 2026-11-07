@@ -20,7 +20,18 @@ export function normalizeRecord(kind, input) {
   for (const field of schema.fields) {
     let value = input[field.key];
     if (value === undefined || value === null || value === '') value = field.default ?? '';
-    if (field.type === 'money') value = parseFixed(value, 2, field.label);
+    if (field.type === 'image') {
+      if (value !== '' && (
+        typeof value !== 'string' || value.length > 88000 ||
+        !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(value)
+      )) throw new Error('Imagem do produto inválida. Use JPG, PNG ou WebP pelo cadastro (máximo 64 KB compactados).');
+      if (value) {
+        const bytes=Buffer.from(value.slice('data:image/jpeg;base64,'.length),'base64');
+        if(bytes.length>64000||bytes.length<4||bytes[0]!==255||bytes[1]!==216||bytes[2]!==255)
+          throw new Error('Imagem do produto inválida: JPEG compactado obrigatório.');
+      }
+    }
+    else if (field.type === 'money') value = parseFixed(value, 2, field.label);
     else if (field.type === 'quantity') value = parseFixed(value, 3, field.label);
     else {
       value = String(value).trim();

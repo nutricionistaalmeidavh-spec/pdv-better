@@ -5,7 +5,7 @@ export function renderPrintDocument({kind,sale,product}){
     if(!sale||!Array.isArray(sale.items))throw new Error('Venda ausente para impressão.');
     const rows=sale.items.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+esc((x.quantity_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3}))+' '+esc(x.unit)+'</td><td>'+esc(money(x.line_total_cents))+'</td></tr>').join('');
     const payments=(sale.payments||[]).map(x=>'<p>'+esc(x.method)+' — '+esc(money(x.amount_cents))+'</p>').join('');
-    return page('<h2>PDV Better</h2><p class="center">COMPROVANTE NÃO FISCAL</p><p>Venda: '+esc(sale.id)+'</p><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>'+rows+'</tbody></table><h3>Total: '+esc(money(sale.total_cents))+'</h3><p>Troco: '+esc(money(sale.change_cents))+'</p>'+payments+'<p class="center">Não substitui documento fiscal.</p>',80);
+    return page('<h2>PDV SUPER</h2><p class="center">COMPROVANTE NÃO FISCAL</p><p>Venda: '+esc(sale.id)+'</p><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>'+rows+'</tbody></table><h3>Total: '+esc(money(sale.total_cents))+'</h3><p>Troco: '+esc(money(sale.change_cents))+'</p>'+payments+'<p class="center">Não substitui documento fiscal.</p>',80);
   }
   if(kind==='label'){
     if(!product)throw new Error('Produto ausente para etiqueta.');

@@ -21,25 +21,25 @@ const receipt=p=>p.getByRole('dialog',{name:'Comprovante não fiscal da venda'})
 const payment=p=>p.getByRole('dialog',{name:'Receber venda'});
 async function visit(p,name,heading){
  await nav(p,name).click();
- await p.getByRole('heading',{name:name==='Frente de caixa'?'Caixa Rápido':heading,exact:true}).waitFor();
+ await p.getByRole('heading',{name:name==='Frente de caixa'?'PDV SUPER':heading,exact:true}).waitFor();
 }
 async function bootstrap(p){
- await p.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+ await p.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
  await p.getByRole('textbox',{name:'Nome do administrador'}).fill('Administrador Jornada');
  await p.locator('.auth-form input[type="password"]').nth(0).fill(adminPass);
  await p.locator('.auth-form input[type="password"]').nth(1).fill(adminPass);
  await p.getByRole('button',{name:'Criar administrador'}).click();
- await p.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+ await p.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});
 }
 async function logout(p){
  await p.getByRole('button',{name:'Sair',exact:true}).click();
- await p.getByRole('heading',{name:'PDV Better',exact:true}).waitFor();
+ await p.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor();
 }
 async function login(p,label,password){
  await p.getByRole('combobox',{name:'Operador'}).selectOption({label});
  await p.locator('.auth-form input[type="password"]').first().fill(password);
  await p.getByRole('button',{name:'Entrar no PDV'}).click();
- await p.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+ await p.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});
 }
 async function add(p,menu,singular,values){
  await nav(p,menu).click();
@@ -167,7 +167,7 @@ await journey('J01','Administrador prepara loja e todos os cadastros essenciais'
  await add(p,'Fornecedores','Fornecedor',{'Razão social / Nome':'Fornecedor Jornada','Telefone':'1133334444'});
  await operator(p,'Caixa Jornada','Caixa');
  assert.equal((await api(p,'list','products')).length,1);
- await visit(p,'Visão geral','Bem-vindo ao PDV Better');
+ await visit(p,'Visão geral','Bem-vindo ao PDV SUPER');
  return {};
 },db=>{
  for(const table of ['products','customers','categories','suppliers'])

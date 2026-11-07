@@ -20,7 +20,7 @@ export function AuthGate(){
  const [error,setError]=useState('');
  async function refresh(){
    try{
-     if(!api)throw new Error('Inicie pelo executável Electron do PDV Better.');
+     if(!api)throw new Error('Inicie pelo aplicativo PDV SUPER.');
      const net=await api.lanStatus();setLanMode(net.mode);
      const data=await api.authStatus();
      setStatus(data);setOperatorId(old=>data.operators.some(x=>x.id===old)?old:(data.operators[0]?.id||''));
@@ -46,7 +46,7 @@ export function AuthGate(){
  if(user)return <App user={user} onLogout={logout}/>;
  return <div className="auth-screen"><div className="auth-panel">
    <div className="auth-icon"><ShieldCheck size={25}/></div>
-   <h1>PDV Better</h1><p>{status?.setupRequired?'Configure o primeiro administrador do estabelecimento.':'Acesse com sua conta de operador para usar o caixa.'}</p>
+   <h1>PDV SUPER</h1><p>{status?.setupRequired?'Configure o primeiro administrador do estabelecimento.':'Acesse com sua conta de operador para usar o caixa.'}</p>
    <form onSubmit={submit} className="auth-form">
      {status?.setupRequired?
        <label>Nome do administrador<input required autoFocus value={name} autoComplete="name" onChange={e=>setName(e.target.value)}/></label>

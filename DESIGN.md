@@ -1,18 +1,42 @@
-# PDV Better — direção visual Graphite Glass
+# PDV SUPER — direção visual canônica (07/11/2026)
 
-## Produto e audiência
-Desktop Electron offline-first para operação de lojas brasileiras; usuários: Caixa, Gerente e Administrador. As ações críticas são receber, conferir dinheiro, cancelar venda, movimentar estoque e restaurar backup.
+## Referência e objetivo
 
-## Identidade aprovada (28/10/2026)
-Referência enviada pelo usuário: vidro fumê preto/cinza-grafite com reflexos prateados suaves, transparência controlada, bordas finas, cantos arredondados e visual monocromático. **Não usar roxo, violeta, azul saturado, gradientes coloridos ou logos/ícones decorativos que disputem atenção com números.**
+Interface de produção do PDV SUPER inspirada nas telas de referência apresentadas pelo usuário: navegação azul-marinho, superfícies brancas/azul-claro, seleção azul viva, valores destacados, botão verde de receber e informações operacionais legíveis.
 
-Paleta canônica: vazio `#090a0b`; base `#131516`; texto `#f5f6f7`; apoio `#c6cbd0`; ação `#ebeef0` com texto escuro `#111315`. Painel de vidro `rgba(28,30,32,.83)`; bordas claras de baixa opacidade. Cores semânticas muito restritas apenas para perigo, aviso e sucesso. Tipografia Inter/sistema, números com tabulares nas somas.
+As imagens promocionais são referências estéticas, **não capturas fiéis do aplicativo**. O objetivo é aproximar a aplicação real sem desenhar ações inexistentes nem alterar a lógica comercial.
 
 ## Fonte de verdade
-`src/graphite.css` é o tema oficial, importado **por último** em `src/main.tsx`. `src/styles.css`, `src/glass.css`, `src/system.css` e `src/auth.css` preservam geometria, layouts e compatibilidade, sem paletas concorrentes. Prefira evoluir tokens e estilos compartilhados ao invés de exceções por tela.
 
-## Contratos de UX
-Prioridade: leitura rápida de saldos e dados de tabela, ações principais distinguíveis, risco de cancelamento/fechamento separado, pagamento dividido com saldo e troco antes da confirmação. Fundo desfocado é decorativo, não pode comprometer contraste; modal precisa ter foco visível; formulários permanecem legíveis mesmo vazios. Com redução de transparência, usar fundo sólido. A impressão não fiscal deve permanecer em preto sobre branco.
+`src/pdv-super.css` é o **único tema de produção**, importado por último em `src/main.tsx`. Define os tokens:
+- `--super-navy` = `#071d40`: navegação e painel de pagamento.
+- `--super-blue` = `#0964e7`: navegação ativa e ações de gestão.
+- `--super-green` = `#06ab51`: receber pagamento.
+- `--super-bg` = `#eef4fc`; `--super-paper` = `#ffffff`; `--super-border` = `#d6e1ef`.
+- `--super-red` = `#d73a47`: perigo/cancelamento.
 
-## Verificação
-`npm test`, `npm run build`, `npm run test:desktop` e evidência visual Electron Windows do workflow `.github/workflows/qa.yml`; revisar cada captura e contraste, incluindo login, configuração, dados densos e pagamento. Não prometer conformidade WCAG a partir de prints apenas.
+`src/styles.css`, `src/glass.css`, `src/system.css`, `src/auth.css`, `src/cashier.css` continuam proporcionando geometria/estrutura compatíveis, mas a última cascata substitui **todas as paletas anteriores**. `src/graphite.css` é histórico e **não é importado**.
+
+## Aplicação transversal
+
+Login e primeiro administrador; barra lateral e cabeçalho global; visão geral e cards; frente de caixa; abertura e controle de caixa; vendas; produtos; categorias; clientes; fornecedores; operadores; compras; estoque; financeiro; relatórios; configuração de rede/dispositivos; confirmação de pagamentos; alertas, modais, tabelas e formulários; recibo não fiscal.
+
+A interface apresenta uma única direção visual, sem seletor de modos. Os valores legados de preferência de aparência não são apagados do armazenamento, mas não alteram a aparência. O normalizador histórico permanece para compatibilidade do motor de atalhos.
+
+## Restrições inegociáveis
+
+- A marca exibida é **PDV SUPER** (não "Caixa Rápido", "PDV Better" ou "ArtiSys" em telas de marketing).
+- **Funcionalidades existentes intocadas**: leitura de código de barras, quantidades/peso, favoritos, catálogo, espera/retomada, desfazer, métodos de pagamento, descontos, cliente, relatórios, estoque e atalhos.
+- **Não fiscal**: não adicionar NFC-e, NF-e, cupom fiscal, SEFAZ, captura automática de cartão/Pix ou confirmação financeira implícita.
+- **Core R$ 0, offline-first, self-hosted/open source**, sem dependências pagas nem fontes remotas.
+- IDs internos como `pdv-better.sqlite`, appId e chaves `localStorage` ficam inalterados para preservar bancos, dados e compatibilidade.
+
+## Critérios de validação
+
+1. `npm test` cobre contratos e lógica.
+2. `npm run build` compila React, TypeScript e preload Electron.
+3. Testes de desktop, jornadas e fluxos do GitHub Actions verificam operações reais.
+4. `node scripts/qa-all-screens.mjs` produz screenshots reais e PDF. Comparar manualmente cada tela, incluindo formulários densos, pagamento, login, configurações e recibo; testes de código não provam fidelidade visual.
+5. Verificar contraste, foco, ampliação, transbordamento e `prefers-reduced-motion`; impressos permanecem pretos no branco.
+
+O merge depende de aprovação dos gates e revisão dos prints, não só da existência do CSS.
