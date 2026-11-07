@@ -542,7 +542,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         <header className="dialog-head"><div><div className="eyebrow">{editing.id ? 'EDIÇÃO' : 'NOVO CADASTRO'}</div><h2>{isProductDialog?(editing.id?'Editar Produto':'Cadastro de Produto'):(editing.id ? 'Editar ' : 'Adicionar ')+dialogSchema.singular.toLowerCase()}</h2></div><button aria-label="Fechar formulário" className="icon-btn" disabled={saving} onClick={() => setEditing(null)}><X size={20}/></button></header>
         <form onSubmit={saveRecord} className="dialog-form">
           <div className="form-grid product-core-form">{mainEditorFields.map(renderEditorField)}</div>
-          {isProductDialog&&extraEditorFields.length>0&&<details className="product-advanced-fields"><summary>Informações adicionais: marca, produtor e variantes</summary><div className="form-grid product-additional-grid">{extraEditorFields.map(renderEditorField)}</div></details>}>
+          {isProductDialog&&extraEditorFields.length>0&&<details className="product-advanced-fields"><summary>Informações adicionais: marca, produtor e variantes</summary><div className="form-grid product-additional-grid">{extraEditorFields.map(renderEditorField)}</div></details>}
           {error && <div className="form-error" role="alert"><AlertTriangle size={16}/>{error}</div>}
           <footer className="dialog-footer"><button type="button" className="secondary" disabled={saving} onClick={() => setEditing(null)}>Cancelar</button><button type="submit" className="primary" disabled={saving||photoBusy}>{saving ? 'Salvando…' : 'Salvar cadastro'}<Check size={17}/></button></footer>
         </form>
