@@ -538,7 +538,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} role={user.role} initialMethod={initialPaymentMethod} initialFocus={initialPaymentFocus} onClose={()=>setPaymentOpen(false)} onDone={completeSale} onCustomerSaved={()=>reload('customers')}/>}
     {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
     {editing && dialogSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
-      <section className={isProductDialog?'dialog product-editor-dialog':'dialog'} role="dialog" aria-modal="true" aria-label={isProductDialog?(editing.id?'Editar Produto':'Cadastro de Produto'):(editing.id ? 'Editar ' : 'Adicionar ') + dialogSchema.singular}>
+      <section className={isProductDialog?'dialog product-editor-dialog':'dialog'} role="dialog" aria-modal="true" aria-label={isProductDialog?(editing.id?'Editar Produto':'Adicionar Produto'):(editing.id ? 'Editar ' : 'Adicionar ') + dialogSchema.singular}>
         <header className="dialog-head"><div><div className="eyebrow">{editing.id ? 'EDIÇÃO' : 'NOVO CADASTRO'}</div><h2>{isProductDialog?(editing.id?'Editar Produto':'Cadastro de Produto'):(editing.id ? 'Editar ' : 'Adicionar ')+dialogSchema.singular.toLowerCase()}</h2></div><button aria-label="Fechar formulário" className="icon-btn" disabled={saving} onClick={() => setEditing(null)}><X size={20}/></button></header>
         <form onSubmit={saveRecord} className="dialog-form">
           <div className="form-grid product-core-form">{mainEditorFields.map(renderEditorField)}</div>
