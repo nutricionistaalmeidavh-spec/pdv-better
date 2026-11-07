@@ -77,9 +77,27 @@ async function openShift(p,cash){
 }
 async function closeShift(p,count){
  await visit(p,'Controle de caixa','Controle de caixa');
- await field(shift(p),'Dinheiro contado (R$)').fill(count);
- await shift(p).getByRole('button',{name:'Conferir e fechar caixa'}).click();
- await p.getByRole('status').filter({hasText:'Caixa fechado.'}).waitFor();
+ const shiftForm=shift(p).locator('form');
+ await shiftForm.getByRole('button',{name:'Revisar fechamento e solicitar gerente'}).waitFor({state:'visible'});
+ // O renderer atualiza o turno após navegar; preencher somente quando o formulário
+ // definitivo está montado e confirmar a persistência dos valores controlados.
+ for(const [i,value] of [count,'0,00','0,00','0,00','0,00'].entries()){
+   const control=shiftForm.locator('input').nth(i);
+   await control.fill(value);
+   assert.equal(await control.inputValue(),value,'Contagem controlada preservada no campo '+i);
+ }
+ const typed=await shiftForm.locator('input').evaluateAll(xs=>xs.slice(0,5).map(x=>x.value));
+ if(typed[0]!==count||typed.slice(1).some(x=>x!=='0,00')){
+   // Uma atualização tardia do turno pode remontar o formulário uma única vez.
+   for(const [i,value] of [count,'0,00','0,00','0,00','0,00'].entries())
+     await shiftForm.locator('input').nth(i).fill(value);
+ }
+ await shiftForm.getByRole('button',{name:'Revisar fechamento e solicitar gerente'}).click();
+ const review=p.getByRole('dialog',{name:'Confirmar fechamento de caixa'});
+ await review.waitFor({state:'visible',timeout:5000});
+ await review.locator('input[type="password"]').fill(adminPass);
+ await review.getByRole('button',{name:'Autorizar e fechar caixa'}).click();
+ await p.getByRole('status').filter({hasText:'Fechamento autorizado.'}).waitFor();
 }
 async function sell(p,code,{method='cash',amount='',customer='',split=null}={}){
  await visit(p,'Frente de caixa','Frente de caixa');
@@ -216,7 +234,7 @@ await journey('J03','Gerente: estoque, financeiro, liquidação e relatório',as
  await field(finance(p),'Quitação').selectOption('cash');
  const row=finance(p).getByRole('row').filter({hasText:'Energia Jornada'});
  p.once('dialog',d=>d.accept());
- await row.getByRole('button',{name:'Liquidar'}).click();
+ await row.getByRole('button',{name:'Dar baixa'}).click();
  await row.getByText('Liquidada').waitFor();
  await visit(p,'Relatórios','Relatórios e indicadores');
  const report=await api(p,'report');
@@ -245,7 +263,7 @@ await journey('J04','Fiado: caixa, cliente, liquidação pelo gestor e saldo',as
  const row=finance(p).getByRole('row').filter({hasText:'Venda fiado '+sale.id});
  await row.getByText('Em aberto').waitFor();
  await field(finance(p),'Quitação').selectOption('cash');
- p.once('dialog',d=>d.accept());await row.getByRole('button',{name:'Liquidar'}).click();
+ p.once('dialog',d=>d.accept());await row.getByRole('button',{name:'Dar baixa'}).click();
  await row.getByText('Liquidada').waitFor();
  assert.equal((await api(p,'sessionCurrent')).expected_cash_cents,6600);
  assert.match(String(await err(p,'salesCancel',sale.id)),/turno|liquidado/i);
