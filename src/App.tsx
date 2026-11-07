@@ -14,6 +14,10 @@ import {deriveStockAlerts} from '../shared/stock-alerts.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
 import { Cashier, CashierMode } from './Cashier';
 import { normalizeCashierMode, resolveCashierShortcut } from '../shared/cashier.mjs';
+import {
+  normalizeHeldSales, holdCashierSale, resumeHeldSale,
+  normalizeCashierFavorites, toggleCashierFavorite, canUndoCashierChange
+} from '../shared/cashier-workflow.mjs';
 import { SaleReceipt } from './Receipt';
 import { SystemSettings } from './SystemSettings';
 import {allowed} from '../shared/access.mjs';
@@ -75,6 +79,15 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       return Array.isArray(saved)?saved.filter(x=>typeof x.id==='string'&&Number.isSafeInteger(x.quantityMilli)&&x.quantityMilli>0&&Number.isSafeInteger(x.priceCents)&&x.priceCents>=0):[];
     } catch{return [];}
   });
+  const [heldSales,setHeldSales] = useState<any[]>(()=>{
+    try{return normalizeHeldSales(JSON.parse(localStorage.getItem('pdv-better:held-v1:'+user.id)||'[]'));}
+    catch{return [];}
+  });
+  const [favoriteIds,setFavoriteIds] = useState<string[]>(()=>{
+    try{return normalizeCashierFavorites(JSON.parse(localStorage.getItem('pdv-better:favorites-v1:'+user.id)||'[]'));}
+    catch{return [];}
+  });
+  const [undoCart,setUndoCart] = useState<{before:CartItem[];after:CartItem[]}|null>(null);
   const [cartSearch,setCartSearch] = useState('');
   const [categoryFilter,setCategoryFilter] = useState('all');
   const [cartError,setCartError] = useState('');
@@ -127,9 +140,13 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   useEffect(() => {
     const onKey = (ev:KeyboardEvent) => {
       if (ev.key === 'Escape' && editing) { setEditing(null); return; }
-      const action = resolveCashierShortcut(ev.key,{
+      const target=ev.target as HTMLElement|null;
+      const editable=Boolean(target&&(target.isContentEditable||['INPUT','TEXTAREA','SELECT'].includes(target.tagName)));
+      const shortcutKey=ev.ctrlKey&&ev.key.toLowerCase()==='z'?'Ctrl+Z':ev.key;
+      const action = resolveCashierShortcut(shortcutKey,{
         checkout:view==='checkout',session:Boolean(session),hasCart:cart.length>0,
-        dialog:Boolean(editing||paymentOpen||receipt||passwordTarget)
+        hasHeld:heldSales.length>0,canUndo:canUndoCashierChange(cart,undoCart),
+        dialog:Boolean(editing||paymentOpen||receipt||passwordTarget),editable
       });
       if(!action)return;
       ev.preventDefault();
@@ -142,10 +159,13 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       else if(action==='card') openPayment('card');
       else if(action==='cash') openPayment('cash');
       else if(action==='payment') openPayment();
+      else if(action==='hold') holdCurrentSale('');
+      else if(action==='resume') resumeSale(heldSales[0].id);
+      else if(action==='undo') undoLastCartChange();
     };
     window.addEventListener('keydown',onKey);
     return () => window.removeEventListener('keydown',onKey);
-  }, [editing,view,session,cart.length,paymentOpen,receipt,passwordTarget]);
+  }, [editing,view,session,cart,heldSales,undoCart,products,paymentOpen,receipt,passwordTarget]);
   const rows:Row[] = records[view] || [];
   const filteredRows = useMemo(() => rows.filter(row =>
     !search || Object.values(row).some(value => String(value??'').toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
@@ -155,6 +175,8 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const pageRows = filteredRows.slice(page*pageSize,(page+1)*pageSize);
   const products:Row[] = records.products || [];
   const categories:Row[] = records.categories || [];
+  const favoriteProducts = favoriteIds.map(id=>products.find(row=>row.id===id)).filter(Boolean) as Row[];
+  const undoAvailable=canUndoCashierChange(cart,undoCart);
   const matchingProducts = useMemo(()=>filterCheckoutProducts(products,categoryFilter,cartSearch),[products,categoryFilter,cartSearch]);
   const todayLocal=(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');})();
   const stockAlerts=deriveStockAlerts(products,stockBatches,todayLocal);
@@ -164,6 +186,63 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     setInitialPaymentMethod(method||'cash');
     setInitialPaymentFocus(focus);
     setPaymentOpen(true);
+  }
+  function holdCurrentSale(label:string){
+    try{
+      const next=holdCashierSale(heldSales,cart,{
+        id:crypto.randomUUID(),label,createdAt:new Date().toISOString()
+      });
+      // Primeiro persiste a espera. Se falhar, a venda ativa permanece intacta.
+      localStorage.setItem('pdv-better:held-v1:'+user.id,JSON.stringify(next));
+      setHeldSales(next);setCart([]);setUndoCart(null);setCartError('');
+      setNotice('Venda colocada em espera neste terminal. Nenhum estoque foi reservado.');
+    }catch(err){setCartError('Não foi possível colocar a venda em espera. '+friendlyError(err));}
+  }
+  function resumeSale(id:string){
+    if(cart.length){
+      setCartError('Guarde ou limpe o carrinho atual antes de retomar outra venda.');
+      return;
+    }
+    try{
+      const result=resumeHeldSale(heldSales,id,products);
+      // Recuperação contra queda: gravar carrinho ativo antes de retirar a espera.
+      localStorage.setItem('pdv-better:draft-v1:'+user.id,JSON.stringify(result.items));
+      localStorage.setItem('pdv-better:held-v1:'+user.id,JSON.stringify(result.remaining));
+      setHeldSales(result.remaining);setCart(result.items as CartItem[]);
+      setUndoCart(null);setCartError(result.warnings.join(' '));
+      setNotice(result.warnings.length?'Venda retomada; confira as alterações de catálogo e preços.':'Venda retomada no caixa.');
+      searchInput.current?.focus();
+    }catch(err){setCartError('Não foi possível retomar a venda. '+friendlyError(err));}
+  }
+  function removeHeldSale(id:string){
+    if(!window.confirm('Excluir este rascunho em espera? Nenhuma venda será cancelada no banco.'))return;
+    try{
+      const next=heldSales.filter(sale=>sale.id!==id);
+      localStorage.setItem('pdv-better:held-v1:'+user.id,JSON.stringify(next));
+      setHeldSales(next);setCartError('');
+      setNotice('Rascunho em espera excluído neste terminal.');
+    }catch(err){setCartError('Não foi possível excluir a espera. '+friendlyError(err));}
+  }
+  function favoriteProduct(id:string){
+    try{
+      const next=toggleCashierFavorite(favoriteIds,id);
+      localStorage.setItem('pdv-better:favorites-v1:'+user.id,JSON.stringify(next));
+      setFavoriteIds(next);setCartError('');
+    }catch(err){setCartError('Não foi possível atualizar favoritos. '+friendlyError(err));}
+  }
+  function removeCartItem(id:string){
+    const next=cart.filter(line=>line.id!==id);
+    if(next.length===cart.length)return;
+    setUndoCart({before:cart,after:next});setCart(next);
+    setCartError('');
+  }
+  function clearCurrentCart(){
+    if(!cart.length||!window.confirm('Limpar o rascunho da venda?'))return;
+    setUndoCart({before:cart,after:[]});setCart([]);setCartError('');
+  }
+  function undoLastCartChange(){
+    if(!canUndoCashierChange(cart,undoCart)||!undoCart)return;
+    setCart(undoCart.before);setUndoCart(null);setCartError('');
   }
   function startForm(row?:Row) {
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
@@ -207,15 +286,15 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     catch(err) { setError('Não foi possível desativar. ' + friendlyError(err)); }
   }
   function addProduct(row:Row) {
-    try { setCart(addToCart(cart,row,1000)); setCartError(''); setCartSearch(''); searchInput.current?.focus(); }
+    try { setCart(addToCart(cart,row,1000)); setUndoCart(null); setCartError(''); setCartSearch(''); searchInput.current?.focus(); }
     catch(err) { setCartError(friendlyError(err)); }
   }
   function changeQuantity(item:CartItem,delta:number) {
     const quantity = item.quantityMilli + delta;
-    if (quantity <= 0) { setCart(prev => prev.filter(line => line.id !== item.id)); return; }
+    if (quantity <= 0) { removeCartItem(item.id); return; }
     try {
       lineTotalCents(item.priceCents,quantity);
-      setCart(prev => prev.map(line => line.id === item.id ? {...line,quantityMilli:quantity} : line));
+      setCart(prev => prev.map(line => line.id === item.id ? {...line,quantityMilli:quantity} : line));setUndoCart(null);
       setCartError('');
     } catch(err) { setCartError(friendlyError(err)); }
   }
@@ -234,6 +313,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
           if(existing && existing.batchId!==scanned.batch.id)
             throw new Error('Este produto já está no carrinho com outro lote ou sem lote. Remova a linha e leia a etiqueta novamente.');
           const updated=addToCart(cart,scanned.product,1000);
+          setUndoCart(null);
           setCart(updated.map(row=>row.id===scanned.product.id
             ? {...row,batchId:scanned.batch.id,batchCode:scanned.batch.code}:row));
           setCartError('');setCartSearch('');searchInput.current?.focus();
@@ -254,12 +334,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       const milli=await bridge.scaleRead();
       if(!Number.isSafeInteger(milli)||milli<=0)throw new Error('Peso inválido da balança.');
       lineTotalCents(item.priceCents,milli);
-      setCart(old=>old.map(line=>line.id===item.id?{...line,quantityMilli:milli}:line));
+      setCart(old=>old.map(line=>line.id===item.id?{...line,quantityMilli:milli}:line));setUndoCart(null);
     }catch(err){setCartError(friendlyError(err));}
     finally{setReadingScale(false);}
   }
   async function completeSale(sale:Row) {
-    setPaymentOpen(false);setCart([]);setReceipt(sale);
+    setPaymentOpen(false);setCart([]);setUndoCart(null);setReceipt(sale);
     try {await reload('products');if(bridge)setSession(await bridge.sessionCurrent());}catch(err){setCartError(friendlyError(err));}
     setNotice(sale.is_training?'Simulação de treinamento '+sale.id.slice(0,8)+' registrada: sem faturamento, caixa ou baixa de estoque.':
       'Venda '+sale.id.slice(0,8)+' concluída, total '+money(sale.total_cents)+'. Troco: '+money(sale.change_cents)+'. Comprovante não fiscal.');
@@ -348,7 +428,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             products={matchingProducts} onAddProduct={addProduct}
             onProducts={()=>selectView('products')} cart={cart} cartError={cartError}
             total={total} sessionOpen={Boolean(session)}
-            onRemoveProduct={id=>setCart(old=>old.filter(item=>item.id!==id))}
+            onRemoveProduct={removeCartItem}
             onChangeQuantity={changeQuantity} manualWeight={manualWeight}
             onManualWeightChange={(id,value)=>setManualWeight(old=>({...old,[id]:value}))}
             onApplyWeight={item=>{
@@ -356,9 +436,14 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
               catch(err){setCartError(friendlyError(err));}
             }}
             onReadScale={item=>void weighItem(item)} readingScale={readingScale}
-            onClearCart={()=>{if(window.confirm('Limpar o rascunho da venda?'))setCart([]);}}
+            onClearCart={clearCurrentCart}
             onCash={()=>selectView('cash')}
             onOpenPayment={openPayment}
+            favoriteIds={favoriteIds} favoriteProducts={favoriteProducts}
+            onToggleFavorite={favoriteProduct}
+            heldSales={heldSales} onHold={holdCurrentSale}
+            onResumeHeld={resumeSale} onRemoveHeld={removeHeldSale}
+            canUndo={undoAvailable} onUndo={undoLastCartChange}
           />}
           {['cash','sales','inventory','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
           {view==='settings' && <SystemSettings/>}
