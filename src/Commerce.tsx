@@ -7,6 +7,7 @@ import { suggestCashierPaymentAmount } from '../shared/cashier.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
 import {normalizePayments} from '../shared/commerce.mjs';
 import { SaleReceipt } from './Receipt';
+import {FinanceP2Panel} from './FinanceP2';
 import { buildLabeledSaleItems } from '../shared/batch-label.mjs';
 type R=Record<string,any>;
 const methodLabel=(id:string)=>paymentMethods.find(x=>x.id===id)?.label||id;
@@ -297,6 +298,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [reportTraining,setReportTraining]=useState<'exclude'|'only'|'include'>('exclude');
   const [itemReport,setItemReport]=useState<R|null>(null);
   const [financeType,setFinanceType]=useState('payable');
+  const [financeCategory,setFinanceCategory]=useState('');
   const [description,setDescription]=useState('');
   const [dueOn,setDueOn]=useState('');
   const [paymentMethod,setPaymentMethod]=useState('cash');
@@ -402,6 +404,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       <div className="panel commerce-section"><h2>Sangria / reforço</h2><p>Movimentações auditáveis em dinheiro, vinculadas ao turno aberto.</p><form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.cashMove({kind,amountCents:amount,note:reason}),'Movimentação de caixa registrada.');}}>
         <label>Operação<select value={kind} onChange={e=>setKind(e.target.value)}>{cashMovementKinds.map(k=><option value={k} key={k}>{commerceLabels.cash[k]}</option>)}</select></label>
         <label>Valor (R$)<input value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value)}/></label>
+      <label>Categoria<input maxLength={80} value={financeCategory} onChange={e=>setFinanceCategory(e.target.value)} placeholder="Ex.: Infraestrutura"/></label>
         <label>Motivo<input value={reason} onChange={e=>setReason(e.target.value)} placeholder="Descreva o motivo"/></label>
         <button disabled={!session||busy} className="secondary" type="submit">Registrar movimentação</button></form>
         {!session&&<p className="commerce-warning">É necessário abrir o caixa antes de movimentar dinheiro.</p>}
@@ -528,7 +531,8 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         </tbody></table></div>
       </div>
     </>}
-    {view==='finance'&&<><div className="panel commerce-section"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn}), 'Lançamento registrado.');}}>
+    {view==='finance'&&<FinanceP2Panel entries={finance} onChanged={load}/>}
+    {view==='finance'&&<><div className="panel commerce-section"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn,category:financeCategory}), 'Lançamento registrado.');}}>
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
       <label>Descrição<input required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Ex.: aluguel"/></label>
       <label>Valor (R$)<input value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value)}/></label>
