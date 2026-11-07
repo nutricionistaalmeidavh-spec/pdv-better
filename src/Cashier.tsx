@@ -27,6 +27,7 @@ type CashierProps = {
   productPhotos:Record<string,string>;
   onAddProduct:(product:Row)=>void;
   onProducts:()=>void;
+  canCreateProduct:boolean;
   cart:CartLine[];
   cartError:string;
   total:number;
@@ -54,7 +55,7 @@ type CashierProps = {
 
 export function Cashier({
   searchRef,search,onSearchChange,onSearchKeyDown,
-  categories,categoryFilter,onCategoryFilter,products,productPhotos,onAddProduct,onProducts,
+  categories,categoryFilter,onCategoryFilter,products,productPhotos,onAddProduct,onProducts,canCreateProduct,
   cart,cartError,total,sessionOpen,onRemoveProduct,onChangeQuantity,
   manualWeight,onManualWeightChange,onApplyWeight,onReadScale,readingScale,
   onClearCart,onCash,onOpenPayment,
@@ -99,6 +100,7 @@ export function Cashier({
         <section className="cashier-catalog" aria-label="Catálogo de produtos">
           <div className="cashier-catalog-header"><strong>Produtos disponíveis</strong>
             <span>{products.length} {products.length===1?'produto':'produtos'}</span>
+            {canCreateProduct&&<button type="button" className="cashier-new-product" onClick={onProducts}><Plus size={14}/>Novo produto</button>}
             {search&&<button type="button" aria-label="Limpar pesquisa" onClick={()=>{onSearchChange('');searchRef.current?.focus();}}><X size={17}/></button>}
           </div>
           <div className="cashier-filters" aria-label="Categorias">

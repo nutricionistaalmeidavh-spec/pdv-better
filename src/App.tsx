@@ -64,6 +64,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [search,setSearch] = useState('');
   const [page,setPage] = useState(0);
   const [editing,setEditing] = useState<Row|null>(null);
+  const [editingEntity,setEditingEntity] = useState<string|null>(null);
   const [form,setForm] = useState<Row>({});
   const [saving,setSaving] = useState(false);
   const [photoBusy,setPhotoBusy] = useState(false);
@@ -100,6 +101,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [repeatPassword,setRepeatPassword] = useState('');
   const searchInput = useRef<HTMLInputElement>(null);
   const activeSchema = definitions[view];
+  const dialogSchema = definitions[editingEntity || view];
   const bridge = window.pdv;
   async function reloadAll() {
     if (!bridge) { setError('O banco local está disponível somente no aplicativo Electron. Abra pelo instalador ou npm run dev.'); setLoading(false); return; }
@@ -244,10 +246,15 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     setCart(undoCart.before);setUndoCart(null);setCartError('');
   }
   function startForm(row?:Row) {
+    setEditingEntity(view);
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
     setForm({...base,...(row ? {id:row.id} : {})});
     setEditing(row || {});
     setError('');
+  }
+  function openNewProductModal(){
+    if(!allowed(user.role,'save',['products'])){selectView('products');return;}
+    setEditingEntity('products');setForm(newForm('products'));setEditing({});setError('');
   }
   async function uploadProductPhoto(ev:React.ChangeEvent<HTMLInputElement>){
     const file=ev.target.files?.[0];
@@ -265,10 +272,11 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     if (!bridge || saving || photoBusy) return;
     setSaving(true); setError('');
     try {
-      const saved = await bridge.save(view, form);
-      await reload(view);
-      if (view === 'products') setCart(prev => prev.map(item => item.id === saved.id ? {...item, name:saved.name, code:saved.code || '', priceCents:saved.sale_price_cents, unit:saved.unit, quantityMilli:saved.unit === 'UN' && item.quantityMilli % 1000 !== 0 ? 1000 : item.quantityMilli} : item));
-      setEditing(null); setNotice(definitions[view].singular + ' salvo: ' + saved.name);
+      const kind = editingEntity || view;
+      const saved = await bridge.save(kind, form);
+      await reload(kind);
+      if (kind === 'products') setCart(prev => prev.map(item => item.id === saved.id ? {...item, name:saved.name, code:saved.code || '', priceCents:saved.sale_price_cents, unit:saved.unit, quantityMilli:saved.unit === 'UN' && item.quantityMilli % 1000 !== 0 ? 1000 : item.quantityMilli} : item));
+      setEditing(null);setEditingEntity(null);setNotice(definitions[kind].singular + ' salvo: ' + saved.name);
     } catch (err) { setError('Não foi possível salvar. ' + friendlyError(err)); }
     finally { setSaving(false); }
   }
@@ -336,7 +344,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     if (found) addProduct(found);
     else setCartError('Selecione um produto na lista ou confira o código.');
   }
-  function selectView(next:string) { if(view==='settings')void reloadAll(); setView(next); setEditing(null); setPaymentOpen(false); setCartError(''); }
+  function selectView(next:string) { if(view==='settings')void reloadAll(); setView(next); setEditing(null);setEditingEntity(null); setPaymentOpen(false); setCartError(''); }
   async function weighItem(item:CartItem) {
     if(!bridge || readingScale)return;
     setReadingScale(true);setCartError('');
@@ -371,6 +379,35 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       setPasswordTarget(null);setOperatorPassword('');setRepeatPassword('');
     }catch(e){setError(friendlyError(e));}
   }
+  const productCoreKeys=['image_data','name','code','category_id','sale_price_cents','cost_price_cents','stock_milli','unit'];
+  const isProductDialog=editingEntity==='products';
+  const mainEditorFields=isProductDialog
+    ? productCoreKeys.map(key=>dialogSchema?.fields.find((field:any)=>field.key===key)).filter(Boolean)
+    : (dialogSchema?.fields||[]);
+  const extraEditorFields=isProductDialog ? (dialogSchema?.fields||[]).filter((field:any)=>!productCoreKeys.includes(field.key)) : [];
+  const renderEditorField=(field:any) => field.type==='image'
+            ? <div className="form-field product-photo-field" key={field.key}>
+                <span>Foto do produto</span>
+                <div className="product-photo-editor">
+                  {form.image_data?<img src={form.image_data} alt="Prévia da foto do produto"/>:<div className="product-photo-placeholder"><Package size={28}/><small>Sem foto</small></div>}
+                  <div className="product-photo-actions">
+                    <label className="secondary product-photo-button">{form.image_data ? "Alterar Foto" : "Adicionar Foto"}
+                      <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Selecionar foto do produto"
+                        disabled={saving||photoBusy} onChange={ev=>void uploadProductPhoto(ev)}/>
+                    </label>
+                    {form.image_data&&<button type="button" className="secondary" disabled={saving||photoBusy} onClick={()=>setForm(old=>({...old,image_data:''}))}>Remover foto</button>}
+                    <small>{photoBusy?'Compactando foto…':'JPG, PNG ou WebP. Salva no SQLite e acompanha o backup.'}</small>
+                  </div>
+                </div>
+              </div>
+            : <label className={"form-field"+(editingEntity==='products' && field.key==='name' ? " product-main-name" : "")} key={field.key}><span>{field.label}{field.required && <em> *</em>}</span>
+            {field.type === 'select' ? <select required={field.required} value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}>{field.values.map((value:string) => <option key={value} value={value}>{value}</option>)}</select> :
+             field.type === 'reference' ? <select value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}><option value="">Sem categoria</option>{(records[field.entity] || []).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select> :
+             <input required={field.required} type={field.type === 'money' || field.type === 'quantity' ? 'text' : 'text'} autoComplete="off"
+             inputMode={field.type === 'money' || field.type === 'quantity' ? 'decimal' : 'text'}
+             value={form[field.key]??''} readOnly={Boolean(field.readOnlyOnEdit && editing.id)} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}
+             placeholder={field.type === 'money' ? '0,00' : field.type === 'quantity' ? '0,000' : field.label}/>}
+          </label>;
   return <div className={'shell super-shell'+(view==='checkout'?' cashier-shell mode-light':'')}>
     <main className="main">
       <header className="topbar super-topbar">
@@ -450,7 +487,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             onSearchKeyDown={scanKey}
             categories={categories} categoryFilter={categoryFilter} onCategoryFilter={setCategoryFilter}
             products={matchingProducts} productPhotos={productPhotos} onAddProduct={addProduct}
-            onProducts={()=>{selectView('products');setForm(newForm('products'));setEditing({});}} cart={cart} cartError={cartError}
+            onProducts={openNewProductModal} canCreateProduct={allowed(user.role,'save',['products'])} cart={cart} cartError={cartError}
             total={total} sessionOpen={Boolean(session)}
             onRemoveProduct={removeCartItem}
             onChangeQuantity={changeQuantity} manualWeight={manualWeight}
@@ -500,33 +537,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     </section></div>}
     {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} role={user.role} initialMethod={initialPaymentMethod} initialFocus={initialPaymentFocus} onClose={()=>setPaymentOpen(false)} onDone={completeSale} onCustomerSaved={()=>reload('customers')}/>}
     {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
-    {editing && activeSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
-      <section className="dialog" role="dialog" aria-modal="true" aria-label={(editing.id ? 'Editar ' : 'Adicionar ') + activeSchema.singular}>
-        <header className="dialog-head"><div><div className="eyebrow">{editing.id ? 'EDIÇÃO' : 'NOVO CADASTRO'}</div><h2>{editing.id ? 'Editar ' : 'Adicionar '}{activeSchema.singular.toLowerCase()}</h2></div><button aria-label="Fechar formulário" className="icon-btn" disabled={saving} onClick={() => setEditing(null)}><X size={20}/></button></header>
+    {editing && dialogSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
+      <section className={isProductDialog?'dialog product-editor-dialog':'dialog'} role="dialog" aria-modal="true" aria-label={isProductDialog?(editing.id?'Editar Produto':'Adicionar Produto'):(editing.id ? 'Editar ' : 'Adicionar ') + dialogSchema.singular}>
+        <header className="dialog-head"><div><div className="eyebrow">{editing.id ? 'EDIÇÃO' : 'NOVO CADASTRO'}</div><h2>{isProductDialog?(editing.id?'Editar Produto':'Cadastro de Produto'):(editing.id ? 'Editar ' : 'Adicionar ')+dialogSchema.singular.toLowerCase()}</h2></div><button aria-label="Fechar formulário" className="icon-btn" disabled={saving} onClick={() => setEditing(null)}><X size={20}/></button></header>
         <form onSubmit={saveRecord} className="dialog-form">
-          <div className="form-grid">{activeSchema.fields.map((field:any) => field.type==='image'
-            ? <div className="form-field product-photo-field" key={field.key}>
-                <span>Foto do produto</span>
-                <div className="product-photo-editor">
-                  {form.image_data?<img src={form.image_data} alt="Prévia da foto do produto"/>:<div className="product-photo-placeholder"><Package size={28}/><small>Sem foto</small></div>}
-                  <div className="product-photo-actions">
-                    <label className="secondary product-photo-button">Selecionar imagem
-                      <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Selecionar foto do produto"
-                        disabled={saving||photoBusy} onChange={ev=>void uploadProductPhoto(ev)}/>
-                    </label>
-                    {form.image_data&&<button type="button" className="secondary" disabled={saving||photoBusy} onClick={()=>setForm(old=>({...old,image_data:''}))}>Remover foto</button>}
-                    <small>{photoBusy?'Compactando foto…':'JPG, PNG ou WebP. Salva no SQLite e acompanha o backup.'}</small>
-                  </div>
-                </div>
-              </div>
-            : <label className="form-field" key={field.key}><span>{field.label}{field.required && <em> *</em>}</span>
-            {field.type === 'select' ? <select required={field.required} value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}>{field.values.map((value:string) => <option key={value} value={value}>{value}</option>)}</select> :
-             field.type === 'reference' ? <select value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}><option value="">Sem categoria</option>{(records[field.entity] || []).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select> :
-             <input required={field.required} type={field.type === 'money' || field.type === 'quantity' ? 'text' : 'text'} autoComplete="off"
-             inputMode={field.type === 'money' || field.type === 'quantity' ? 'decimal' : 'text'}
-             value={form[field.key]??''} readOnly={Boolean(field.readOnlyOnEdit && editing.id)} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}
-             placeholder={field.type === 'money' ? '0,00' : field.type === 'quantity' ? '0,000' : field.label}/>}
-          </label>)}</div>
+          <div className="form-grid product-core-form">{mainEditorFields.map(renderEditorField)}</div>
+          {isProductDialog&&extraEditorFields.length>0&&<details className="product-advanced-fields"><summary>Informações adicionais: marca, produtor e variantes</summary><div className="form-grid product-additional-grid">{extraEditorFields.map(renderEditorField)}</div></details>}
           {error && <div className="form-error" role="alert"><AlertTriangle size={16}/>{error}</div>}
           <footer className="dialog-footer"><button type="button" className="secondary" disabled={saving} onClick={() => setEditing(null)}>Cancelar</button><button type="submit" className="primary" disabled={saving||photoBusy}>{saving ? 'Salvando…' : 'Salvar cadastro'}<Check size={17}/></button></footer>
         </form>
