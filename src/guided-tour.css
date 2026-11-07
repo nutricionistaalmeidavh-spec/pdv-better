@@ -1,0 +1,35 @@
+/* Tour guiado: composição nativa e offline no tema graphite/glass do PDV SUPER */
+.guided-tour-invite{position:fixed;z-index:6000;right:24px;bottom:24px;width:min(395px,calc(100vw - 32px));display:flex;align-items:flex-start;gap:13px;padding:21px 42px 20px 18px;background:rgba(19,32,41,.96);color:#f3f8fb;border:1px solid rgba(173,218,215,.28);border-radius:18px;box-shadow:0 22px 60px rgba(0,0,0,.33);backdrop-filter:blur(20px);font-family:inherit;}
+.guided-tour-invite-icon{flex:0 0 42px;height:42px;border-radius:13px;background:rgba(67,196,179,.17);color:#67d5c4;display:grid;place-items:center;}
+.guided-tour-invite-copy{min-width:0;flex:1;}
+.guided-tour-invite-copy strong{display:block;color:#fff;font-size:15px;line-height:1.4;}
+.guided-tour-invite-copy p{margin:6px 0 15px;color:#bacbd1;font-size:13px;line-height:1.55;}
+.guided-tour-invite-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.guided-tour-invite-actions button,.guided-tour-actions button{font:inherit;cursor:pointer;}
+.guided-tour-start,.guided-tour-next{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#57ccb9!important;border:1px solid #57ccb9!important;color:#132a30!important;border-radius:10px;padding:10px 14px;font-weight:750!important;font-size:13px;}
+.guided-tour-start:hover,.guided-tour-next:hover{background:#7ce3d1!important;}
+.guided-tour-skip{border:none!important;background:transparent!important;color:#b9ced4!important;padding:9px 5px;font-size:13px;}
+.guided-tour-skip:hover{text-decoration:underline;color:#fff!important;}
+.guided-tour-invite-close,.guided-tour-card-top button{background:transparent!important;color:#c2d0d5!important;border:0!important;padding:5px!important;display:grid;place-items:center;border-radius:7px;}
+.guided-tour-invite-close{position:absolute;top:10px;right:10px;}
+.guided-tour-root{position:fixed;z-index:15000;inset:0;pointer-events:none;color:#edf5f7;font-family:inherit;}
+.guided-tour-veil{position:fixed;inset:0;z-index:1;pointer-events:auto;background:transparent;}
+.guided-tour-veil-full{background:rgba(5,14,19,.66);}
+.guided-tour-spotlight{position:fixed;z-index:2;pointer-events:none;border-radius:12px;border:2px solid #64d8c4;box-shadow:0 0 0 9999px rgba(5,14,19,.67),0 0 0 5px rgba(100,216,196,.2),0 12px 40px rgba(0,0,0,.28);transition:top .16s ease,left .16s ease,width .16s ease,height .16s ease;}
+.guided-tour-card{position:fixed;z-index:3;pointer-events:auto;left:50%;top:50%;transform:translate(-50%,-50%);width:min(360px,calc(100vw - 24px));box-sizing:border-box;padding:22px;border-radius:18px;background:rgba(16,29,39,.98);color:#f4f8fa;border:1px solid rgba(147,202,198,.34);box-shadow:0 28px 90px rgba(0,0,0,.54);backdrop-filter:blur(24px);outline:none;}
+.guided-tour-card[style]{transform:none;}
+.guided-tour-card-top{display:flex;align-items:center;justify-content:space-between;margin:-5px 0 12px;}
+.guided-tour-card-top span{display:inline-flex;align-items:center;gap:8px;color:#83dece;font-size:10px;letter-spacing:.12em;font-weight:800;}
+.guided-tour-progress{display:flex;gap:5px;margin:0 0 17px;}
+.guided-tour-progress span{height:4px;flex:1;background:rgba(180,207,211,.17);border-radius:5px;}
+.guided-tour-progress span.done{background:#57ccb9;}
+.guided-tour-count{font-size:10px;font-weight:800;letter-spacing:.1em;color:#93abb3;margin-bottom:7px;}
+.guided-tour-card h2{font-size:19px;line-height:1.3;letter-spacing:-.02em;color:#fff;margin:0 0 8px;font-weight:750;}
+.guided-tour-card p{font-size:13px;line-height:1.65;color:#bfced3;margin:0 0 21px;}
+.guided-tour-actions{display:flex;justify-content:space-between;gap:10px;align-items:center;}
+.guided-tour-actions-right{display:flex;align-items:center;gap:8px;}
+.guided-tour-back{display:inline-flex;align-items:center;gap:5px;padding:10px 7px;font-size:13px;color:#d5e4e6!important;background:transparent!important;border:0!important;}
+.guided-tour-back:disabled{opacity:.3;cursor:default;}
+.guided-tour-invite button:focus-visible,.guided-tour-root button:focus-visible{outline:3px solid #9ae9dd;outline-offset:3px;}
+@media (max-width:640px){.guided-tour-invite{right:16px;bottom:16px;padding:17px 32px 17px 14px;}.guided-tour-card{max-height:calc(100dvh - 24px);overflow:auto;}.guided-tour-actions{gap:4px;}}
+@media (prefers-reduced-motion:reduce){.guided-tour-spotlight{transition:none;}}
