@@ -118,7 +118,7 @@ try {
 
   // F06: atalho F2 a partir de outra tela abre o PDV e foca a pesquisa.
   await page.keyboard.press('F2');
-  await page.getByRole('heading', {name: 'Frente de caixa', exact: true}).waitFor();
+  await page.getByRole('heading', {name: 'Caixa Rápido', exact: true}).waitFor();
   const search = page.getByRole('textbox', {name: 'Pesquisar ou ler código de barras'});
   await search.waitFor();
   await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Pesquisar ou ler código de barras', null, {timeout: 5000});
