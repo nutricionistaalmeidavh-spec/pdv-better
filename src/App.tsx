@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Tags, Users, Truck, UserRoundCog,
   Search, Plus, Pencil, Archive, X, Check, AlertTriangle, Database, RotateCcw,
   ChevronRight, Minus, Settings, ShieldCheck, ArrowRight, Trash2, Keyboard,
-  Wallet, ClipboardList, BarChart3, Boxes, ReceiptText, PackageCheck
+  Wallet, ClipboardList, BarChart3, Boxes, ReceiptText, PackageCheck, GraduationCap
 } from 'lucide-react';
 import { entities, entityOrder } from '../shared/contract.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
@@ -22,6 +22,7 @@ import {
 import { SaleReceipt } from './Receipt';
 import { SystemSettings } from './SystemSettings';
 import {allowed} from '../shared/access.mjs';
+import {GuidedTour} from './GuidedTour';
 
 type Row = Record<string, any>;
 type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number;batchId?:string;batchCode?:string};
@@ -54,6 +55,7 @@ function friendlyError(error:any) {
 }
 export function App({user,onLogout}:{user:{id:string;name:string;role:string};onLogout:()=>Promise<void>}) {
   const [view,setView] = useState('dashboard');
+  const [tourRequest,setTourRequest] = useState(0);
   const [initialPaymentMethod,setInitialPaymentMethod] = useState<'cash'|'pix'|'card'>('cash');
   const [initialPaymentFocus,setInitialPaymentFocus] = useState<'customer'|'discount'|undefined>();
 
@@ -411,16 +413,16 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   return <div className={'shell super-shell'+(view==='checkout'?' cashier-shell mode-light':'')}>
     <main className="main">
       <header className="topbar super-topbar">
-        <div className="super-top-brand" aria-label="PDV SUPER">
+        <div className="super-top-brand" aria-label="PDV SUPER" data-tour="brand">
           <span className="super-brand-icon"><ShoppingCart size={23}/></span>
           <strong>PDV SUPER</strong>
         </div>
-        <nav className="super-top-navigation" aria-label="Navegação principal">
+        <nav className="super-top-navigation" aria-label="Navegação principal" data-tour="navigation">
           {menus.map(section => <div className="menu-section" key={section.title}>
             <div className="menu-title">{section.title}</div>
             {section.ids.filter(canVisit).map((id:string) => {
               const Icon = icons[id];
-              return <button type="button" key={id} className={'nav-item '+(view === id ? 'selected' : '')}
+              return <button type="button" key={id} data-tour-nav={id} className={'nav-item '+(view === id ? 'selected' : '')}
                 aria-current={view === id ? 'page' : undefined} onClick={() => selectView(id)}>
                 <Icon size={16}/><span>{titles[id] || definitions[id]?.label}</span>
               </button>;
@@ -429,6 +431,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         </nav>
         <div className="top-actions super-top-actions">
           <span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Local'}</span>
+          <button type="button" className="super-tour-help" onClick={()=>setTourRequest(old=>old+1)} title="Rever tour guiado" aria-label="Tour guiado"><GraduationCap size={16}/><span>Tour guiado</span></button>
           <span className="super-user" title="Operador autenticado"><UserRoundCog size={18}/><span>{user.name} · {user.role}</span></span>
           <button className="super-logout" onClick={()=>void onLogout()}>Sair</button>
         </div>
@@ -548,5 +551,6 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         </form>
       </section>
     </div>}
+    <GuidedTour userId={user.id} role={user.role} view={view} loading={loading} startSignal={tourRequest} onNavigate={selectView}/>
   </div>;
 }
