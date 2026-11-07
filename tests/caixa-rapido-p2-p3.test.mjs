@@ -102,8 +102,9 @@ test('P3 componente mantém indicação não fiscal, venda em espera e favoritos
 
 test('P3 cadastro rápido no pagamento mantém estados locais e retorno ao catálogo',()=>{
  const payment=readFileSync(new URL('../src/Commerce.tsx',import.meta.url),'utf8');
- for(const state of ['newCustomerName','extraCustomers','customerBusy']){
-   assert.match(payment,new RegExp('const \\[\\\['+state+',\\s*set'+state[0].toUpperCase()+state.slice(1)+'\\\]'));
+ for(const name of ['newCustomerName','extraCustomers','customerBusy']){
+   const setter='set'+name[0].toUpperCase()+name.slice(1);
+   assert.ok(payment.includes('const ['+name+','+setter+']'),'Estado ausente: '+name);
  }
  assert.match(payment,/await onCustomerSaved\(\)/);
 });
