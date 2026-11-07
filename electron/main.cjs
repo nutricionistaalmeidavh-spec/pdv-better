@@ -70,6 +70,8 @@ async function start() {
   ipcMain.handle(apiChannels.purchaseCreate,(_event,input)=>domain('createPurchase',input));
   ipcMain.handle(apiChannels.purchaseReceive,(_event,id)=>domain('receivePurchase',id));
   ipcMain.handle(apiChannels.purchaseList,()=>domain('listPurchases'));
+  ipcMain.handle(apiChannels.financeSchedule,(_event,input)=>domain('createFinanceSchedule',input));
+  ipcMain.handle(apiChannels.financeOverview,(_event,input)=>domain('financeOverview',input||{}));
   ipcMain.handle(apiChannels.financeCreate, (_event, input) => domain('createFinance',input));
   ipcMain.handle(apiChannels.financeList, (_event) => domain('listFinance'));
   ipcMain.handle(apiChannels.financeSettle, (_event, input) => domain('settleFinance',input));
@@ -119,6 +121,60 @@ async function start() {
     return {cancelled:false,format};
   });
 
+  ipcMain.handle(apiChannels.financeExport,async(_event,input)=>{
+    runtime.authorize('financeExport');
+    const format=input?.format;
+    if(!['csv','xlsx','pdf'].includes(format))throw new Error('Formato financeiro inválido.');
+    const data=await domain('financeOverview',input?.filters||{});
+    const selected=await dialog.showSaveDialog(window,{
+      title:'Exportar fluxo financeiro operacional',
+      defaultPath:'PDV-Better-Fluxo-Financeiro.'+format,
+      filters:[{name:format.toUpperCase(),extensions:[format]}]
+    });
+    if(selected.canceled||!selected.filePath)return {cancelled:true};
+    const rows=[...data.timeline,...data.forecasts.map(x=>({...x,kind:'previsto '+x.kind}))];
+    if(format==='csv'){
+      const {financeCsv}=await import('../shared/finance-export.mjs');
+      fs.writeFileSync(selected.filePath,financeCsv({rows}),'utf8');
+    }else if(format==='xlsx'){
+      const ExcelJS=require('exceljs');
+      const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('Fluxo operacional');
+      sheet.columns=[
+        {header:'Data',key:'date',width:14},{header:'Tipo',key:'kind',width:20},
+        {header:'Descrição',key:'description',width:40},{header:'Categoria',key:'category',width:23},
+        {header:'Meio',key:'method',width:20},{header:'Valor (R$)',key:'amount',width:18}
+      ];
+      sheet.autoFilter={from:'A1',to:'F'+(rows.length+1)};
+      sheet.getRow(1).font={bold:true};
+      const safe=v=>/^[\\s]*[=+\\-@]/.test(String(v||''))?"'"+String(v):String(v||'');
+      for(const x of rows){
+        const record=sheet.addRow({date:x.date,kind:safe(x.kind),description:safe(x.description),
+          category:safe(x.category),method:safe(x.method),amount:x.amount_cents/100});
+        record.getCell(6).numFmt='#,##0.00';
+      }
+      await book.xlsx.writeFile(selected.filePath);
+    }else{
+      const escape=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      const tr=x=>'<tr>'+[x.date,x.kind,x.description,x.category,x.method,(x.amount_cents/100).toFixed(2)]
+        .map(v=>'<td>'+escape(v)+'</td>').join('')+'</tr>';
+      const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>'+
+        'body{font:11px system-ui;color:#222}h1{font-size:20px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px;text-align:left}'+
+        'tr{break-inside:avoid}thead{display:table-header-group}footer{margin-top:20px}'+
+        '</style></head><body><h1>PDV Better — Fluxo operacional</h1>'+
+        '<p>Realizado: entradas R$ '+(data.realized_in_cents/100).toFixed(2)+
+        ' · saídas R$ '+(data.realized_out_cents/100).toFixed(2)+'</p>'+
+        '<table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Categoria</th><th>Meio</th><th>R$</th></tr></thead><tbody>'+
+        rows.map(tr).join('')+'</tbody></table><footer>Relatório gerencial, não fiscal. Valores manuais não são extrato bancário.</footer></body></html>';
+      const reportWindow=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true}});
+      try{
+        await reportWindow.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(html));
+        const pdf=await reportWindow.webContents.printToPDF({pageSize:'A4',printBackground:true});
+        fs.writeFileSync(selected.filePath,pdf);
+      }finally{if(!reportWindow.isDestroyed())reportWindow.destroy();}
+    }
+    return {cancelled:false,format,rows:rows.length};
+  });
   ipcMain.handle(apiChannels.reportItemsExport, async (_event,input)=>{
     runtime.authorize('reportItems');
     const format=input?.format;
