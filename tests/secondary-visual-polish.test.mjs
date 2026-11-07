@@ -22,6 +22,7 @@ test('cadastro de produtos prioriza colunas comerciais reais sem perder as demai
   for(const key of ['sale_price_cents','stock_milli','category_id'])assert.ok(app.includes("'"+key+"'"),key);
   assert.match(app,/listFields\.map/);
   assert.match(app,/data-panel-products/);
+  assert.match(app,/catalog-import-control/);
 });
 
 test('linguagem visual secundaria e acessibilidade responsiva permanecem no tema gratuito',()=>{
