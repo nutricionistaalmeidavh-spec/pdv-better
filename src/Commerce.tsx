@@ -111,7 +111,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
   };
   const updatePayment=(i:number,key:string,value:string)=>setPayments(rows=>rows.map((r,index)=>i===index?{...r,[key]:value}:r));
   const send=async(ev:React.FormEvent)=>{
-    ev.preventDefault();if(pending || !window.pdv)return;
+    ev.preventDefault();if(pending || customerBusy || !window.pdv)return;
     if(discountError || quoteError || assignmentError || !quote || !payment.canSubmit){setError(discountError || quoteError || assignmentError || payment.error || 'Aguarde a cotação e confira os pagamentos.');return;}
     setPending(true);setError('');
     try{
@@ -141,7 +141,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
             <span>Venda de treinamento — simulação sem estoque, caixa ou faturamento</span>
             <input type="checkbox" checked={training} onChange={e=>setTraining(e.target.checked)}/>
           </label>}
-          <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{[...customers,...extraCustomers].map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+          <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{[...customers,...extraCustomers.filter(r=>!customers.some(item=>item.id===r.id))].map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
         </div>
         <div className="payment-inputs"><h3>Cadastro rápido de cliente</h3>
           <p>Não encontrou o cliente? Cadastre sem perder o carrinho nem os valores informados.</p>
@@ -212,7 +212,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
           <p className="commerce-warning">Pix e cartão são registrados manualmente. Confirme o recebimento no aplicativo do banco ou na maquininha antes de concluir. Este comprovante não é fiscal.</p>
         </div>
         {error && <div className="form-error" role="alert">{error}</div>}
-        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||!cart.length||total<=0||!!discountError||!!quoteError||!!assignmentError||!quote||!payment.canSubmit} type="submit">{pending?'Registrando…':training?'Registrar simulação sem movimento real':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
+        <footer className="dialog-footer"><button className="secondary" type="button" disabled={pending} onClick={onClose}>Cancelar</button><button className="primary" disabled={pending||customerBusy||!cart.length||total<=0||!!discountError||!!quoteError||!!assignmentError||!quote||!payment.canSubmit} type="submit">{pending?'Registrando…':training?'Registrar simulação sem movimento real':'Confirmar e concluir venda'}<Check size={17}/></button></footer>
       </form>
     </section>
   </div>;
@@ -347,6 +347,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       <label className="form-field">Senha do gerente
         <input required type="password" autoComplete="off" value={managerPassword} onChange={e=>setManagerPassword(e.target.value)}/>
       </label>
+      {error&&<p role="alert" className="form-error">{error}</p>}
       <footer className="dialog-footer">
         <button className="secondary" type="button" disabled={busy} onClick={()=>{setCloseReview(false);setManagerPassword('');}}>Voltar à contagem</button>
         <button className="primary" type="button" disabled={busy||!managerPassword||!managerSelection}
@@ -499,7 +500,10 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       <div className="panel commerce-section"><h2>Etapa 2: receber compras</h2>
         <p>Confira fisicamente a mercadoria, as quantidades e os custos antes de confirmar. O recebimento é irreversível pelo fluxo comum e não pode ser repetido.</p>
         <div className="commerce-table"><table><thead><tr><th>Fornecedor</th><th>Documento</th><th>Itens</th><th>Total</th><th>Situação</th><th>Operação</th></tr></thead><tbody>
-          {purchases.map(p=><tr key={p.id}><td>{p.supplier_name}</td><td>{p.document_ref||'—'}</td><td>{p.lines.length}</td>
+          {purchases.map(p=><tr key={p.id}><td>{p.supplier_name}</td><td>{p.document_ref||'—'}</td>
+            <td><details><summary>{p.lines.length} item(ns)</summary>
+              {p.lines.map((line:R)=><p key={line.id}>{products.find(prod=>prod.id===line.product_id)?.name||line.product_id} · {line.quantity_milli/1000} · {money(line.unit_cost_cents)} / unidade</p>)}
+            </details></td>
             <td>{money(p.total_cents)}</td><td>{p.status==='received'?'Recebida':'Rascunho'}</td>
             <td>{p.status==='draft'&&<button type="button" className="secondary" disabled={busy}
               onClick={()=>{if(window.confirm('Mercadoria conferida fisicamente? Receber a compra atualizará estoque, custo médio e conta a pagar.'))
@@ -515,7 +519,12 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       <label>Vencimento<input type="date" value={dueOn} onChange={e=>setDueOn(e.target.value)}/></label>
       <button disabled={busy} className="primary" type="submit"><Plus size={16}/>Criar lançamento</button></form></div>
       <div className="panel commerce-section"><div className="commerce-heading"><div><h2>Contas a pagar e receber</h2><p>O fiado aparece automaticamente como conta a receber.</p></div><label>Quitação<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}>{paymentMethods.filter(m=>m.id!=='credit').map(m=><option value={m.id} key={m.id}>{m.label}</option>)}</select></label></div>
-        <div className="commerce-table"><table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Pago</th><th>Saldo</th><th>Vencimento</th><th>Situação</th><th>Baixa parcial (R$)</th><th>Operação</th></tr></thead><tbody>{finance.map(f=><tr key={f.id}><td>{f.description}</td><td>{statusText[f.type]}</td><td>{money(f.amount_cents)}</td><td>{money(f.paid_cents||0)}</td><td>{money(f.remaining_cents??f.amount_cents)}</td>
+        <div className="commerce-table"><table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Pago</th><th>Saldo</th><th>Vencimento</th><th>Situação</th><th>Baixa parcial (R$)</th><th>Operação</th></tr></thead><tbody>{finance.map(f=><tr key={f.id}><td>{f.description}
+          {(f.settlements||[]).length>0&&<details><summary>Histórico de baixas ({f.settlements.length})</summary>
+            {(f.settlements||[]).map((settlement:R)=><p key={settlement.id}>
+              {pretty(settlement.created_at)} · {money(settlement.amount_cents)} · {methodLabel(settlement.method)}
+            </p>)}
+          </details>}</td><td>{statusText[f.type]}</td><td>{money(f.amount_cents)}</td><td>{money(f.paid_cents||0)}</td><td>{money(f.remaining_cents??f.amount_cents)}</td>
           <td>{f.due_on||'—'}</td><td>{statusText[f.status]}</td>
           <td>{f.status==='open'&&<input aria-label={'Valor a baixar de '+f.description} inputMode="decimal"
             value={settleAmounts[f.id]??((f.remaining_cents??f.amount_cents)/100).toFixed(2)}
