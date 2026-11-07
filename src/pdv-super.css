@@ -911,6 +911,27 @@ select option {color:var(--super-text);background:white}
 .shell.super-shell .cashier-held-row button{background:#e1edfc;border-color:#a8c5e7;color:#15549a}
 .shell.super-shell .cashier-safe-note{background:#ecf8f1;color:#2b7754;border:1px solid #b9e4cc;border-radius:8px;padding:8px;font-size:9px}
 .shell.super-shell .cashier-safe-note strong{color:#1a6848}
+.shell.super-shell .dialog.product-editor-dialog {width:min(900px,calc(100vw - 28px))}
+.shell.super-shell .dialog.product-editor-dialog .product-main-name {grid-column:2 / 4}
+.shell.super-shell .dialog.product-editor-dialog .product-photo-field {grid-row:1 / span 4}
+.shell.super-shell .dialog.product-editor-dialog .product-advanced-fields {
+  margin:0 22px 15px;border:1px solid #d3e1f2;border-radius:10px;
+  background:#f8fbff;overflow:hidden;color:#173e70;
+}
+.shell.super-shell .dialog.product-editor-dialog .product-advanced-fields summary {
+  cursor:pointer;padding:11px 14px;font-size:12px;font-weight:750;
+}
+.shell.super-shell .dialog.product-editor-dialog .product-advanced-fields summary:hover{background:#edf5ff}
+.shell.super-shell .dialog.product-editor-dialog .product-additional-grid {
+  grid-template-columns:repeat(2,minmax(0,1fr));padding:12px 14px 15px;
+  gap:12px;background:#fff;border-top:1px solid #dce7f4;
+}
+.shell.super-shell .cashier-new-product {
+  display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding:5px 10px;
+  border:1px solid #bad4f5;border-radius:7px;color:#0756b7;
+  background:#edf5ff;font-size:11px;font-weight:800;white-space:nowrap;
+}
+.shell.super-shell .cashier-new-product:hover{background:#d9ebff}
 .shell.super-shell .dialog:has(.product-photo-field){width:min(860px,calc(100vw - 28px))}
 .shell.super-shell .dialog:has(.product-photo-field) .form-grid{
   display:grid;grid-template-columns:200px repeat(2,minmax(0,1fr));
@@ -962,6 +983,9 @@ select option {color:var(--super-text);background:white}
   .super-top-brand strong{display:none}
   .shell.super-shell .dialog:has(.product-photo-field) .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .shell.super-shell .dialog .product-photo-field{grid-column:1/-1;grid-row:auto}
+  .shell.super-shell .dialog.product-editor-dialog .product-photo-field{grid-row:auto}
+  .shell.super-shell .dialog.product-editor-dialog .product-main-name{grid-column:1/-1}
+  .shell.super-shell .dialog.product-editor-dialog .product-additional-grid{grid-template-columns:1fr}
   .shell.super-shell .product-photo-editor{flex-direction:row}
   .shell.super-shell .product-photo-editor>img,.shell.super-shell .product-photo-placeholder{width:115px;height:120px}
 }
