@@ -392,7 +392,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         </nav>
         <div className="top-actions super-top-actions">
           <span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Local'}</span>
-          <span className="super-user" title="Operador autenticado"><UserRoundCog size={18}/><span>{user.name}</span></span>
+          <span className="super-user" title="Operador autenticado"><UserRoundCog size={18}/><span>{user.name} · {user.role}</span></span>
           <button className="super-logout" onClick={()=>void onLogout()}>Sair</button>
         </div>
       </header>
