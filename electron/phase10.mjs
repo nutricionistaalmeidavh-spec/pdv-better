@@ -32,6 +32,7 @@ export function migratePhase10(db){
     difference_cents INTEGER NOT NULL,verified_by TEXT,created_at TEXT NOT NULL,
     PRIMARY KEY(session_id,method)
    );
+   ALTER TABLE sale_item_payments ADD COLUMN quantity_milli INTEGER CHECK(quantity_milli IS NULL OR quantity_milli>0);
    ALTER TABLE financial_entries ADD COLUMN purchase_id TEXT REFERENCES commercial_purchases(id);
    CREATE UNIQUE INDEX payable_by_purchase ON financial_entries(purchase_id) WHERE purchase_id IS NOT NULL;
   `);
