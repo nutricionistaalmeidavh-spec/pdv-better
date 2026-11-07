@@ -155,12 +155,27 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [products,setProducts]=useState<R[]>([]);
   const [movements,setMovements]=useState<R[]>([]);
   const [finance,setFinance]=useState<R[]>([]);
+  const [settleAmounts,setSettleAmounts]=useState<Record<string,string>>({});
+  const [suppliers,setSuppliers]=useState<R[]>([]);
+  const [purchases,setPurchases]=useState<R[]>([]);
+  const [purchaseSupplier,setPurchaseSupplier]=useState('');
+  const [purchaseProduct,setPurchaseProduct]=useState('');
+  const [purchaseQty,setPurchaseQty]=useState('1');
+  const [purchaseCost,setPurchaseCost]=useState('0,00');
+  const [purchaseLines,setPurchaseLines]=useState<R[]>([]);
+  const [purchaseDoc,setPurchaseDoc]=useState('');
+  const [purchaseDue,setPurchaseDue]=useState('');
   const [summary,setSummary]=useState<R>({});
   const [error,setError]=useState('');
   const [success,setSuccess]=useState('');
   const [busy,setBusy]=useState(false);
   const [amount,setAmount]=useState('0,00');
-  const [counted,setCounted]=useState('0,00');
+  const [methodCounts,setMethodCounts]=useState<Record<string,string>>({cash:'',pix:'',card_credit:'',card_debit:'',card:''});
+  const [closeReview,setCloseReview]=useState(false);
+  const [managerOperators,setManagerOperators]=useState<R[]>([]);
+  const [managerSelection,setManagerSelection]=useState('');
+  const [managerPassword,setManagerPassword]=useState('');
+  const [lastClose,setLastClose]=useState<R|null>(null);
   const [kind,setKind]=useState('withdrawal');
   const [reason,setReason]=useState('');
   const [productId,setProductId]=useState('');
@@ -202,14 +217,18 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     if(!api){setError('Abra pelo aplicativo Electron.');return;}
     try{
       const manager=role!=='Caixa';
-      const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules]=await Promise.all([
+      const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules,who,sp,purchasesNow]=await Promise.all([
         api.sessionCurrent(),api.salesList(),api.list('products'),manager?api.stockHistory():Promise.resolve([]),
         manager?api.financeList():Promise.resolve([]),manager?api.report():Promise.resolve({}),
         manager?api.sessionsList():Promise.resolve([]),
-        manager?api.batchesList():Promise.resolve([]),manager?api.promotionsList():Promise.resolve([]),manager?api.bundleList():Promise.resolve([])
+        manager?api.batchesList():Promise.resolve([]),manager?api.promotionsList():Promise.resolve([]),manager?api.bundleList():Promise.resolve([]),
+        api.authStatus(),manager?api.list('suppliers'):Promise.resolve([]),manager?api.purchaseList():Promise.resolve([])
       ]);
       setSession(s);setSales(sl);setProducts(pr);setMovements(m);setFinance(fin);setSummary(r);setOtherSessions(other);setBatches(lots);setPromotions(priceRules);setBundles(groupRules);setError('');
-      if(s)setCounted((s.expected_cash_cents/100).toFixed(2));
+      setSuppliers(sp);setPurchases(purchasesNow);setSettleAmounts({});
+      const possibleManagers=(who.operators||[]).filter((x:R)=>x.role==='Administrador'||x.role==='Gerente');
+      setManagerOperators(possibleManagers);
+      setManagerSelection(current=>current||possibleManagers[0]?.id||'');
     }catch(err){setError(errorMessage(err));}
   }
   useEffect(()=>{setSuccess('');void load();},[view]);
@@ -238,11 +257,35 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     }catch(err){setError(errorMessage(err));}
     finally{setBusy(false);}
   }
-  const title:Record<string,string>={cash:'Controle de caixa',sales:'Vendas realizadas',inventory:'Movimentações de estoque',finance:'Financeiro',reports:'Relatórios e indicadores'};
+  const title:Record<string,string>={cash:'Controle de caixa',sales:'Vendas realizadas',inventory:'Movimentações de estoque',purchases:'Compras e fornecedores',finance:'Financeiro',reports:'Relatórios e indicadores'};
   return <div className="commerce-screen">
     {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
     <div className="page-heading"><div><div className="eyebrow">MARCO B / OPERAÇÃO LOCAL</div><h1>{title[view]}</h1><p>Registros persistidos no SQLite do estabelecimento.</p></div><button className="secondary" disabled={busy} onClick={()=>void load()}><RotateCcw size={16}/>Atualizar</button></div>
     <Message error={error} success={success}/>
+    {closeReview&&<div className="modal-backdrop" role="presentation"><section className="dialog commerce-dialog glass-payment" role="dialog" aria-modal="true" aria-label="Confirmar fechamento de caixa">
+      <header className="dialog-head"><h2>Revisar fechamento cego</h2></header>
+      <p>Confira os valores informados. As diferenças serão registradas por meio de pagamento; nenhuma cobrança externa é realizada.</p>
+      <div className="commerce-table"><table><thead><tr><th>Meio</th><th>Valor informado</th></tr></thead><tbody>
+        {['cash','pix','card_credit','card_debit','card'].map(id=><tr key={id}><td>{methodLabel(id)}</td><td>{methodCounts[id]}</td></tr>)}
+      </tbody></table></div>
+      <label className="form-field">Gerente que autoriza
+        <select required value={managerSelection} onChange={e=>setManagerSelection(e.target.value)}>
+          {managerOperators.map(o=><option key={o.id} value={o.id}>{o.name} — {o.role}</option>)}
+        </select>
+      </label>
+      <label className="form-field">Senha do gerente
+        <input required type="password" autoComplete="off" value={managerPassword} onChange={e=>setManagerPassword(e.target.value)}/>
+      </label>
+      <footer className="dialog-footer">
+        <button className="secondary" type="button" disabled={busy} onClick={()=>{setCloseReview(false);setManagerPassword('');}}>Voltar à contagem</button>
+        <button className="primary" type="button" disabled={busy||!managerPassword||!managerSelection}
+          onClick={()=>void action(async()=>{
+            const counts=Object.fromEntries(Object.entries(methodCounts).map(([key,value])=>[key,parseFixed(value,2,'Conferência '+key)]));
+            const closed=await api!.sessionClose({counts,managerApproval:{operatorId:managerSelection,password:managerPassword}});
+            setLastClose(closed);setCloseReview(false);setManagerPassword('');
+          },'Fechamento autorizado. Divergências registradas.')}>Autorizar e fechar caixa</button>
+      </footer>
+    </section></div>}
     {view==='cash' && <div className="commerce-columns">
       {role!=='Caixa'&&<div className="panel commerce-section commerce-wide"><h2>Caixas abertos por terminal</h2><p>Cada caixa tem abertura, movimentações, saldo e fechamento independentes. O gerente visualiza os terminais, mas não fecha outro caixa remotamente.</p>
         <div className="commerce-table"><table><thead><tr><th>Terminal</th><th>Operador de abertura</th><th>Aberto em</th><th>Troco inicial</th><th>Saldo previsto</th></tr></thead><tbody>
@@ -250,15 +293,24 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         </tbody></table>{otherSessions.length===0&&<p className="commerce-empty">Nenhum caixa aberto.</p>}</div>
       </div>}
       <div className="panel commerce-section"><h2>{session?'Turno aberto':'Abrir novo caixa'}</h2>
-        {session?<><p>Aberto em {pretty(session.opened_at)}</p><div className="total-line"><span>Dinheiro previsto em caixa</span><strong>{money(session.expected_cash_cents)}</strong></div>
-          <form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.sessionClose({countedCashCents:counted}), 'Caixa fechado. Consulte a conferência nos relatórios.');}}>
-            <label>Dinheiro contado (R$)<input inputMode="decimal" value={counted} onChange={e=>setCounted(e.target.value)}/></label>
-            <button disabled={busy} className="primary" type="submit">Conferir e fechar caixa</button>
+        {session?<><p>Aberto em {pretty(session.opened_at)}</p>
+          <p>Contagem cega: registre cada meio sem consultar os valores previstos. A comparação acontece somente após a autorização.</p>
+          <form className="commerce-form" onSubmit={e=>{e.preventDefault();setCloseReview(true);}}>
+            {(['cash','pix','card_credit','card_debit','card'] as const).map(id=>
+              <label key={id}>{methodLabel(id)} conferido (R$)
+                <input required inputMode="decimal" placeholder="0,00" value={methodCounts[id]}
+                  onChange={e=>setMethodCounts(previous=>({...previous,[id]:e.target.value}))}/>
+              </label>)}
+            <button disabled={busy} className="primary" type="submit">Revisar fechamento e solicitar gerente</button>
           </form>
         </>:<form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.sessionOpen({openingCashCents:amount}),'Caixa aberto para vendas.');}}>
           <label>Valor inicial de troco (R$)<input inputMode="decimal" value={amount} onChange={e=>setAmount(e.target.value)}/></label><button disabled={busy} className="primary" type="submit">Abrir caixa</button>
         </form>}
       </div>
+      {lastClose&&<div className="panel commerce-section"><h2>Última conferência concluída</h2>
+        <div className="commerce-table"><table><thead><tr><th>Meio</th><th>Previsto</th><th>Contado</th><th>Diferença</th></tr></thead><tbody>
+          {(lastClose.checks||[]).map((x:R)=><tr key={x.method}><td>{methodLabel(x.method)}</td><td>{money(x.expected_cents)}</td><td>{money(x.counted_cents)}</td><td>{money(x.difference_cents)}</td></tr>)}
+        </tbody></table></div></div>}
       <div className="panel commerce-section"><h2>Sangria / reforço</h2><p>Movimentações auditáveis em dinheiro, vinculadas ao turno aberto.</p><form className="commerce-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.cashMove({kind,amountCents:amount,note:reason}),'Movimentação de caixa registrada.');}}>
         <label>Operação<select value={kind} onChange={e=>setKind(e.target.value)}>{cashMovementKinds.map(k=><option value={k} key={k}>{commerceLabels.cash[k]}</option>)}</select></label>
         <label>Valor (R$)<input value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value)}/></label>
@@ -332,6 +384,59 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         </tbody></table></div>
       </div>
       <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.slice(0,300).map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div></div></>}
+    {view==='purchases'&&<>
+      <div className="panel commerce-section">
+        <h2>Nova compra — etapa 1: revisar itens</h2>
+        <p>Uma compra em rascunho não movimenta estoque nem cria conta a pagar. O custo médio será atualizado somente ao confirmar o recebimento físico.</p>
+        <div className="commerce-inline-form">
+          <label>Fornecedor
+            <select value={purchaseSupplier} onChange={e=>setPurchaseSupplier(e.target.value)} required>
+              <option value="">Selecione um fornecedor</option>
+              {suppliers.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}
+            </select>
+          </label>
+          <label>Documento de referência<input value={purchaseDoc} maxLength={100} onChange={e=>setPurchaseDoc(e.target.value)} placeholder="Nota ou pedido (opcional)"/></label>
+          <label>Vencimento<input type="date" value={purchaseDue} onChange={e=>setPurchaseDue(e.target.value)}/></label>
+        </div>
+        <div className="commerce-inline-form">
+          <label>Produto
+            <select value={purchaseProduct} onChange={e=>setPurchaseProduct(e.target.value)}>
+              <option value="">Selecione</option>
+              {products.map(item=><option key={item.id} value={item.id}>{item.name} — saldo {item.stock_milli/1000}</option>)}
+            </select>
+          </label>
+          <label>Quantidade<input inputMode="decimal" value={purchaseQty} onChange={e=>setPurchaseQty(e.target.value)} placeholder="1,000"/></label>
+          <label>Custo unitário (R$)<input inputMode="decimal" value={purchaseCost} onChange={e=>setPurchaseCost(e.target.value)}/></label>
+          <button type="button" className="secondary" disabled={!purchaseProduct||purchaseLines.some(x=>x.productId===purchaseProduct)}
+            onClick={()=>{try{const qty=parseFixed(purchaseQty,3,'Quantidade'),cost=parseFixed(purchaseCost,2,'Custo');
+              if(qty<=0||cost<0)throw new Error('Quantidade ou custo inválido.');
+              setPurchaseLines(current=>[...current,{productId:purchaseProduct,quantityMilli:qty,unitCostCents:cost}]);
+              setPurchaseProduct('');
+            }catch(err){setError(errorMessage(err));}}}>Adicionar item</button>
+        </div>
+        <div className="commerce-table"><table><thead><tr><th>Produto</th><th>Quantidade</th><th>Custo</th><th>Total</th><th>Ação</th></tr></thead><tbody>
+          {purchaseLines.map(x=><tr key={x.productId}><td>{products.find(p=>p.id===x.productId)?.name}</td><td>{x.quantityMilli/1000}</td>
+            <td>{money(x.unitCostCents)}</td><td>{money(Math.round(x.quantityMilli*x.unitCostCents/1000))}</td>
+            <td><button type="button" className="secondary" onClick={()=>setPurchaseLines(lines=>lines.filter(i=>i.productId!==x.productId))}>Remover</button></td></tr>)}
+        </tbody></table></div>
+        <button type="button" className="primary" disabled={busy||!purchaseSupplier||purchaseLines.length===0}
+          onClick={()=>void action(async()=>{
+            await api!.purchaseCreate({supplierId:purchaseSupplier,documentRef:purchaseDoc,dueOn:purchaseDue,lines:purchaseLines});
+            setPurchaseLines([]);setPurchaseDoc('');setPurchaseDue('');
+          },'Compra salva como rascunho; estoque e financeiro inalterados.')}>Salvar compra em rascunho</button>
+      </div>
+      <div className="panel commerce-section"><h2>Etapa 2: receber compras</h2>
+        <p>Confira fisicamente a mercadoria, as quantidades e os custos antes de confirmar. O recebimento é irreversível pelo fluxo comum e não pode ser repetido.</p>
+        <div className="commerce-table"><table><thead><tr><th>Fornecedor</th><th>Documento</th><th>Itens</th><th>Total</th><th>Situação</th><th>Operação</th></tr></thead><tbody>
+          {purchases.map(p=><tr key={p.id}><td>{p.supplier_name}</td><td>{p.document_ref||'—'}</td><td>{p.lines.length}</td>
+            <td>{money(p.total_cents)}</td><td>{p.status==='received'?'Recebida':'Rascunho'}</td>
+            <td>{p.status==='draft'&&<button type="button" className="secondary" disabled={busy}
+              onClick={()=>{if(window.confirm('Mercadoria conferida fisicamente? Receber a compra atualizará estoque, custo médio e conta a pagar.'))
+                void action(()=>api!.purchaseReceive(p.id),'Compra recebida e custo médio atualizado.',true);}}>Conferir e receber</button>}</td>
+          </tr>)}
+        </tbody></table></div>
+      </div>
+    </>}
     {view==='finance'&&<><div className="panel commerce-section"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn}), 'Lançamento registrado.');}}>
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
       <label>Descrição<input required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Ex.: aluguel"/></label>
@@ -339,9 +444,18 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       <label>Vencimento<input type="date" value={dueOn} onChange={e=>setDueOn(e.target.value)}/></label>
       <button disabled={busy} className="primary" type="submit"><Plus size={16}/>Criar lançamento</button></form></div>
       <div className="panel commerce-section"><div className="commerce-heading"><div><h2>Contas a pagar e receber</h2><p>O fiado aparece automaticamente como conta a receber.</p></div><label>Quitação<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}>{paymentMethods.filter(m=>m.id!=='credit').map(m=><option value={m.id} key={m.id}>{m.label}</option>)}</select></label></div>
-        <div className="commerce-table"><table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Situação</th><th>Operação</th></tr></thead><tbody>{finance.map(f=><tr key={f.id}><td>{f.description}</td><td>{statusText[f.type]}</td><td>{money(f.amount_cents)}</td><td>{f.due_on||'—'}</td><td>{statusText[f.status]}</td><td>{f.status==='open'&&<button className="secondary" disabled={busy||paymentMethod==='cash'&&!session} onClick={()=>{
-          if(window.confirm('Confirmar liquidação via '+methodLabel(paymentMethod)+'?'))void action(()=>api!.financeSettle({id:f.id,method:paymentMethod}), 'Conta liquidada.');
-        }}>Liquidar</button>}</td></tr>)}</tbody></table>{!finance.length&&<p className="commerce-empty">Nenhum lançamento financeiro.</p>}</div><p className="commerce-warning">Pagamentos não realizados em dinheiro são registrados manualmente. Nenhuma cobrança é executada em gateways externos.</p></div></>}
+        <div className="commerce-table"><table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Pago</th><th>Saldo</th><th>Vencimento</th><th>Situação</th><th>Baixa parcial (R$)</th><th>Operação</th></tr></thead><tbody>{finance.map(f=><tr key={f.id}><td>{f.description}</td><td>{statusText[f.type]}</td><td>{money(f.amount_cents)}</td><td>{money(f.paid_cents||0)}</td><td>{money(f.remaining_cents??f.amount_cents)}</td>
+          <td>{f.due_on||'—'}</td><td>{statusText[f.status]}</td>
+          <td>{f.status==='open'&&<input aria-label={'Valor a baixar de '+f.description} inputMode="decimal"
+            value={settleAmounts[f.id]??((f.remaining_cents??f.amount_cents)/100).toFixed(2)}
+            onChange={e=>setSettleAmounts(values=>({...values,[f.id]:e.target.value}))}/>}</td>
+          <td>{f.status==='open'&&<button className="secondary" disabled={busy||paymentMethod==='cash'&&!session} onClick={()=>{
+            try{const amountCents=parseFixed(settleAmounts[f.id]??((f.remaining_cents??f.amount_cents)/100).toFixed(2),2,'Valor de baixa');
+              if(amountCents<=0||amountCents>(f.remaining_cents??f.amount_cents))throw new Error('Valor ultrapassa saldo em aberto.');
+              if(window.confirm('Confirmar baixa de '+money(amountCents)+' via '+methodLabel(paymentMethod)+'?'))
+                void action(()=>api!.financeSettle({id:f.id,method:paymentMethod,amountCents}),'Baixa financeira registrada.');
+            }catch(err){setError(errorMessage(err));}
+          }}>Dar baixa</button>}</td></tr>)}</tbody></table>{!finance.length&&<p className="commerce-empty">Nenhum lançamento financeiro.</p>}</div><p className="commerce-warning">Pagamentos não realizados em dinheiro são registrados manualmente. Nenhuma cobrança é executada em gateways externos.</p></div></>}
     {view==='reports'&&<>
       <div className="commerce-heading">
         <div><h2>Relatório gerencial acumulado</h2><p>Exporte localmente; nenhum dado é enviado a serviços externos.</p></div>
