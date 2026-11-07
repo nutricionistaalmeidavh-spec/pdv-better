@@ -107,9 +107,18 @@ try{
  await receipt.getByRole('button',{name:'Concluir'}).click();
  await visit(client,'Controle de caixa','Controle de caixa');
  const opened=client.locator('.commerce-section').filter({has:client.getByRole('heading',{name:'Turno aberto'})});
- await field(opened,'Dinheiro contado (R$)').fill('29,90');
- await opened.getByRole('button',{name:'Conferir e fechar caixa'}).click();
- await client.getByRole('status').filter({hasText:'Caixa fechado.'}).waitFor();
+ const cashForm=opened.locator('form');
+ for(const [index,value] of ['29,90','0,00','0,00','0,00','0,00'].entries()){
+   const input=cashForm.locator('input').nth(index);
+   await input.fill(value);
+   assert.equal(await input.inputValue(),value);
+ }
+ await cashForm.getByRole('button',{name:'Revisar fechamento e solicitar gerente'}).click();
+ const review=client.getByRole('dialog',{name:'Confirmar fechamento de caixa'});
+ await review.waitFor({state:'visible'});
+ await review.locator('input[type="password"]').fill(pw);
+ await review.getByRole('button',{name:'Autorizar e fechar caixa'}).click();
+ await client.getByRole('status').filter({hasText:'Fechamento autorizado.'}).waitFor();
  await settings(host);
  await visit(host,'Vendas','Histórico de vendas');
  await host.getByRole('row').filter({hasText:saleId.slice(0,8)}).getByText('Concluída').waitFor();
