@@ -1,5 +1,5 @@
 // Modelo canônico de entidades: formulário, validação, SQLite e lista usam este arquivo.
-export const CONTRACT_VERSION = 11;
+export const CONTRACT_VERSION = 12;
 export const roleNames = Object.freeze(['Caixa','Gerente','Administrador']);
 export const entityOrder = ['products', 'categories', 'customers', 'suppliers', 'operators'];
 export const entities = {
@@ -16,7 +16,8 @@ export const entities = {
       { key: 'unit', label: 'Unidade', type: 'select', values: ['UN', 'KG'], required: true, default: 'UN' },
       { key: 'sale_price_cents', label: 'Preço de venda (R$)', type: 'money', required: true, default: 0 },
       { key: 'cost_price_cents', label: 'Preço de custo (R$)', type: 'money', default: 0 },
-      { key: 'stock_milli', label: 'Saldo em estoque', type: 'quantity', default: 0, readOnlyOnEdit: true }
+      { key: 'stock_milli', label: 'Saldo em estoque', type: 'quantity', default: 0, readOnlyOnEdit: true },
+      { key: 'image_data', label: 'Foto do produto', type: 'image', default: '' }
     ]
   },
   categories: {
