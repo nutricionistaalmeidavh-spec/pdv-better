@@ -14,12 +14,15 @@ const statusText:Record<string,string>={...commerceLabels.status,...commerceLabe
 function Message({error,success}:{error:string;success:string}){
   return <>{error && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}</div>}{success && <div className="notice success" role="status"><Check size={17}/>{success}</div>}</>;
 }
-export function PaymentModal({cart,products,customers,role,onClose,onDone}:{
-  cart:any[];products:R[];customers:R[];role:string;onClose:()=>void;onDone:(sale:R)=>void;
+export function PaymentModal({cart,products,customers,role,onClose,onDone,onCustomerSaved}:{
+  cart:any[];products:R[];customers:R[];role:string;onClose:()=>void;onDone:(sale:R)=>void;onCustomerSaved:()=>Promise<void>;
 }){
   const subtotal=cart.reduce((sum,row)=>sum+Math.round(row.priceCents*row.quantityMilli/1000),0);
   const [discount,setDiscount]=useState('0,00');
   const [customerId,setCustomerId]=useState('');
+  const [newCustomerName,setNewCustomerName]=useState('');
+  const [extraCustomers,setExtraCustomers]=useState<R[]>([]);
+  const [customerBusy,setCustomerBusy]=useState(false);
   const [payments,setPayments]=useState([{method:'cash',amount:'0,00'}]);
   const [itemMethods,setItemMethods]=useState<Record<string,string>>({});
   const [training,setTraining]=useState(false);
@@ -59,6 +62,16 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone}:{
     :fullAssignment&&explicitItems.some((line:R)=>!payments.some(p=>p.method===itemMethods[line.product_id]))
       ?'A forma atribuída deve estar entre os pagamentos informados.':'';
 
+  const createQuickCustomer=async()=>{
+    if(!newCustomerName.trim()||!window.pdv||pending||customerBusy)return;
+    setCustomerBusy(true);setError('');
+    try{
+      const customer=await window.pdv.save('customers',{name:newCustomerName.trim()});
+      setExtraCustomers(current=>[...current,customer]);setCustomerId(customer.id);setNewCustomerName('');
+      await onCustomerSaved();
+    }catch(err){setError(errorMessage(err));}
+    finally{setCustomerBusy(false);}
+  };
   const updatePayment=(i:number,key:string,value:string)=>setPayments(rows=>rows.map((r,index)=>i===index?{...r,[key]:value}:r));
   const send=async(ev:React.FormEvent)=>{
     ev.preventDefault();if(pending || !window.pdv)return;
@@ -91,7 +104,16 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone}:{
             <span>Venda de treinamento — simulação sem estoque, caixa ou faturamento</span>
             <input type="checkbox" checked={training} onChange={e=>setTraining(e.target.checked)}/>
           </label>}
-          <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{customers.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+          <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{[...customers,...extraCustomers].map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+        </div>
+        <div className="payment-inputs"><h3>Cadastro rápido de cliente</h3>
+          <p>Não encontrou o cliente? Cadastre sem perder o carrinho nem os valores informados.</p>
+          <div className="payment-row">
+            <input aria-label="Nome do novo cliente" maxLength={120} placeholder="Nome do cliente" value={newCustomerName}
+              onChange={e=>setNewCustomerName(e.target.value)}/>
+            <button type="button" className="secondary" disabled={customerBusy||pending||!newCustomerName.trim()}
+              onClick={()=>void createQuickCustomer()}>{customerBusy?'Cadastrando…':'Cadastrar cliente'}</button>
+          </div>
         </div>
         {(discountError||quoteError)&&<div className="form-error" role="alert">{discountError||quoteError}</div>}
         {cart.filter(item=>batches.some(b=>b.product_id===item.id&&b.remaining_milli>0)).map(item=>
