@@ -12,6 +12,8 @@ import { resolveBatchScan,parseBatchLabel } from '../shared/batch-label.mjs';
 import {applyManualWeight} from '../shared/manual-weight.mjs';
 import {deriveStockAlerts} from '../shared/stock-alerts.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
+import { Cashier, CashierMode } from './Cashier';
+import { normalizeCashierMode, resolveCashierShortcut } from '../shared/cashier.mjs';
 import { SaleReceipt } from './Receipt';
 import { SystemSettings } from './SystemSettings';
 import {allowed} from '../shared/access.mjs';
@@ -47,6 +49,13 @@ function friendlyError(error:any) {
 }
 export function App({user,onLogout}:{user:{id:string;name:string;role:string};onLogout:()=>Promise<void>}) {
   const [view,setView] = useState('dashboard');
+  const [cashierMode,setCashierMode] = useState<CashierMode>(()=>{
+    try{return normalizeCashierMode(localStorage.getItem('pdv-better:cashier-mode')) as CashierMode;}
+    catch{return 'dark';}
+  });
+  const [initialPaymentMethod,setInitialPaymentMethod] = useState<'cash'|'pix'|'card'>('cash');
+  const [initialPaymentFocus,setInitialPaymentFocus] = useState<'customer'|'discount'|undefined>();
+
   const [records,setRecords] = useState<Record<string, Row[]>>({});
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState('');
@@ -97,6 +106,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     setRecords(prev => ({...prev,[kind]:current}));
   }
   useEffect(() => { void reloadAll(); }, []);
+  useEffect(()=>{try{localStorage.setItem('pdv-better:cashier-mode',cashierMode);}catch{}},[cashierMode]);
   useEffect(()=>{
     if(view!=='dashboard'||!bridge)return;
     let alive=true;
@@ -112,16 +122,30 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
   useEffect(() => { if(view==='checkout' && bridge) void bridge.sessionCurrent().then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
   useEffect(() => {
-    if (view === 'checkout') searchInput.current?.focus();
-  }, [view]);
+    if (view === 'checkout' && !paymentOpen && !receipt) searchInput.current?.focus();
+  }, [view,paymentOpen,receipt]);
   useEffect(() => {
     const onKey = (ev:KeyboardEvent) => {
-      if (ev.key === 'Escape' && editing) setEditing(null);
-      if (ev.key === 'F2' && !editing) { ev.preventDefault(); setView('checkout'); searchInput.current?.focus(); }
+      if (ev.key === 'Escape' && editing) { setEditing(null); return; }
+      const action = resolveCashierShortcut(ev.key,{
+        checkout:view==='checkout',session:Boolean(session),hasCart:cart.length>0,
+        dialog:Boolean(editing||paymentOpen||receipt||passwordTarget)
+      });
+      if(!action)return;
+      ev.preventDefault();
+      if(action==='search'){
+        if(view!=='checkout')setView('checkout');
+        searchInput.current?.focus();
+      } else if(action==='customer') openPayment(undefined,'customer');
+      else if(action==='discount') openPayment(undefined,'discount');
+      else if(action==='pix') openPayment('pix');
+      else if(action==='card') openPayment('card');
+      else if(action==='cash') openPayment('cash');
+      else if(action==='payment') openPayment();
     };
     window.addEventListener('keydown',onKey);
     return () => window.removeEventListener('keydown',onKey);
-  }, [editing]);
+  }, [editing,view,session,cart.length,paymentOpen,receipt,passwordTarget]);
   const rows:Row[] = records[view] || [];
   const filteredRows = useMemo(() => rows.filter(row =>
     !search || Object.values(row).some(value => String(value??'').toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
@@ -135,6 +159,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const todayLocal=(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');})();
   const stockAlerts=deriveStockAlerts(products,stockBatches,todayLocal);
   const total = cartTotalCents(cart);
+  function openPayment(method?:'cash'|'pix'|'card',focus?:'customer'|'discount'){
+    if(!session||!cart.length)return;
+    setInitialPaymentMethod(method||'cash');
+    setInitialPaymentFocus(focus);
+    setPaymentOpen(true);
+  }
   function startForm(row?:Row) {
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
     setForm({...base,...(row ? {id:row.id} : {})});
@@ -251,7 +281,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       setPasswordTarget(null);setOperatorPassword('');setRepeatPassword('');
     }catch(e){setError(friendlyError(e));}
   }
-  return <div className="shell">
+  return <div className={'shell'+(view==='checkout'?' cashier-shell mode-'+cashierMode:'')}>
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Package size={21}/></div><div><strong>PDV Better</strong><span>by ArtiSys</span></div></div>
       <div className="workspace"><div className="workspace-avatar">PB</div><div><strong>Estabelecimento local</strong><span>Funcionamento offline • perfis e caixas independentes</span></div></div>
@@ -309,51 +339,27 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             </div>
             <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros, vendas, saldos de estoque e financeiro são registrados no SQLite local. Pix e cartão devem ser confirmados externamente antes da conclusão da venda.</p></div></div>
           </>}
-          {view === 'checkout' && <>
-            <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO / F2</div><h1>Frente de caixa</h1><p>Busque produtos, revise quantidades e registre o pagamento no caixa aberto.</p></div><span className="draft-label">{session ? 'Caixa aberto' : 'Caixa fechado'}</span></div>
-            <div className="checkout-grid">
-              <div className="panel products-panel glass-panel">
-                <div className="panel-header"><div><h2>Selecionar produtos</h2><p>Busque por nome, SKU ou código de barras</p></div><span className="count-chip">{matchingProducts.length} exibidos</span></div>
-                <label className="search-field"><Search size={19}/><input ref={searchInput} autoComplete="off" disabled={scanningBatch} aria-label="Pesquisar ou ler código de barras" placeholder="Digite ou leia o código do produto…" value={cartSearch} onChange={ev => {setCartSearch(ev.target.value);setCartError('');}} onKeyDown={scanKey}/><span className="kbd">Enter</span></label>
-                <div className="category-filter" aria-label="Filtrar produtos por categoria"><button type="button" className={categoryFilter==='all'?'active':''} aria-pressed={categoryFilter==='all'} onClick={()=>setCategoryFilter('all')}>Todos</button>{categories.map(c=><button type="button" key={c.id} className={categoryFilter===c.id?'active':''} aria-pressed={categoryFilter===c.id} onClick={()=>setCategoryFilter(c.id)}>{c.name}</button>)}</div>
-                <div className="product-list glass-product-grid">
-                  {matchingProducts.map(row => <button className="product-option" key={row.id} onClick={() => addProduct(row)}>
-                    <div className="product-icon"><Package size={19}/></div><div className="product-info"><strong>{row.name}</strong><span>{row.code || 'Sem código'} · {row.unit} · Saldo {Number(row.stock_milli || 0)/1000}</span></div><strong className="product-price">{money(row.sale_price_cents)}</strong><Plus size={19} className="add-icon"/>
-                  </button>)}
-                  {!matchingProducts.length && <div className="empty-state"><Search size={25}/><strong>Nenhum produto encontrado</strong><p>Cadastre produtos ou tente outra pesquisa.</p><button className="secondary" onClick={() => selectView('products')}>Ir para produtos</button></div>}
-                </div>
-              </div>
-              <div className="panel cart-panel glass-panel">
-                <div className="panel-header"><div><h2>Rascunho da venda</h2><p>{cart.length} {cart.length === 1 ? 'produto' : 'produtos'} na seleção</p></div><ShoppingCart size={19}/></div>
-                {cartError && <div className="cart-error" role="alert">{cartError}</div>}
-                <div className="cart-lines">
-                  {cart.length === 0 ? <div className="empty-cart"><ShoppingCart size={32}/><strong>Seu carrinho está vazio</strong><p>Selecione um produto para começar.</p></div> :
-                    cart.map(line => <div className="cart-line" key={line.id}><div className="cart-line-top"><div><strong>{line.name}</strong><span>{money(line.priceCents)} / {line.unit}{line.batchId?' · Lote físico '+(line.batchCode||line.batchId.slice(0,8)):''}</span></div><button className="icon-btn" title="Remover do carrinho" aria-label={'Remover '+line.name} onClick={() => setCart(old => old.filter(item => item.id !== line.id))}><X size={17}/></button></div>
-                      <div className="cart-line-bottom"><div className="stepper"><button aria-label={'Diminuir '+line.name} onClick={() => changeQuantity(line,-(line.unit === 'KG' ? 100 : 1000))}><Minus size={15}/></button><span>{(line.quantityMilli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {line.unit}</span><button aria-label={'Aumentar '+line.name} onClick={() => changeQuantity(line,line.unit === 'KG' ? 100 : 1000)}><Plus size={15}/></button></div><strong>{money(lineTotalCents(line.priceCents,line.quantityMilli))}</strong></div>
-                      {line.unit==='KG'&&<div className="commerce-inline-form">
-                        <label>Peso manual (kg) — {line.name}
-                          <input aria-label={'Peso manual de '+line.name} inputMode="decimal" placeholder="0,350"
-                            value={manualWeight[line.id]||''}
-                            onChange={e=>setManualWeight(old=>({...old,[line.id]:e.target.value}))}/>
-                        </label>
-                        <button className="secondary" type="button" onClick={()=>{
-                          try{setCart(old=>applyManualWeight(old,line.id,manualWeight[line.id]||''));setCartError('');}
-                          catch(err){setCartError(friendlyError(err));}
-                        }}>Aplicar peso</button>
-                        <button className="plain" disabled={readingScale} onClick={()=>void weighItem(line)}>Ler balança para {line.name}</button>
-                      </div>}
-                    </div>)}
-                </div>
-                <div className="cart-footer">
-                  <div className="total-line"><span>Total estimado</span><strong>{money(total)}</strong></div>
-                  <div className="muted-hint"><AlertTriangle size={15}/> O carrinho é temporário até concluir a venda. O pagamento só será registrado após a confirmação.</div>
-                  <button className="primary full" disabled={!cart.length || !session} onClick={() => setPaymentOpen(true)}>{session ? 'Receber e concluir venda' : 'Abra o caixa para vender'}</button>
-                  {!session && <button className="secondary full" onClick={() => selectView('cash')}>Ir para abertura de caixa</button>}
-                  <button className="plain full" disabled={!cart.length} onClick={() => { if(window.confirm('Limpar o rascunho da venda?')) setCart([]); }}><Trash2 size={16}/> Limpar rascunho</button>
-                </div>
-              </div>
-            </div>
-          </>}
+          {view === 'checkout' && <Cashier
+            mode={cashierMode} onModeChange={setCashierMode}
+            searchRef={searchInput} search={cartSearch}
+            onSearchChange={value=>{setCartSearch(value);setCartError('');}}
+            onSearchKeyDown={scanKey}
+            categories={categories} categoryFilter={categoryFilter} onCategoryFilter={setCategoryFilter}
+            products={matchingProducts} onAddProduct={addProduct}
+            onProducts={()=>selectView('products')} cart={cart} cartError={cartError}
+            total={total} sessionOpen={Boolean(session)}
+            onRemoveProduct={id=>setCart(old=>old.filter(item=>item.id!==id))}
+            onChangeQuantity={changeQuantity} manualWeight={manualWeight}
+            onManualWeightChange={(id,value)=>setManualWeight(old=>({...old,[id]:value}))}
+            onApplyWeight={item=>{
+              try{setCart(applyManualWeight(cart,item.id,manualWeight[item.id]||''));setCartError('');}
+              catch(err){setCartError(friendlyError(err));}
+            }}
+            onReadScale={item=>void weighItem(item)} readingScale={readingScale}
+            onClearCart={()=>{if(window.confirm('Limpar o rascunho da venda?'))setCart([]);}}
+            onCash={()=>selectView('cash')}
+            onOpenPayment={openPayment}
+          />}
           {['cash','sales','inventory','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
           {view==='settings' && <SystemSettings/>}
           {activeSchema && <>
@@ -383,7 +389,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
        <label className="form-field">Confirmar senha<input type="password" required minLength={8} maxLength={128} value={repeatPassword} autoComplete="new-password" onChange={e=>setRepeatPassword(e.target.value)}/></label>
       </div>{error&&<p role="alert">{error}</p>}<footer className="dialog-footer"><button type="button" className="secondary" onClick={()=>setPasswordTarget(null)}>Cancelar</button><button type="submit" className="primary">Salvar acesso</button></footer></form>
     </section></div>}
-    {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} role={user.role} onClose={()=>setPaymentOpen(false)} onDone={completeSale}/>}
+    {paymentOpen && <PaymentModal cart={cart} products={products} customers={records.customers||[]} role={user.role} initialMethod={initialPaymentMethod} initialFocus={initialPaymentFocus} onClose={()=>setPaymentOpen(false)} onDone={completeSale}/>}
     {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
     {editing && activeSchema && <div className="modal-backdrop" role="presentation" onMouseDown={ev => {if(ev.target === ev.currentTarget && !saving)setEditing(null);}}>
       <section className="dialog" role="dialog" aria-modal="true" aria-label={(editing.id ? 'Editar ' : 'Adicionar ') + activeSchema.singular}>
