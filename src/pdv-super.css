@@ -438,3 +438,28 @@ select option {color:var(--super-text);background:white}
  .receipt-content,.receipt-content * {background:#fff!important;color:#111!important;box-shadow:none!important}
  .receipt-items th,.receipt-items td {background:#fff!important;color:#111!important;border-color:#ccc!important}
 }
+
+/* Modal de pagamento: conteúdo longo rola internamente; confirmar nunca sai da viewport. */
+.modal-backdrop {overflow-y:auto;overscroll-behavior:contain}
+.dialog,.commerce-dialog,.glass-payment {
+  max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);
+  min-height:0;overflow:hidden;
+}
+.dialog-head {flex:none;position:relative;z-index:2;background:#fff}
+.dialog-form {
+  flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:thin;overscroll-behavior:contain;
+}
+.dialog-footer {
+  position:sticky;bottom:0;flex:none;z-index:2;
+  background:#fff;border-top:1px solid var(--super-border);
+}
+.dialog-footer .primary,.dialog-footer .secondary {flex-shrink:0}
+@media(max-height:680px) {
+  .modal-backdrop {padding:8px;align-items:center}
+  .dialog,.commerce-dialog,.glass-payment {max-height:calc(100dvh - 16px)}
+  .dialog-head {padding:12px 18px}
+  .dialog-footer {padding:11px 18px}
+  .form-grid {padding:14px 18px}
+  .payment-inputs {padding:0 18px 12px}
+}
