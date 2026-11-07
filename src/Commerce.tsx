@@ -3,6 +3,7 @@ import { Plus,Check,AlertTriangle,ShoppingCart,Package,Wallet,ClipboardList,Rota
 import { money,parseFixed } from '../shared/domain.mjs';
 import { reportRows } from '../shared/report.mjs';
 import { paymentPreview } from '../shared/payment-preview.mjs';
+import { formatCashierAmount } from '../shared/cashier.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
 import { SaleReceipt } from './Receipt';
 import { buildLabeledSaleItems } from '../shared/batch-label.mjs';
@@ -14,13 +15,15 @@ const statusText:Record<string,string>={...commerceLabels.status,...commerceLabe
 function Message({error,success}:{error:string;success:string}){
   return <>{error && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}</div>}{success && <div className="notice success" role="status"><Check size={17}/>{success}</div>}</>;
 }
-export function PaymentModal({cart,products,customers,role,onClose,onDone}:{
+export function PaymentModal({cart,products,customers,role,onClose,onDone,initialMethod='cash',initialFocus}:{
   cart:any[];products:R[];customers:R[];role:string;onClose:()=>void;onDone:(sale:R)=>void;
+  initialMethod?:'cash'|'pix'|'card';initialFocus?:'customer'|'discount';
 }){
   const subtotal=cart.reduce((sum,row)=>sum+Math.round(row.priceCents*row.quantityMilli/1000),0);
   const [discount,setDiscount]=useState('0,00');
   const [customerId,setCustomerId]=useState('');
-  const [payments,setPayments]=useState([{method:'cash',amount:'0,00'}]);
+  const [payments,setPayments]=useState([{method:initialMethod,amount:'0,00'}]);
+  const [initialAmountFilled,setInitialAmountFilled]=useState(false);
   const [itemMethods,setItemMethods]=useState<Record<string,string>>({});
   const [training,setTraining]=useState(false);
   const [pending,setPending]=useState(false);
@@ -50,6 +53,19 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone}:{
     return ()=>{mounted=false;};
   },[cart,discountCents,discountError,selectedBatches]);
   total=quote?.total_cents??total;
+  // Apenas sugere o valor após a cotação real (promoções/FEFO). Nunca confirma cobrança.
+  useEffect(()=>{
+    if(!quote||initialAmountFilled)return;
+    setPayments(rows=>rows.map((row,i)=>i===0?{...row,amount:formatCashierAmount(quote.total_cents)}:row));
+    setInitialAmountFilled(true);
+  },[quote?.total_cents,initialAmountFilled]);
+  useEffect(()=>{
+    const onKey=(ev:KeyboardEvent)=>{
+      if(ev.key==='Escape'&&!pending){ev.preventDefault();onClose();}
+    };
+    window.addEventListener('keydown',onKey);
+    return ()=>window.removeEventListener('keydown',onKey);
+  },[pending,onClose]);
   const payment=paymentPreview(total,payments);
   const selectedAssignments=Object.values(itemMethods).filter(Boolean).length;
   const explicitItems=quote?.lines||[];
@@ -84,14 +100,14 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone}:{
       <form onSubmit={send} className="dialog-form">
         <div className="form-grid">
           <label className="form-field"><span>Subtotal</span><input value={money(subtotal)} readOnly/></label>
-          <label className="form-field"><span>Desconto em reais</span><input value={discount} inputMode="decimal" onChange={e=>setDiscount(e.target.value)}/></label>
+          <label className="form-field"><span>Desconto em reais</span><input autoFocus={initialFocus==='discount'} value={discount} inputMode="decimal" onChange={e=>setDiscount(e.target.value)}/></label>
           <label className="form-field"><span>Promoções automáticas</span><input value={money(quote?.promotion_discount_cents??0)} readOnly/></label>
           <label className="form-field"><span>Total com desconto</span><input value={money(total)} readOnly/></label>
           {role!=='Caixa'&&<label className="form-field">
             <span>Venda de treinamento — simulação sem estoque, caixa ou faturamento</span>
             <input type="checkbox" checked={training} onChange={e=>setTraining(e.target.checked)}/>
           </label>}
-          <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{customers.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+          <label className="form-field"><span>Cliente (obrigatório para fiado)</span><select autoFocus={initialFocus==='customer'} value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{customers.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
         </div>
         {(discountError||quoteError)&&<div className="form-error" role="alert">{discountError||quoteError}</div>}
         {cart.filter(item=>batches.some(b=>b.product_id===item.id&&b.remaining_milli>0)).map(item=>
