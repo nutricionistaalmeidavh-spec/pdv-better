@@ -463,3 +463,46 @@ select option {color:var(--super-text);background:white}
   .form-grid {padding:14px 18px}
   .payment-inputs {padding:0 18px 12px}
 }
+
+/* Geometria funcional migrada do tema legado: não perder layout do financeiro P2. */
+.p2-finance-stack {display:flex;flex-direction:column;gap:18px;min-width:0}
+.p2-finance-stack .report-grid {margin:14px 0}
+.finance-kanban {
+  display:grid;grid-auto-flow:column;grid-auto-columns:minmax(205px,1fr);
+  gap:11px;overflow-x:auto;padding:8px 2px 18px;scrollbar-width:thin;
+}
+.finance-kanban-column {
+  padding:10px;min-height:190px;min-width:205px;
+  border:1px solid var(--super-border);border-radius:13px;background:#f4f8ff;
+}
+.finance-kanban-column h3 {
+  display:flex;justify-content:space-between;align-items:center;gap:7px;
+  font-size:12px;margin:4px 3px 14px;
+}
+.finance-kanban-item {
+  width:100%;display:flex;align-items:flex-start;flex-direction:column;text-align:left;
+  gap:6px;margin:7px 0;padding:12px 10px;border-radius:10px;
+  border:1px solid var(--super-border);background:#fff;color:var(--super-text);
+  white-space:normal;
+}
+.finance-kanban-item strong {font-size:12px;line-height:1.3;overflow-wrap:anywhere}
+.finance-kanban-item span {font-size:10px;overflow-wrap:anywhere}
+.finance-kanban-item b {font-size:14px}
+.finance-p2-detail {padding:15px;border-radius:12px;margin-top:12px}
+.finance-p2-detail h3 {font-size:14px;margin:0}
+.finance-p2-detail p {font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+/* Resumo de pagamento e parcelas: geometria indispensável em vendas mistas. */
+.payment-summary {
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;
+  margin:14px 0 16px;padding:13px;background:#f1f7ff;
+  border:1px solid var(--super-border);border-radius:12px;
+}
+.payment-summary>div {display:flex;flex-direction:column;gap:6px;min-width:0}
+.payment-summary small {font-size:11px}
+.payment-summary strong {font-size:16px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.payment-summary[aria-invalid="true"] {border-color:#e7a8b0}
+.payment-status {font-size:12px;padding:0 2px 12px}
+.button-danger {background:#fff1f2;color:#a52839;border:1px solid #f2c4cc}
+.button-danger:hover:not(:disabled) {background:#ffe1e5;border-color:#de8997}
+@media(max-width:1100px){.finance-kanban{grid-auto-columns:minmax(210px,55%)}}
+@media(max-width:760px){.payment-summary{grid-template-columns:1fr}}
