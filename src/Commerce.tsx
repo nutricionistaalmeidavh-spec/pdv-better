@@ -4,6 +4,7 @@ import { money,parseFixed } from '../shared/domain.mjs';
 import { reportRows } from '../shared/report.mjs';
 import { paymentPreview } from '../shared/payment-preview.mjs';
 import { paymentMethods, cashMovementKinds, inventoryKinds, financeTypes, commerceLabels } from '../shared/contract.mjs';
+import {normalizePayments} from '../shared/commerce.mjs';
 import { SaleReceipt } from './Receipt';
 import { buildLabeledSaleItems } from '../shared/batch-label.mjs';
 type R=Record<string,any>;
@@ -25,6 +26,8 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
   const [customerBusy,setCustomerBusy]=useState(false);
   const [payments,setPayments]=useState([{method:'cash',amount:'0,00'}]);
   const [itemMethods,setItemMethods]=useState<Record<string,string>>({});
+  const [splitByQuantity,setSplitByQuantity]=useState(false);
+  const [splitQuantities,setSplitQuantities]=useState<Record<string,string>>({});
   const [training,setTraining]=useState(false);
   const [pending,setPending]=useState(false);
   const [error,setError]=useState('');
@@ -57,10 +60,44 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
   const selectedAssignments=Object.values(itemMethods).filter(Boolean).length;
   const explicitItems=quote?.lines||[];
   const fullAssignment=selectedAssignments>0&&explicitItems.every((line:R)=>!!itemMethods[line.product_id]);
-  const assignmentError=selectedAssignments>0&&!fullAssignment
-    ?'Atribua uma forma de pagamento a todos os produtos ou remova as atribuições.'
-    :fullAssignment&&explicitItems.some((line:R)=>!payments.some(p=>p.method===itemMethods[line.product_id]))
-      ?'A forma atribuída deve estar entre os pagamentos informados.':'';
+  let splitAssignments:R[]=[];
+  let splitError='';
+  if(splitByQuantity&&quote&&payments.length>1){
+    try{
+      for(const line of explicitItems){
+        const lineQty=cart.find(x=>x.id===line.product_id)?.quantityMilli;
+        if(!Number.isSafeInteger(lineQty)||lineQty<=0)throw new Error('Produto sem quantidade válida.');
+        const quantities=payments.map(p=>({
+          method:p.method,
+          quantityMilli:splitQuantities[line.product_id+':'+p.method]
+            ?parseFixed(splitQuantities[line.product_id+':'+p.method],3,'Quantidade')
+            :0
+        })).filter(x=>x.quantityMilli>0);
+        if(quantities.reduce((sum,x)=>sum+x.quantityMilli,0)!==lineQty)
+          throw new Error('Distribua toda a quantidade de '+(cart.find(x=>x.id===line.product_id)?.name||'cada produto')+' entre os meios de pagamento.');
+        let balance=line.net_cents;
+        for(let i=0;i<quantities.length;i++){
+          const qty=quantities[i];
+          const cents=i===quantities.length-1?balance:Math.round(line.net_cents*qty.quantityMilli/lineQty);
+          balance-=cents;
+          if(cents<=0)throw new Error('A divisão gera uma parcela sem valor. Ajuste as quantidades.');
+          splitAssignments.push({productId:line.product_id,method:qty.method,quantityMilli:qty.quantityMilli,amountCents:cents});
+        }
+      }
+      if(payment.canSubmit){
+        const normalized=normalizePayments(payments.map(p=>({method:p.method,amountCents:parseFixed(p.amount,2,'Pagamento')})),total);
+        for(const p of normalized.payments){
+          if(splitAssignments.filter(x=>x.method===p.method).reduce((sum,x)=>sum+x.amountCents,0)!==p.amount_cents)
+            throw new Error('Quantidades distribuídas não conciliam com o valor de '+methodLabel(p.method)+'.');
+        }
+      }
+    }catch(err){splitAssignments=[];splitError=errorMessage(err);}
+  }
+  const assignmentError=splitByQuantity?splitError:
+    selectedAssignments>0&&!fullAssignment
+      ?'Atribua uma forma de pagamento a todos os produtos ou remova as atribuições.'
+      :fullAssignment&&explicitItems.some((line:R)=>!payments.some(p=>p.method===itemMethods[line.product_id]))
+        ?'A forma atribuída deve estar entre os pagamentos informados.':'';
 
   const createQuickCustomer=async()=>{
     if(!newCustomerName.trim()||!window.pdv||pending||customerBusy)return;
@@ -83,7 +120,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
         items:buildLabeledSaleItems(cart,selectedBatches),
         customerId:customerId||null,discountCents,training,
         payments:payments.map(p=>({method:p.method,amountCents:parseFixed(p.amount,2,'Pagamento')})),
-        ...(fullAssignment?{itemPayments:explicitItems.map((line:R)=>({
+        ...(splitByQuantity?{itemPayments:splitAssignments}:fullAssignment?{itemPayments:explicitItems.map((line:R)=>({
           productId:line.product_id,method:itemMethods[line.product_id],amountCents:line.net_cents
         }))}:{})
       });
@@ -126,8 +163,20 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
           </label>)}
         {payments.length>1&&quote&&<div className="payment-inputs">
           <h3>Pagamento por produto (opcional)</h3>
-          <p>Atribua cada produto a uma das formas listadas abaixo. Para dividir um mesmo produto entre duas formas, mantenha sem atribuição: o total continuará conciliado, sem inventar rateio.</p>
-          {explicitItems.map((line:R)=><label key={line.product_id} className="form-field">
+          <label className="form-field">Dividir quantidade do produto entre meios de pagamento
+            <input type="checkbox" checked={splitByQuantity} onChange={e=>setSplitByQuantity(e.target.checked)}/>
+          </label>
+          <p>{splitByQuantity
+            ?'Informe as quantidades de cada produto por meio. O total das quantidades deve ser exato e os valores devem conciliar com cada pagamento.'
+            :'Atribua um meio por produto. Para distribuir unidades do mesmo produto em meios diferentes, ative a divisão por quantidade.'}</p>
+          {splitByQuantity?explicitItems.map((line:R)=><div key={line.product_id} className="form-grid">
+            <strong>{cart.find(x=>x.id===line.product_id)?.name||'Produto'} — {(cart.find(x=>x.id===line.product_id)?.quantityMilli||0)/1000} unidades/kg — {money(line.net_cents)}</strong>
+            {payments.map(p=><label key={p.method} className="form-field">Quantidade em {methodLabel(p.method)}
+              <input inputMode="decimal" placeholder="0,000" aria-label={'Quantidade de '+line.product_id+' em '+p.method}
+                value={splitQuantities[line.product_id+':'+p.method]||''}
+                onChange={e=>setSplitQuantities(current=>({...current,[line.product_id+':'+p.method]:e.target.value}))}/>
+            </label>)}
+          </div>):explicitItems.map((line:R)=><label key={line.product_id} className="form-field">
             {cart.find(row=>row.id===line.product_id)?.name||'Produto'} — líquido {money(line.net_cents)}
             <select aria-label={'Forma de pagamento do produto '+(cart.find(row=>row.id===line.product_id)?.name||line.product_id)}
               value={itemMethods[line.product_id]||''}
