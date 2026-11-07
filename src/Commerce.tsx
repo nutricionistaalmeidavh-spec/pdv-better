@@ -401,9 +401,9 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     finally{setBusy(false);}
   }
   const title:Record<string,string>={cash:'Controle de caixa',sales:'Vendas realizadas',inventory:'Movimentações de estoque',purchases:'Compras e fornecedores',finance:'Financeiro',reports:'Relatórios e indicadores'};
-  return <div className="commerce-screen">
+  return <div className="commerce-screen" data-module={view}>
     {receipt && <SaleReceipt sale={receipt} onClose={()=>setReceipt(null)}/>}
-    <div className="page-heading"><div><div className="eyebrow">MARCO B / OPERAÇÃO LOCAL</div><h1>{title[view]}</h1><p>Registros persistidos no SQLite do estabelecimento.</p></div><button className="secondary" disabled={busy} onClick={()=>void load()}><RotateCcw size={16}/>Atualizar</button></div>
+    <div className="page-heading"><div><div className="eyebrow">OPERAÇÃO COMERCIAL</div><h1>{title[view]}</h1><p>Registros persistidos no SQLite do estabelecimento.</p></div><button className="secondary" disabled={busy} onClick={()=>void load()}><RotateCcw size={16}/>Atualizar</button></div>
     <Message error={error} success={success}/>
     {closeReview&&<div className="modal-backdrop" role="presentation"><section className="dialog commerce-dialog glass-payment" role="dialog" aria-modal="true" aria-label="Confirmar fechamento de caixa">
       <header className="dialog-head"><h2>Revisar fechamento cego</h2></header>
@@ -554,7 +554,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       </div>
       <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.slice(0,300).map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div></div></>}
     {view==='purchases'&&<>
-      <div className="panel commerce-section">
+      <div className="panel commerce-section purchase-order-card">
         <h2>Nova compra — etapa 1: revisar itens</h2>
         <p>Uma compra em rascunho não movimenta estoque nem cria conta a pagar. O custo médio será atualizado somente ao confirmar o recebimento físico.</p>
         <div className="commerce-inline-form">
@@ -587,14 +587,14 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
           {purchaseLines.map(x=><tr key={x.productId}><td>{products.find(p=>p.id===x.productId)?.name}</td><td>{x.quantityMilli/1000}</td>
             <td>{money(x.unitCostCents)}</td><td>{money(Math.round(x.quantityMilli*x.unitCostCents/1000))}</td>
             <td><button type="button" className="secondary" onClick={()=>setPurchaseLines(lines=>lines.filter(i=>i.productId!==x.productId))}>Remover</button></td></tr>)}
-        </tbody></table></div>
+        </tbody></table>{purchaseLines.length===0&&<div className="commerce-empty-state">Adicione produtos para montar o pedido de compra.</div>}</div>
         <button type="button" className="primary" disabled={busy||!purchaseSupplier||purchaseLines.length===0}
           onClick={()=>void action(async()=>{
             await api!.purchaseCreate({supplierId:purchaseSupplier,documentRef:purchaseDoc,dueOn:purchaseDue,lines:purchaseLines});
             setPurchaseLines([]);setPurchaseDoc('');setPurchaseDue('');
           },'Compra salva como rascunho; estoque e financeiro inalterados.')}>Salvar compra em rascunho</button>
       </div>
-      <div className="panel commerce-section"><h2>Etapa 2: receber compras</h2>
+      <div className="panel commerce-section purchase-receipt-card"><h2>Etapa 2: receber compras</h2>
         <p>Confira fisicamente a mercadoria, as quantidades e os custos antes de confirmar. O recebimento é irreversível pelo fluxo comum e não pode ser repetido.</p>
         <div className="commerce-table"><table><thead><tr><th>Fornecedor</th><th>Documento</th><th>Itens</th><th>Total</th><th>Situação</th><th>Operação</th></tr></thead><tbody>
           {purchases.map(p=><tr key={p.id}><td>{p.supplier_name}</td><td>{p.document_ref||'—'}</td>
@@ -606,17 +606,17 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
               onClick={()=>{if(window.confirm('Mercadoria conferida fisicamente? Receber a compra atualizará estoque, custo médio e conta a pagar.'))
                 void action(()=>api!.purchaseReceive(p.id),'Compra recebida e custo médio atualizado.',true);}}>Conferir e receber</button>}</td>
           </tr>)}
-        </tbody></table></div>
+        </tbody></table>{purchases.length===0&&<div className="commerce-empty-state">Nenhuma compra registrada. O recebimento ficará disponível após salvar um pedido.</div>}</div>
       </div>
     </>}
     {view==='finance'&&<FinanceP2Panel entries={finance} onChanged={load}/>}
-    {view==='finance'&&<><div className="panel commerce-section"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn,category:financeCategory}), 'Lançamento registrado.');}}>
+    {view==='finance'&&<><div className="panel commerce-section finance-entry-card"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn,category:financeCategory}), 'Lançamento registrado.');}}>
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
       <label>Descrição<input required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Ex.: aluguel"/></label>
       <label>Valor (R$)<input value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value)}/></label>
       <label>Vencimento<input type="date" value={dueOn} onChange={e=>setDueOn(e.target.value)}/></label>
       <button disabled={busy} className="primary" type="submit"><Plus size={16}/>Criar lançamento</button></form></div>
-      <div className="panel commerce-section"><div className="commerce-heading"><div><h2>Contas a pagar e receber</h2><p>O fiado aparece automaticamente como conta a receber.</p></div><label>Quitação<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}>{paymentMethods.filter(m=>m.id!=='credit').map(m=><option value={m.id} key={m.id}>{m.label}</option>)}</select></label></div>
+      <div className="panel commerce-section finance-accounts-card"><div className="commerce-heading"><div><h2>Contas a pagar e receber</h2><p>O fiado aparece automaticamente como conta a receber.</p></div><label>Quitação<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}>{paymentMethods.filter(m=>m.id!=='credit').map(m=><option value={m.id} key={m.id}>{m.label}</option>)}</select></label></div>
         <div className="commerce-table"><table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Pago</th><th>Saldo</th><th>Vencimento</th><th>Situação</th><th>Baixa parcial (R$)</th><th>Operação</th></tr></thead><tbody>{finance.map(f=><tr key={f.id}><td>{f.description}
           {(f.settlements||[]).length>0&&<details><summary>Histórico de baixas ({f.settlements.length})</summary>
             {(f.settlements||[]).map((settlement:R)=><p key={settlement.id}>
