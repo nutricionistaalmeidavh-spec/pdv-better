@@ -150,7 +150,7 @@ try{
   await search().fill('QA-CAFE-1001');
   await search().press('Enter');
   await cart().getByText('Café Arábica QA').waitFor();
-  assert.equal(await cart().locator('.cashier-item-stepper').getByText('1',{exact:true}).count(),1);
+  assert.equal(await cart().locator('.cashier-item-stepper').getByText('1 UN',{exact:true}).count(),1);
   pass('F16','SKU + Enter adiciona produto como leitura HID (sem scanner físico)');
 
   // F18/F19: seleção visual, acréscimo, redução e remoção.
@@ -158,9 +158,9 @@ try{
   await cart().getByText('Biscoito Integral QA').waitFor();
   pass('F18','seleção de produto atualiza rascunho e total');
   await cart().getByRole('button',{name:'Aumentar Biscoito Integral QA'}).click();
-  await cart().locator('.cashier-item').filter({hasText:'Biscoito Integral QA'}).getByText('2',{exact:true}).waitFor();
+  await cart().locator('.cashier-item').filter({hasText:'Biscoito Integral QA'}).getByText('2 UN',{exact:true}).waitFor();
   await cart().getByRole('button',{name:'Diminuir Biscoito Integral QA'}).click();
-  await cart().locator('.cashier-item').filter({hasText:'Biscoito Integral QA'}).getByText('1',{exact:true}).waitFor();
+  await cart().locator('.cashier-item').filter({hasText:'Biscoito Integral QA'}).getByText('1 UN',{exact:true}).waitFor();
   await cart().getByRole('button',{name:'Remover Biscoito Integral QA'}).click();
   assert.equal(await cart().getByText('Biscoito Integral QA').count(),0);
   pass('F19','aumento, redução e remoção sem perder os demais itens');
