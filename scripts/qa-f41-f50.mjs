@@ -155,7 +155,7 @@ try{
   assert.equal(summary.receivables_open_cents,2000);
   assert.equal(summary.payables_paid_cents,3000);
   await page.getByRole('heading',{name:'Relatório gerencial acumulado'}).waitFor();
-  await page.getByText('Vendas concluídas').waitFor();
+  await page.getByText('Vendas concluídas',{exact:true}).waitFor();
   await page.getByText('Faturamento de vendas').waitFor();
   pass('F46','relatório reflete 2 vendas R$ 40, dinheiro, fiado e custo de estoque');
 
