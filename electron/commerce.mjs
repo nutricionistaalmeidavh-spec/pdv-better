@@ -374,6 +374,18 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
         }
         if(hasQuantity&&snapshots.some(s=>quantitiesByProduct.get(s.id)!==s.quantityMilli))
           throw new Error('Quantidade por pagamento não concilia com a quantidade vendida.');
+        if(hasQuantity)for(const snapshot of snapshots){
+          const allocations=draft.itemPayments.filter(x=>x.productId===snapshot.id);
+          const net=productTotals.get(snapshot.id);
+          let remaining=net;
+          for(let i=0;i<allocations.length;i++){
+            const allocation=allocations[i];
+            const expected=i===allocations.length-1?remaining:Math.round(net*allocation.quantityMilli/snapshot.quantityMilli);
+            if(expected<=0||allocation.amountCents!==expected)
+              throw new Error('Valor por quantidade não é proporcional ao líquido do produto.');
+            remaining-=expected;
+          }
+        }
         if([...productTotals].some(([id,net])=>sumsByProduct.get(id)!==net))
           throw new Error('Pagamento por produto não concilia com seu valor líquido.');
         if(computed.payments.some(p=>sumsByMethod.get(p.method)!==p.amount_cents)
