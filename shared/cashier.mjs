@@ -15,9 +15,16 @@ const shortcuts=Object.freeze({
   F2:'search',F3:'customer',F4:'discount',F5:'payment',
   F6:'pix',F7:'card',F8:'cash',F10:'payment'
 });
-export function resolveCashierShortcut(key,{checkout=false,session=false,hasCart=false,dialog=false}={}){
+export function resolveCashierShortcut(key,{
+  checkout=false,session=false,hasCart=false,hasHeld=false,canUndo=false,
+  dialog=false,editable=false
+}={}){
   if(dialog)return null;
   if(key==='F2')return 'search';
-  if(!checkout||!session||!hasCart)return null;
+  if(!checkout)return null;
+  if(key==='F9'&&hasCart)return 'hold';
+  if(key==='F11'&&!hasCart&&hasHeld)return 'resume';
+  if(key==='Ctrl+Z'&&canUndo&&!editable)return 'undo';
+  if(!session||!hasCart)return null;
   return shortcuts[key]||null;
 }
