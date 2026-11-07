@@ -620,3 +620,351 @@ select option {color:var(--super-text);background:white}
   .cashier-item{padding:0 6px}
   .product-photo-editor{flex-wrap:wrap}
 }
+
+
+/* --------------------------------------------------------------------------
+   PDV SUPER • diretriz visual referenciada pelas telas aprovadas (07/11/2026)
+   UI real do Electron: barra superior azul, catálogo com fotos, carrinho claro.
+   Todas as rotas, diálogos e módulos compartilham estes tokens; offline, R$ 0.
+   -------------------------------------------------------------------------- */
+.shell.super-shell {display:block;min-height:100vh;background:#eaf3ff}
+.shell.super-shell .main {min-width:0;width:100%;min-height:100vh;background:linear-gradient(160deg,#f7fbff 0%,#ecf4ff 100%)}
+.shell.super-shell .topbar.super-topbar,
+.shell.super-shell.cashier-shell .topbar.super-topbar {
+  display:flex;position:sticky;top:0;z-index:9;min-height:69px;height:69px;
+  width:100%;gap:18px;flex-wrap:nowrap;align-items:center;
+  padding:0 20px;
+  background:linear-gradient(105deg,#071c3e 0%,#0c2d62 52%,#071d41 100%);
+  color:#fff;border:0;border-bottom:2px solid #0b59bf;
+  box-shadow:0 6px 21px #0d347933;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.super-top-brand {
+  display:flex;align-items:center;flex:none;gap:9px;white-space:nowrap;
+  color:#fff;letter-spacing:-.6px;font-size:19px;font-style:italic;
+}
+.super-top-brand strong {font-weight:900;color:#f8fcff}
+.super-brand-icon {
+  display:grid;place-items:center;height:40px;width:40px;flex:none;
+  background:linear-gradient(145deg,#0c8efb,#0754ca);border:1px solid #72b6ff;
+  color:#fff;border-radius:11px;box-shadow:0 3px 12px #020e2b8a;
+}
+.shell.super-shell .super-top-navigation {
+  display:flex;align-items:center;gap:1px;min-width:0;flex:1;
+  overflow-x:auto;scrollbar-width:thin;scrollbar-color:#376ba5 transparent;
+  height:100%;overscroll-behavior-x:contain;white-space:nowrap;
+}
+.super-top-navigation .menu-section {display:contents}
+.super-top-navigation .menu-title {display:none}
+.super-top-navigation .nav-item {
+  display:inline-flex;flex:none;width:auto;min-height:37px;gap:7px;align-items:center;
+  margin:0 1px;padding:8px 10px;border:1px solid transparent;
+  border-radius:8px;background:transparent;
+  color:#dce8f9;font-size:11px;font-weight:750;line-height:1;
+  transition:background .14s ease;
+}
+.super-top-navigation .nav-item:hover,
+.super-top-navigation .nav-item:focus-visible{background:#2c548c;color:#fff}
+.super-top-navigation .nav-item.selected {
+  background:linear-gradient(130deg,#0c86f9,#055bde);
+  color:#fff;border:1px solid #358efb;
+  box-shadow:0 4px 12px #05152e73;
+}
+.shell.super-shell .topbar .super-top-actions {
+  display:flex;flex:none;gap:8px;align-items:center;min-width:0;color:#fff;
+}
+.super-top-actions .status-pill {
+  display:inline-flex;align-items:center;
+  padding:7px 10px;border-radius:8px;background:#0c62494d;
+  color:#baf7d5;border-color:#246e67;font-size:10px;white-space:nowrap;
+}
+.super-top-actions .status-dot {background:#24d66a}
+.super-user {
+  display:flex;align-items:center;gap:7px;color:#e8f1ff;
+  font-size:11px;max-width:136px;min-width:0;
+}
+.super-user span {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.super-logout {
+  padding:8px 10px;background:#ffffff14;color:#e8f2ff;
+  border:1px solid #5b7294;border-radius:8px;font-size:11px;font-weight:750;
+}
+.super-logout:hover {background:#2560ab;color:white}
+.shell.super-shell .content,
+.shell.super-shell.cashier-shell .content {
+  width:100%;max-width:1700px;margin:0 auto;padding:23px 24px 38px;
+}
+.shell.super-shell .page-heading h1{font-size:25px;color:#0c264c;font-weight:850;letter-spacing:-.7px}
+.shell.super-shell .page-heading{margin-bottom:15px}
+.shell.super-shell .page-heading p{margin-top:7px}
+.shell.super-shell .data-panel,.shell.super-shell .commerce-section,
+.shell.super-shell .settings-block,.shell.super-shell .glass-panel,
+.shell.super-shell .stat,.shell.super-shell .quick {
+  border:1px solid #cbdced;border-radius:12px;background:#fff;
+  box-shadow:0 6px 17px #154e9612;
+}
+.shell.super-shell .primary{background:linear-gradient(135deg,#0d8cff,#0558d4);border-color:#126dd3}
+.shell.super-shell .primary:hover:not(:disabled){background:linear-gradient(135deg,#0877dc,#0647b2)}
+.shell.super-shell .secondary{background:#f7faff;color:#174678;border:1px solid #c8d9ef}
+.shell.super-shell .secondary:hover:not(:disabled){background:#e8f3ff}
+.shell.super-shell .count-chip{border:1px solid #ccdbed;background:#eaf3ff;color:#1a579d}
+.shell.super-shell .data-toolbar{background:#fff}
+.shell.super-shell :is(.table-wrap,.commerce-table) th{background:#eff5fd;color:#173e70;border-color:#cbdced;font-weight:800}
+.shell.super-shell :is(.table-wrap,.commerce-table) td{border-color:#dce7f4;color:#213b5e}
+.shell.super-shell :is(.table-wrap,.commerce-table) tbody tr:hover{background:#f2f7fe}
+.shell.super-shell .report-grid .stat{background:#fff}
+.shell.super-shell .report-grid .report-number{color:#084ea9}
+.shell.super-shell .settings-tabs button[aria-selected="true"]{background:#0864dc;color:#fff}
+.shell.super-shell .cashier-heading {margin:0 0 15px}
+.shell.super-shell .cashier-heading-title {gap:11px}
+.shell.super-shell .cashier-heading-title .cashier-bolt {
+  width:39px;height:39px;box-shadow:none;background:#e7f1ff;
+  color:#0757c3;border:1px solid #cddff4;border-radius:10px;
+}
+.shell.super-shell .cashier-heading-title h1 {font-size:23px;color:#0d2550}
+.shell.super-shell .cashier-heading-title p{font-size:11px}
+.shell.super-shell .cashier-workspace {
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(325px,35%);
+  align-items:start;gap:13px;min-height:650px;
+}
+.shell.super-shell .cashier-center{min-width:0;display:flex;flex-direction:column;gap:12px}
+.shell.super-shell .cashier-search-box {
+  min-height:50px;padding:0 12px;border-radius:9px;background:#fff;
+  border:1px solid #95b9e8;box-shadow:0 2px 6px #18478212;gap:11px;
+}
+.shell.super-shell .cashier-search-box input{font-size:12px;color:#17365a}
+.shell.super-shell .cashier-search-box button {
+  border:1px solid #0768e2;background:linear-gradient(145deg,#0c8dfd,#0557cc);
+  color:#fff;border-radius:8px;width:42px;height:36px;display:grid;place-items:center;
+}
+.shell.super-shell .cashier-search-box kbd{font-size:10px}
+.shell.super-shell .cashier-catalog{
+  min-width:0;min-height:385px;border:0;background:transparent;padding:0;
+  border-radius:0;box-shadow:none;
+}
+.shell.super-shell .cashier-catalog-header {padding:0 3px 7px;margin:0;min-height:27px}
+.shell.super-shell .cashier-catalog-header strong{font-size:13px;color:#102e5e}
+.shell.super-shell .cashier-catalog-header span{font-size:10px}
+.shell.super-shell .cashier-filters{display:flex;gap:7px;align-items:center;margin-bottom:10px;padding:0 0 3px}
+.shell.super-shell .cashier-filters button{
+  border:1px solid #d3dfef;border-radius:8px;padding:9px 13px;
+  box-shadow:0 1px 4px #09335b0c;background:#fff;color:#31537e;
+  font-size:11px;font-weight:700;
+}
+.shell.super-shell .cashier-filters button.selected{
+  border-color:#0762dc;background:linear-gradient(140deg,#0b85fa,#075fd2);
+  color:#fff;box-shadow:0 3px 9px #135dc329;
+}
+.shell.super-shell .cashier-product-results {
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+  align-content:start;gap:9px;max-height:min(58vh,540px);min-height:300px;
+  overflow-y:auto;padding:2px 3px 10px;scrollbar-width:thin;
+}
+.shell.super-shell .cashier-product-entry {
+  display:flex;min-width:0;min-height:177px;position:relative;
+  border:1px solid #d7e2f0;background:linear-gradient(180deg,#fff,#f8fbff);
+  border-radius:12px;overflow:hidden;box-shadow:0 3px 8px #184f9215;
+  transition:border-color .12s ease,transform .12s ease;
+}
+.shell.super-shell .cashier-product-entry:hover{border-color:#72acee;transform:translateY(-1px)}
+.shell.super-shell .cashier-product-entry .cashier-product-option {
+  display:flex;flex-direction:column;flex:1;width:100%;align-items:stretch;min-width:0;
+  padding:9px 9px 8px;text-align:left;gap:5px;background:transparent;border:0;
+}
+.shell.super-shell .cashier-product-entry .cashier-product-option:hover{background:#edf6ff}
+.shell.super-shell .cashier-product-icon.cashier-item-photo{
+  display:grid;place-items:center;flex:none;width:100%;height:76px;
+  border:0;background:#fff;color:#6593ca;border-radius:8px;
+}
+.shell.super-shell .cashier-product-icon img{display:block;width:100%;height:100%;object-fit:contain}
+.shell.super-shell .cashier-product-description {display:block;min-width:0;flex:none}
+.shell.super-shell .cashier-product-description strong {
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  white-space:normal;overflow:hidden;text-overflow:ellipsis;
+  min-height:27px;line-height:1.2;color:#14274c;font-size:11px;
+}
+.shell.super-shell .cashier-product-meta{display:none!important}
+.shell.super-shell .cashier-product-price{
+  font-size:16px;color:#0356ca;font-weight:900;letter-spacing:-.3px;white-space:nowrap;
+}
+.shell.super-shell .cashier-product-stock{font-size:10px;color:#415b7a}
+.shell.super-shell .cashier-product-entry .cashier-favorite-star{
+  position:absolute;right:5px;top:5px;z-index:2;display:grid;place-items:center;
+  width:25px;height:25px;padding:3px;border-radius:6px;
+  background:#ffffffc9;color:#91a7c3;border:1px solid #dfebf6;
+}
+.shell.super-shell .cashier-product-entry .cashier-favorite-star svg{width:15px;height:15px}
+.shell.super-shell .cashier-product-entry .cashier-favorite-star[aria-pressed="true"]{color:#dfaa24}
+.shell.super-shell .cashier-no-results{
+  grid-column:1/-1;min-height:110px;display:grid;place-content:center;
+  background:#fff;border:1px dashed #b6cde8;border-radius:10px;
+}
+.shell.super-shell .cashier-favorites:not(:has(.cashier-favorite-chips)){display:none}
+.shell.super-shell .cashier-favorites{
+  background:#fff;border:1px solid #d1e0f2;border-radius:10px;
+  box-shadow:0 3px 10px #104f9510;padding:8px 10px;
+}
+.shell.super-shell .cashier-checkout-side {
+  display:flex;flex-direction:column;min-width:0;min-height:635px;
+  border:1px solid #cbdcf0;border-radius:15px;background:#fff;
+  box-shadow:0 5px 22px #1347861a;overflow:hidden;
+}
+.shell.super-shell .cashier-cart-area {
+  display:flex;flex-direction:column;flex:none;min-height:255px;
+  border:0;border-radius:0;background:#fff;box-shadow:none;overflow:hidden;
+}
+.shell.super-shell .cashier-cart-header {
+  min-height:55px;padding:12px 13px;background:linear-gradient(180deg,#fff,#f5f9fe);
+  border-bottom:1px solid #dbe7f6;
+}
+.shell.super-shell .cashier-cart-header h2{display:flex;align-items:center;gap:7px;margin:0;color:#142e54;font-size:14px}
+.shell.super-shell .cashier-cart-header h2 svg{color:#075ed5}
+.shell.super-shell .cashier-cart-header span{font-size:10px}
+.shell.super-shell .cashier-session-open,.shell.super-shell .cashier-session-closed{
+  border-radius:7px;padding:5px 7px;font-size:9px;white-space:nowrap;
+}
+.shell.super-shell .cashier-cart-items {max-height:285px;min-height:160px;overflow-y:auto;flex:1}
+.shell.super-shell .cashier-item {padding:8px 12px;background:#fff;border-bottom:1px solid #e1e9f4}
+.shell.super-shell .cashier-item-main {
+  display:grid;grid-template-columns:39px minmax(0,1fr) auto;
+  grid-template-areas:"photo name remove" "photo qty total" "photo unit total";
+  align-items:center;gap:2px 9px;min-height:68px;
+  padding:0;
+}
+.shell.super-shell .cashier-item-main .cashier-item-photo{grid-area:photo;width:39px;height:48px;border-radius:7px}
+.shell.super-shell .cashier-item-name{grid-area:name}
+.shell.super-shell .cashier-item-name strong{font-size:11px;color:#14294c}
+.shell.super-shell .cashier-item-name small{font-size:9px;margin-top:4px;color:#647792}
+.shell.super-shell .cashier-item-stepper{grid-area:qty;justify-self:start;min-height:24px;border-radius:5px}
+.shell.super-shell .cashier-item-stepper button{padding:3px 5px}
+.shell.super-shell .cashier-item-stepper svg{width:13px;height:13px}
+.shell.super-shell .cashier-item-stepper span{min-width:27px;font-size:10px}
+.shell.super-shell .cashier-item-unit-price{grid-area:unit;text-align:left;color:#687d98;font-size:10px}
+.shell.super-shell .cashier-item-total{grid-area:total;justify-self:end;min-width:0;font-size:11px;color:#163459}
+.shell.super-shell .cashier-item-remove{grid-area:remove;justify-self:end;align-self:start;padding:3px}
+.shell.super-shell .cashier-item-remove svg{width:15px}
+.shell.super-shell .cashier-weight{margin:6px 0 0 48px}
+.shell.super-shell .cashier-empty{min-height:150px;padding:15px;text-align:center}
+.shell.super-shell .cashier-empty svg{width:26px}
+.shell.super-shell .cashier-toolbar{
+  padding:8px 9px;gap:6px;justify-content:flex-start;
+  border-top:1px solid #e1e9f4;background:#fbfdff;
+}
+.shell.super-shell .cashier-toolbar button{
+  display:inline-flex;flex:1 1 auto;padding:8px 7px;
+  font-size:10px;border:1px solid #d1e0f0;border-radius:7px;
+}
+.shell.super-shell .cashier-toolbar button svg{height:15px;width:15px}
+.shell.super-shell .cashier-payment-panel {
+  display:flex;flex-direction:column;gap:9px;padding:12px 13px;
+  min-height:0;flex:1;border:0;border-radius:0;border-top:1px solid #d5e2f1;
+  background:linear-gradient(180deg,#fff,#f8fbff);color:#173b62;box-shadow:none;
+}
+.shell.super-shell .cashier-payment-top{padding:0}
+.shell.super-shell .cashier-payment-eyebrow{display:none}
+.shell.super-shell .cashier-subtotal,
+.shell.super-shell .cashier-discount{
+  display:flex;align-items:center;justify-content:space-between;
+  margin:8px 0;color:#355478;font-size:12px;
+}
+.shell.super-shell .cashier-subtotal strong{font-size:13px;color:#173960}
+.shell.super-shell .cashier-discount strong{font-size:12px;color:#116b44}
+.shell.super-shell .cashier-payment-divider{display:block;height:1px;margin:10px 0;background:#d5e4f3}
+.shell.super-shell .cashier-payment-label{font-size:12px;color:#173b73;font-weight:850}
+.shell.super-shell .cashier-grand-total{
+  display:block;margin:6px 0 0;padding:12px 13px;border-radius:8px;
+  background:linear-gradient(120deg,#e6f1ff,#cddfff);
+  color:#0747ae;font-size:29px;font-weight:900;text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+.shell.super-shell .cashier-payment-top p{font-size:9px;color:#7088a5;line-height:1.35;margin:7px 0 0}
+.shell.super-shell .cashier-receive{
+  min-height:53px;display:flex;align-items:center;justify-content:center;gap:8px;
+  margin:4px 0 0;border-radius:9px;background:linear-gradient(180deg,#11b654,#078a3a);
+  color:#fff;box-shadow:0 5px 12px #038b4638;font-size:13px!important;
+}
+.shell.super-shell .cashier-receive:hover:not(:disabled){background:#087b38}
+.shell.super-shell .cashier-receive kbd{font-size:10px}
+.shell.super-shell .cashier-methods {
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;
+}
+.shell.super-shell .cashier-methods button,
+.shell.super-shell .cashier-methods button.cashier-other {
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;min-width:0;min-height:65px;padding:7px 3px;
+  border:1px solid #cbd9ea;border-radius:9px;
+  color:#143763;background:#fff;font-size:10px;box-shadow:none;
+}
+.shell.super-shell .cashier-methods button:hover:not(:disabled){background:#e9f2ff;border-color:#9fc0ed}
+.shell.super-shell .cashier-methods button strong{font-size:10px}
+.shell.super-shell .cashier-methods svg{width:18px;height:18px;color:#124a91}
+.shell.super-shell .cashier-methods .cashier-pix-symbol{color:#08aeb8}
+.shell.super-shell .cashier-methods kbd{display:none}
+.shell.super-shell .cashier-hold-panel{border-top:1px solid #e0e9f5;padding:7px 0 0}
+.shell.super-shell .cashier-hold-label{color:#3e5c7c}
+.shell.super-shell .cashier-hold-label input{background:#fff;color:#173e67;border:1px solid #c7d9ea}
+.shell.super-shell .cashier-hold-label input::placeholder{color:#8aa1b8}
+.shell.super-shell .cashier-hold-button,
+.shell.super-shell .cashier-held-toggle{min-height:35px;background:#edf5ff;color:#1754a2;border:1px solid #ccdef2}
+.shell.super-shell .cashier-held-row{background:#f5f9ff;border-color:#cbd9e9;color:#24517b}
+.shell.super-shell .cashier-held-row small,
+.shell.super-shell .cashier-held-list p{color:#607a9a}
+.shell.super-shell .cashier-held-row button{background:#e1edfc;border-color:#a8c5e7;color:#15549a}
+.shell.super-shell .cashier-safe-note{background:#ecf8f1;color:#2b7754;border:1px solid #b9e4cc;border-radius:8px;padding:8px;font-size:9px}
+.shell.super-shell .cashier-safe-note strong{color:#1a6848}
+.shell.super-shell .dialog:has(.product-photo-field){width:min(860px,calc(100vw - 28px))}
+.shell.super-shell .dialog:has(.product-photo-field) .form-grid{
+  display:grid;grid-template-columns:200px repeat(2,minmax(0,1fr));
+  gap:14px;padding:18px 22px;
+}
+.shell.super-shell .dialog .product-photo-field{grid-column:1;grid-row:1/span 7;align-self:start;min-width:0}
+.shell.super-shell .product-photo-editor{display:flex;flex-direction:column;align-items:stretch;gap:9px}
+.shell.super-shell .product-photo-editor>img,
+.shell.super-shell .product-photo-placeholder {
+  display:grid;place-items:center;width:100%;height:190px;object-fit:contain;
+  background:#fff;border:1px dashed #a7c4ea;border-radius:11px;
+}
+.shell.super-shell .product-photo-actions{display:flex;flex-direction:column;gap:7px}
+.shell.super-shell .product-photo-actions .secondary{width:100%;justify-content:center}
+.shell.super-shell .product-photo-button {display:flex;justify-content:center}
+.shell.super-shell .product-photo-actions>small{font-size:10px;text-align:center}
+.shell.super-shell .dialog-head{
+  background:linear-gradient(100deg,#0a397b,#0968d5);color:#fff;
+  padding:18px 22px;border-bottom:0;
+}
+.shell.super-shell .dialog-head h2{color:#fff}
+.shell.super-shell .dialog-head .eyebrow{color:#c0dbff}
+.shell.super-shell .dialog-head .icon-btn{color:#fff;background:#ffffff24}
+.shell.super-shell .dialog-footer{background:#f8fbff}
+@media(max-width:1390px){
+  .shell.super-shell .cashier-product-results{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .shell.super-shell .super-topbar{gap:10px}
+  .super-top-navigation .nav-item{padding:7px 8px;font-size:10px;gap:5px}
+  .shell.super-shell .content,.shell.super-shell.cashier-shell .content{padding:17px}
+}
+@media(max-width:1100px){
+  .shell.super-shell .cashier-product-results{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .shell.super-shell .cashier-workspace{grid-template-columns:minmax(0,1fr) minmax(300px,38%)}
+  .super-top-brand strong{font-size:15px}
+  .super-user span{display:none}
+  .super-top-actions .status-pill{display:none}
+}
+@media(max-width:850px){
+  .shell.super-shell .cashier-workspace{grid-template-columns:1fr}
+  .shell.super-shell .cashier-product-results{grid-template-columns:repeat(4,minmax(0,1fr));max-height:420px}
+  .shell.super-shell .cashier-checkout-side{min-height:0}
+  .shell.super-shell .topbar.super-topbar{padding:0 9px;gap:8px}
+  .shell.super-shell .content,.shell.super-shell.cashier-shell .content{padding:12px}
+  .shell.super-shell .dialog:has(.product-photo-field) .form-grid{grid-template-columns:160px repeat(2,minmax(0,1fr))}
+}
+@media(max-width:580px){
+  .shell.super-shell .cashier-product-results{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .shell.super-shell .topbar.super-topbar{height:62px;min-height:62px}
+  .super-top-brand strong{display:none}
+  .shell.super-shell .dialog:has(.product-photo-field) .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .shell.super-shell .dialog .product-photo-field{grid-column:1/-1;grid-row:auto}
+  .shell.super-shell .product-photo-editor{flex-direction:row}
+  .shell.super-shell .product-photo-editor>img,.shell.super-shell .product-photo-placeholder{width:115px;height:120px}
+}
+@media print{
+  .shell.super-shell .topbar.super-topbar{display:none!important}
+}
