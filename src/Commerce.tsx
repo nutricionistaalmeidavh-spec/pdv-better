@@ -371,7 +371,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
             {(['cash','pix','card_credit','card_debit','card'] as const).map(id=>
               <label key={id}>{methodLabel(id)} conferido (R$)
                 <input required inputMode="decimal" placeholder="0,00" value={methodCounts[id]}
-                  onChange={e=>setMethodCounts(previous=>({...previous,[id]:e.target.value}))}/>
+                  onChange={e=>{const value=e.target.value;setMethodCounts(previous=>({...previous,[id]:value}));}}/>
               </label>)}
             <button disabled={busy} className="primary" type="submit">Revisar fechamento e solicitar gerente</button>
           </form>
