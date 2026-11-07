@@ -179,7 +179,7 @@ try{
   // P2/P3: favoritos, espera local, recuperação segura e desfazer não registram venda.
   await page.getByRole('button',{name:'Abrir catálogo'}).click();
   await page.getByRole('button',{name:'Favoritar Café Arábica QA'}).click();
-  await page.getByRole('button',{name:'Fechar catálogo'}).last().click();
+  // Catálogo permanece visível no novo caixa; o atalho F9 continua funcional após favoritar.
   await page.keyboard.press('F9');
   await cart().getByText('Pronto para a próxima venda').waitFor();
   await page.getByRole('button',{name:'Vendas em espera (1)'}).click();
