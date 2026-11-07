@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normalizeCashierMode, resolveCashierShortcut, formatCashierAmount } from '../shared/cashier.mjs';
+import { normalizeCashierMode, resolveCashierShortcut, formatCashierAmount, suggestCashierPaymentAmount } from '../shared/cashier.mjs';
 
 const source=path=>readFileSync(new URL('../'+path, import.meta.url),'utf8');
 
@@ -49,4 +49,9 @@ test('integração visual preserva ponte canônica e confirmação humana',()=>{
   assert.match(payment,/window\.pdv\.checkout/);
   assert.match(payment,/confirmar|Confirme/i);
   for(const mode of ['compact','light','dark'])assert.ok(styles.includes('.cashier-shell.mode-'+mode));
+});
+
+test('a cotação não sobrescreve valor que o operador digitou',()=>{
+  assert.equal(suggestCashierPaymentAmount('0,00',2500),'25,00');
+  assert.equal(suggestCashierPaymentAmount('60,00',2500),'60,00');
 });
