@@ -23,23 +23,23 @@ async function launch(dir){
   env:{...process.env,PDV_TEST_USER_DATA:dir,PDV_TEST_SMOKE:'1'},timeout:45000});
 }
 async function bootstrap(p){
- await p.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+ await p.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
  await p.getByRole('textbox',{name:'Nome do administrador'}).fill('Administrador LAN Jornada');
  await p.locator('.auth-form input[type="password"]').nth(0).fill(pw);
  await p.locator('.auth-form input[type="password"]').nth(1).fill(pw);
  await p.getByRole('button',{name:'Criar administrador'}).click();
- await p.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+ await p.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});
 }
 async function login(p){
- await p.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+ await p.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
  await p.getByRole('combobox',{name:'Operador'}).selectOption({label:'Administrador LAN Jornada — Administrador'});
  await p.locator('.auth-form input[type="password"]').first().fill(pw);
  await p.getByRole('button',{name:'Entrar no PDV'}).click();
- await p.getByRole('heading',{name:'Bem-vindo ao PDV Better'}).waitFor({timeout:30000});
+ await p.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor({timeout:30000});
 }
 async function visit(p,name,heading){
  await nav(p,name).click();
- await p.getByRole('heading',{name:name==='Frente de caixa'?'Caixa Rápido':heading,exact:true}).waitFor();
+ await p.getByRole('heading',{name:name==='Frente de caixa'?'PDV SUPER':heading,exact:true}).waitFor();
 }
 async function product(p,name,sku){
  await visit(p,'Produtos','Produtos');
@@ -76,7 +76,7 @@ try{
  assert.equal(lan.mode,'host');
  assert.match(lan.pairingKey,/^[a-f0-9]{64}$/);
  clientApp=await launch(clientDir);client=await clientApp.firstWindow();
- await client.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
+ await client.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
  await client.getByRole('button',{name:'Conectar a um servidor LAN'}).click();
  const auth=client.locator('.auth-panel');
  await field(auth,'Endereço do servidor').fill('http://127.0.0.1:'+port+'/');
