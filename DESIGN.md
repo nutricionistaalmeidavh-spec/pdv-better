@@ -21,7 +21,7 @@ As imagens promocionais são referências estéticas, **não capturas fiéis do 
 
 Login e primeiro administrador; barra lateral e cabeçalho global; visão geral e cards; frente de caixa; abertura e controle de caixa; vendas; produtos; categorias; clientes; fornecedores; operadores; compras; estoque; financeiro; relatórios; configuração de rede/dispositivos; confirmação de pagamentos; alertas, modais, tabelas e formulários; recibo não fiscal.
 
-Os modos legados `compact`, `light` e `dark` usam a mesma identidade para impedir divergência visual. Permanecem selecionáveis por compatibilidade do operador, sem troca de marca/paleta.
+A interface apresenta uma única direção visual, sem seletor de modos. Os valores legados de preferência de aparência não são apagados do armazenamento, mas não alteram a aparência. O normalizador histórico permanece para compatibilidade do motor de atalhos.
 
 ## Restrições inegociáveis
 
