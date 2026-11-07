@@ -21,7 +21,7 @@ const receipt=p=>p.getByRole('dialog',{name:'Comprovante não fiscal da venda'})
 const payment=p=>p.getByRole('dialog',{name:'Receber venda'});
 async function visit(p,name,heading){
  await nav(p,name).click();
- await p.getByRole('heading',{name:heading,exact:true}).waitFor();
+ await p.getByRole('heading',{name:name==='Frente de caixa'?'Caixa Rápido':heading,exact:true}).waitFor();
 }
 async function bootstrap(p){
  await p.getByRole('heading',{name:'PDV Better',exact:true}).waitFor({timeout:30000});
@@ -85,8 +85,8 @@ async function sell(p,code,{method='cash',amount='',customer='',split=null}={}){
  await visit(p,'Frente de caixa','Frente de caixa');
  const search=p.getByRole('textbox',{name:'Pesquisar ou ler código de barras'});
  await search.fill(code);await search.press('Enter');
- await p.locator('.cart-line').first().waitFor();
- await p.locator('.cart-panel').getByRole('button',{name:'Receber e concluir venda'}).click();
+ await p.locator('.cashier-item').first().waitFor();
+ await p.locator('.cashier-payment-panel').getByRole('button',{name:/Receber pagamento/}).click();
  const d=payment(p);await d.waitFor();
  if(customer)await field(d,'Cliente (obrigatório para fiado)').selectOption({label:customer});
  if(split){
