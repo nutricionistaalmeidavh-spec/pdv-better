@@ -190,6 +190,7 @@ try{
   assert.equal(session.expected_cash_cents,10050);
   pass('F29','venda bloqueada com caixa fechado; abertura em R$ 100,50 persistida');
   await toCheckout();
+  await page.locator('.cashier-session-open').waitFor();
   // P1 — atalhos devem preparar a confirmação, jamais registrar pagamento.
   for(const [key,method] of [['F6','pix'],['F7','card'],['F8','cash']]){
     await page.keyboard.press(key);
