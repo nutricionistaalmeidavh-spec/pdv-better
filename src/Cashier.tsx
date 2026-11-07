@@ -61,12 +61,11 @@ export function Cashier({
   favoriteIds,favoriteProducts,onToggleFavorite,
   heldSales,onHold,onResumeHeld,onRemoveHeld,canUndo,onUndo
 }:CashierProps) {
-  const [catalogOpen,setCatalogOpen]=useState(false);
   const [heldOpen,setHeldOpen]=useState(false);
   const [holdLabel,setHoldLabel]=useState('');
   const canReceive=cart.length>0&&sessionOpen;
   const productCount=useMemo(()=>cart.reduce((sum,item)=>sum+item.quantityMilli/1000,0),[cart]);
-  const showCatalog=catalogOpen||search.trim().length>0;
+  const showCatalog=true; // Catálogo sempre visível para venda rápida e escolha por foto.
   const openPayment=(method?:PaymentMethod,focus?:'customer'|'discount')=>{
     if(canReceive)onOpenPayment(method,focus);
   };
@@ -92,15 +91,15 @@ export function Cashier({
             value={search} onChange={ev=>onSearchChange(ev.target.value)}
             onKeyDown={onSearchKeyDown}/>
           <kbd>F2</kbd>
-          <button type="button" aria-label={showCatalog?'Fechar catálogo':'Abrir catálogo'}
+          <button type="button" aria-label="Abrir catálogo"
             aria-expanded={showCatalog}
-            onClick={()=>setCatalogOpen(old=>!old)}><Grid2X2 size={20}/></button>
+            onClick={()=>searchRef.current?.focus()><Grid2X2 size={20}/></button>
         </div>
 
-        {showCatalog&&<section className="cashier-catalog" aria-label="Catálogo de produtos">
-          <div className="cashier-catalog-header"><strong>Consultar produtos</strong>
-            <span>{products.length} resultados</span>
-            <button type="button" aria-label="Fechar catálogo" onClick={()=>{setCatalogOpen(false);onSearchChange('');searchRef.current?.focus();}}><X size={17}/></button>
+        <section className="cashier-catalog" aria-label="Catálogo de produtos">
+          <div className="cashier-catalog-header"><strong>Produtos disponíveis</strong>
+            <span>{products.length} {products.length===1?'produto':'produtos'}</span>
+            {search&&<button type="button" aria-label="Limpar pesquisa" onClick={()=>{onSearchChange('');searchRef.current?.focus();}}><X size={17}/></button>}
           </div>
           <div className="cashier-filters" aria-label="Categorias">
             <button className={categoryFilter==='all'?'selected':''}
@@ -113,12 +112,13 @@ export function Cashier({
           <div className="cashier-product-results">
             {products.map(product=><div className="cashier-product-entry" key={product.id}>
               <button type="button" className="cashier-product-option"
-                onClick={()=>{onAddProduct(product);setCatalogOpen(false);}}>
+                onClick={()=>onAddProduct(product)}>
                 <span className="cashier-product-icon cashier-item-photo">{product.image_data?<img src={product.image_data} alt="" loading="lazy"/>:<Package size={17}/>}</span>
                 <span className="cashier-product-description"><strong>{product.name}</strong>
-                  <small>{product.code||'Sem código'} · {product.unit} · Saldo {Number(product.stock_milli||0)/1000}</small>
+                  <small className="cashier-product-meta">{product.code||'Sem código'} · {product.unit}</small>
+                  <small className="cashier-product-stock">Estoque: {(Number(product.stock_milli||0)/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</small>
                 </span>
-                <strong>{money(product.sale_price_cents)}</strong><Plus size={16}/>
+                <strong className="cashier-product-price">{money(product.sale_price_cents)}</strong>
               </button>
               <button type="button" className="cashier-favorite-star"
                 aria-label={(favoriteIds.includes(product.id)?'Desfavoritar ':'Favoritar ')+product.name}
@@ -131,7 +131,7 @@ export function Cashier({
               <button type="button" onClick={onProducts}>Abrir cadastros</button>
             </div>}
           </div>
-        </section>}
+        </section>
 
         <section className="cashier-favorites" aria-label="Produtos favoritos">
           <div className="cashier-favorites-title">
@@ -145,15 +145,15 @@ export function Cashier({
             </button>)}
           </div>}
         </section>
-
+      </div>
+      <div className="cashier-checkout-side">
         <section className="cashier-cart-area" aria-label="Itens da venda">
           <div className="cashier-cart-header">
-            <div><h2>Itens da venda</h2><span>{cart.length} {cart.length===1?'produto':'produtos'} · {productCount.toLocaleString('pt-BR',{maximumFractionDigits:3})} unidades/peso</span></div>
+            <div><h2><ShoppingCart size={18}/> Carrinho de venda</h2><span>{cart.length} {cart.length===1?'item':'itens'} · {productCount.toLocaleString('pt-BR',{maximumFractionDigits:3})} unidades/peso</span></div>
             <span className={sessionOpen?'cashier-session-open':'cashier-session-closed'}>
               {sessionOpen?'Caixa aberto':'Caixa fechado'}</span>
           </div>
           {cartError&&<div className="cashier-error" role="alert"><AlertTriangle size={17}/>{cartError}</div>}
-          <div className="cashier-table-head" aria-hidden="true"><span>Item</span><span>Qtd</span><span>Valor</span><span>Total</span><span/></div>
           <div className="cashier-cart-items">
             {cart.length===0
               ? <div className="cashier-empty">
@@ -174,7 +174,7 @@ export function Cashier({
                     <button type="button" aria-label={'Aumentar '+item.name}
                       onClick={()=>onChangeQuantity(item,item.unit==='KG'?100:1000)}><Plus size={16}/></button>
                   </div>
-                  <strong className="cashier-item-unit-price">{money(item.priceCents)}</strong>
+                  <strong className="cashier-item-unit-price">{money(item.priceCents)} / {item.unit}</strong>
                   <strong className="cashier-item-total">{money(lineTotalCents(item.priceCents,item.quantityMilli))}</strong>
                   <button type="button" className="cashier-item-remove" aria-label={'Remover '+item.name}
                     onClick={()=>onRemoveProduct(item.id)}><Trash2 size={17}/></button>
@@ -191,7 +191,7 @@ export function Cashier({
               </div>)}
           </div>
           <footer className="cashier-toolbar">
-            <button type="button" onClick={()=>{setCatalogOpen(true);searchRef.current?.focus();}}><Search size={18}/> Consultar</button>
+            <button type="button" onClick={()=>searchRef.current?.focus()}><Search size={18}/> Consultar</button>
             <button type="button" disabled={!canReceive} onClick={()=>openPayment(undefined,'customer')}><UserRound size={18}/> Cliente <kbd>F3</kbd></button>
             <button type="button" disabled={!canReceive} onClick={()=>openPayment(undefined,'discount')}><Tag size={18}/> Desconto <kbd>F4</kbd></button>
             <button type="button" disabled={!cart.length} className="cashier-danger" onClick={onClearCart}><Trash2 size={17}/> Cancelar</button>
@@ -199,13 +199,12 @@ export function Cashier({
             <button type="button" disabled={!canUndo} onClick={onUndo} aria-label="Desfazer exclusão do carrinho"><Undo2 size={18}/> Desfazer <kbd>Ctrl+Z</kbd></button>
           </footer>
         </section>
-      </div>
 
       <aside className="cashier-payment-panel" aria-label="Resumo e recebimento">
         <div className="cashier-payment-top">
           <span className="cashier-payment-eyebrow">{cart.length} {cart.length===1?'item':'itens'} no carrinho</span>
           <div className="cashier-subtotal"><span>Subtotal</span><strong>{money(total)}</strong></div>
-          <div className="cashier-discount"><span>Desconto no recebimento</span><strong>{money(0)}</strong></div>
+          <div className="cashier-discount"><span>Desconto na conferência</span><strong>{money(0)}</strong></div>
           <span className="cashier-payment-divider"/>
           <span className="cashier-payment-label">Total a pagar</span>
           <strong className="cashier-grand-total">{money(total)}</strong>
@@ -258,6 +257,7 @@ export function Cashier({
           <span><strong>Operação não fiscal.</strong> Em espera não reserva estoque nem congela preços. Pix e cartão exigem confirmação externa.</span>
         </div>
       </aside>
+      </div>
     </div>
   </section>;
 }
