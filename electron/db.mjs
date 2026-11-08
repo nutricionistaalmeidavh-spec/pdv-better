@@ -25,6 +25,9 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   db = new DatabaseSync(filename);
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = '+timeout);
+  // Cache por conexão, sem alterar o nível de durabilidade do journal.
+  db.exec('PRAGMA cache_size = -16384');
+  db.exec('PRAGMA temp_store = MEMORY');
   if (filename !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
   const check=db.prepare('PRAGMA quick_check').get();
   if(!check||check.quick_check!=='ok')throw new Error('Integridade do SQLite inválida: falha no quick_check.');
@@ -54,17 +57,61 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   migratePhase10(db);
   migratePhase11(db);
   migratePhase12(db);
+  // Índices incrementais e idempotentes: nenhum dado antigo é reescrito.
+  // Criados depois de todas as migrações, também em instalações pré-existentes.
+  for(const kind of entityOrder){
+    db.exec('CREATE INDEX IF NOT EXISTS "idx_'+kind+'_active_name" ON "'+kind+
+      '"(name COLLATE NOCASE,id) WHERE active=1');
+  }
+  db.exec([
+    'CREATE INDEX IF NOT EXISTS idx_sales_recent ON sales(created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_sales_active_recent ON sales(status,is_training,created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_payments_method_sale ON sale_payments(method,sale_id)',
+    'CREATE INDEX IF NOT EXISTS idx_cash_movements_session_recent ON cash_movements(session_id,created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_stock_movements_product_recent ON stock_movements(product_id,created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_entries_status_due ON financial_entries(status,due_on,id)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_entries_type_status ON financial_entries(type,status)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_entries_sale ON financial_entries(sale_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_items_sale_product ON sale_items(sale_id,product_id)'
+  ].join(';')+';');
+  db.exec('PRAGMA optimize');
   const financeP2=createFinanceP2(db);
   const commercialPurchases=createCommercialPurchases(db);
   const access=createAccess(db);
-  function list(kind, search = '') {
+  function list(kind, search = '', options = null) {
     const schema = assertEntity(kind);
-    const term = String(search || '').trim().slice(0, 120);
-    const searchable = schema.fields.filter(f => f.type === 'text').map(f => '"' + f.key + '" LIKE ?');
-    const query = 'SELECT * FROM "' + kind + '" WHERE active=1' +
-      (term && searchable.length ? ' AND (' + searchable.join(' OR ') + ')' : '') +
-      ' ORDER BY name COLLATE NOCASE';
-    return db.prepare(query).all(...(term ? searchable.map(() => '%' + term.replace(/[%_]/g, '') + '%') : []));
+    if(typeof search!=='string'&&search!==undefined&&search!==null)throw new Error('Pesquisa inválida.');
+    const term=String(search||'').trim().slice(0,120);
+    const searchable=schema.fields.filter(f=>f.type==='text')
+      .map(f=>'"'+f.key+'" LIKE ?');
+    const clause=' WHERE active=1'+(term&&searchable.length?' AND ('+searchable.join(' OR ')+')':'');
+    const params=term&&searchable.length?searchable.map(()=>'%'+term.replace(/[%_]/g,'')+'%'):[];
+    // Contrato legado: arrays completos ainda atendem rotinas de impressão e integrações.
+    if(options===null||options===undefined){
+      return db.prepare('SELECT * FROM "'+kind+'"'+clause+' ORDER BY name COLLATE NOCASE,id').all(...params);
+    }
+    if(typeof options!=='object'||Array.isArray(options))throw new Error('Paginação inválida.');
+    const {page=0,pageSize=75,includeImages=true,slim=false}=options;
+    if(slim===true){
+      if(page!==0||pageSize!==75)throw new Error('Paginação inválida para consulta resumida.');
+      const columns=kind==='products'
+        ?'id,name,code,unit,stock_milli,sale_price_cents,cost_price_cents,category_id'
+        :'id,name';
+      return db.prepare('SELECT '+columns+' FROM "'+kind+'"'+clause+' ORDER BY name COLLATE NOCASE,id').all(...params);
+    }
+    if(!Number.isSafeInteger(page)||page<0||page>10000000||
+       !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250||
+       typeof includeImages!=='boolean')
+      throw new Error('Paginação inválida: página ou tamanho fora do intervalo.');
+    const offset=page*pageSize;
+    if(!Number.isSafeInteger(offset))throw new Error('Paginação inválida.');
+    const total=db.prepare('SELECT COUNT(*) AS n FROM "'+kind+'"'+clause).get(...params).n;
+    const columns=kind==='products'&&!includeImages
+      ?'id,active,created_at,updated_at,'+schema.fields.filter(f=>f.key!=='image_data').map(f=>'"'+f.key+'"').join(',')
+      :'*';
+    const rows=db.prepare('SELECT '+columns+' FROM "'+kind+'"'+clause+
+      ' ORDER BY name COLLATE NOCASE,id LIMIT ? OFFSET ?').all(...params,pageSize,offset);
+    return {rows,total,page,pageSize};
   }
   function save(kind, input) {
     const schema = assertEntity(kind);
