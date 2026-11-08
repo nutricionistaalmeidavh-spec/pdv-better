@@ -75,7 +75,8 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     'CREATE INDEX IF NOT EXISTS idx_finance_entries_sale ON financial_entries(sale_id)',
     'CREATE INDEX IF NOT EXISTS idx_sale_items_sale_product ON sale_items(sale_id,product_id)',
     'CREATE INDEX IF NOT EXISTS idx_commercial_purchases_recent ON commercial_purchases(created_at DESC,id DESC)',
-    'CREATE INDEX IF NOT EXISTS idx_commercial_purchase_lines_purchase ON commercial_purchase_lines(purchase_id)'
+    'CREATE INDEX IF NOT EXISTS idx_commercial_purchase_lines_purchase ON commercial_purchase_lines(purchase_id)',
+    'CREATE INDEX IF NOT EXISTS idx_product_batches_expiry ON product_batches(expires_on,remaining_milli,product_id)'
   ].join(';')+';');
   db.exec('PRAGMA optimize');
   const financeP2=createFinanceP2(db);
@@ -207,7 +208,35 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     return { id, archived: true };
   }
   function overview() {
-    return Object.fromEntries(entityOrder.map(kind => [kind, db.prepare('SELECT COUNT(*) AS n FROM "' + kind + '" WHERE active=1').get().n]));
+    const totals=Object.fromEntries(entityOrder.map(kind =>
+      [kind,db.prepare('SELECT COUNT(*) AS n FROM "'+kind+'" WHERE active=1').get().n]));
+    // O painel transfere somente 4 contagens e até 10 lotes em risco.
+    // Fotos e listas completas permanecem no SQLite até serem solicitadas.
+    const today=new Date();
+    const dateKey=date=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),
+      String(date.getDate()).padStart(2,'0')].join('-');
+    const begin=dateKey(today);
+    const end=new Date(today.getFullYear(),today.getMonth(),today.getDate()+30);
+    const finalDate=dateKey(end);
+    const summary=db.prepare(
+      "SELECT"+
+      " SUM(CASE WHEN stock_milli<=0 THEN 1 ELSE 0 END) AS out_of_stock,"+
+      " SUM(CASE WHEN stock_milli>0 AND stock_milli<=CASE WHEN unit='UN' THEN 2000 ELSE 1000 END THEN 1 ELSE 0 END) AS low_stock"+
+      " FROM products WHERE active=1").get();
+    const base=" FROM product_batches b JOIN products p ON p.id=b.product_id"+
+      " WHERE p.active=1 AND b.remaining_milli>0";
+    const expired=db.prepare('SELECT COUNT(*) AS n'+base+' AND b.expires_on<?').get(begin).n;
+    const expiring=db.prepare('SELECT COUNT(*) AS n'+base+
+      ' AND b.expires_on>=? AND b.expires_on<=?').get(begin,finalDate).n;
+    const examples=db.prepare(
+      'SELECT b.id,b.code,b.expires_on,b.remaining_milli,p.name AS product_name'+base+
+      ' AND b.expires_on<=? ORDER BY b.expires_on,b.id LIMIT 10').all(finalDate)
+      .map(item=>({...item,days_until_expiry:
+        Math.floor((Date.parse(item.expires_on+'T12:00:00Z')-
+          Date.parse(begin+'T12:00:00Z'))/86400000)}));
+    return {...totals,stockAlerts:{
+      outOfStock:summary.out_of_stock||0,lowStock:summary.low_stock||0,expired,expiring,examples
+    }};
   }
   const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
   const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
