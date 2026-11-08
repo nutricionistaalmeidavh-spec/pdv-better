@@ -39,7 +39,7 @@ export function SystemSettings(){
     finally{setPending(false);}
   }
   return <div className="system-settings">
-    <div className="page-heading"><div><div className="eyebrow">MARCO C / CONFIGURAÇÃO LOCAL</div><h1>Dispositivos, rede e backups</h1><p>Uma única fonte canônica de vendas, estoque e caixa, mesmo com vários terminais.</p></div><button className="secondary" onClick={()=>void reload()}><RefreshCcw size={16}/> Atualizar</button></div>
+    <div className="page-heading"><div><div className="eyebrow">CONFIGURAÇÕES DO PDV</div><h1>Dispositivos, rede e backups</h1><p>Uma única fonte canônica de vendas, estoque e caixa, mesmo com vários terminais.</p></div><button className="secondary" onClick={()=>void reload()}><RefreshCcw size={16}/> Atualizar</button></div>
     <div className="settings-tabs" role="tablist" aria-label="Configurações do PDV">
       <button role="tab" aria-selected={tab==='network'} onClick={()=>setTab('network')}><Server size={16}/> Rede local</button>
       <button role="tab" aria-selected={tab==='devices'} onClick={()=>setTab('devices')}><Printer size={16}/> Periféricos</button>

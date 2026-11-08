@@ -103,6 +103,9 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [repeatPassword,setRepeatPassword] = useState('');
   const searchInput = useRef<HTMLInputElement>(null);
   const activeSchema = definitions[view];
+  const listFields = activeSchema ? (view === 'products'
+    ? ['name','code','sale_price_cents','stock_milli','category_id'].map(key=>activeSchema.fields.find((field:any)=>field.key===key)).filter(Boolean)
+    : activeSchema.fields.filter((field:any)=>field.type!=='image').slice(0,4)) : [];
   const dialogSchema = definitions[editingEntity || view];
   const bridge = window.pdv;
   async function reloadAll() {
@@ -482,7 +485,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
               <button className="quick" onClick={() => selectView('products')}><span className="quick-icon"><Package size={21}/></span><strong>Gerenciar produtos</strong><span>Preços, estoque inicial e códigos</span><ArrowRight size={17}/></button>
               <button className="quick" onClick={() => selectView('customers')}><span className="quick-icon"><Users size={21}/></span><strong>Clientes</strong><span>Consultar ou incluir um cadastro</span><ArrowRight size={17}/></button>
             </div>
-            <div className="info-bar"><ShieldCheck size={20}/><div><strong>Marco A · Preparação operacional</strong><p>Cadastros, vendas, saldos de estoque e financeiro são registrados no SQLite local. Pix e cartão devem ser confirmados externamente antes da conclusão da venda.</p></div></div>
+            <div className="info-bar"><ShieldCheck size={20}/><div><strong>Operação local · Dados protegidos</strong><p>Cadastros, vendas, saldos de estoque e financeiro são registrados no SQLite local. Pix e cartão devem ser confirmados externamente antes da conclusão da venda.</p></div></div>
           </>}
           {view === 'checkout' && <Cashier
             searchRef={searchInput} search={cartSearch}
@@ -512,16 +515,16 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
           {['cash','sales','inventory','purchases','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
           {view==='settings' && <SystemSettings/>}
           {activeSchema && <>
-            <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div>{view==='products'&&allowed(user.role,'importCatalogCsv')&&<label className="secondary" style={{display:'inline-flex',alignItems:'center',gap:8,padding:12}}>
-                Importar produtos CSV
+            <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div>{view==='products'&&allowed(user.role,'importCatalogCsv')&&<label className="secondary catalog-import-control">
+                <Database size={16} aria-hidden="true"/> Importar produtos CSV
                 <input type="file" accept=".csv,text/csv" aria-label="Importar produtos CSV"
-                  disabled={importingCsv} onChange={ev=>void importProductsCsv(ev)} style={{maxWidth:180}}/>
+                  disabled={importingCsv} onChange={ev=>void importProductsCsv(ev)}/>
               </label>}
               {allowed(user.role,"save",[view])&&<button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button>}</div>
-            <div className="panel data-panel">
+            <div className={"panel data-panel"+(view==='products'?" data-panel-products":"")}>
               <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{filteredRows.length} cadastros</span></div>
-              <div className="table-wrap"><table><thead><tr>{view==='products'&&<th className="photo-column">Foto</th>}{activeSchema.fields.slice(0,4).map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
-              <tbody>{pageRows.map(row => <tr key={row.id}>{view==='products'&&<td className="photo-column">{row.image_data?<img className="product-thumbnail" alt={'Foto de '+row.name} src={row.image_data}/>:<span className="product-thumbnail product-thumbnail-empty" aria-label="Produto sem foto"><Package size={19}/></span>}</td>}{activeSchema.fields.slice(0,4).map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col">{view==='operators'&&<button className="secondary" type="button" onClick={()=>{setPasswordTarget(row);setOperatorPassword('');setRepeatPassword('');}}>Definir senha</button>}{view==='products'&&<button title="Imprimir etiqueta" className="icon-btn" onClick={()=>void bridge?.devicePrint({kind:'label',productId:row.id}).catch(err=>setError(friendlyError(err)))}><Tags size={16}/></button>}{allowed(user.role,"save",[view])&&<button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button>}{allowed(user.role,"archive",[view])&&<button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button>}</td></tr>)}</tbody></table>
+              <div className="table-wrap"><table><thead><tr>{view==='products'&&<th className="photo-column">Foto</th>}{listFields.map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
+              <tbody>{pageRows.map(row => <tr key={row.id}>{view==='products'&&<td className="photo-column">{row.image_data?<img className="product-thumbnail" alt={'Foto de '+row.name} src={row.image_data}/>:<span className="product-thumbnail product-thumbnail-empty" aria-label="Produto sem foto"><Package size={19}/></span>}</td>}{listFields.map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col">{view==='operators'&&<button className="secondary" type="button" onClick={()=>{setPasswordTarget(row);setOperatorPassword('');setRepeatPassword('');}}>Definir senha</button>}{view==='products'&&<button title="Imprimir etiqueta" className="icon-btn" onClick={()=>void bridge?.devicePrint({kind:'label',productId:row.id}).catch(err=>setError(friendlyError(err)))}><Tags size={16}/></button>}{allowed(user.role,"save",[view])&&<button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button>}{allowed(user.role,"archive",[view])&&<button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button>}</td></tr>)}</tbody></table>
                 {!filteredRows.length && <div className="empty-state"><Package size={26}/><strong>{search ? 'Nenhum resultado para a pesquisa' : 'Ainda não há cadastros'}</strong><p>{search ? 'Experimente outro termo.' : 'Use o botão Adicionar para começar.'}</p></div>}
               </div>
               {filteredRows.length > pageSize && <div className="pagination"><span>Página {page+1} de {pageCount} · {filteredRows.length} registros</span><div><button className="secondary" disabled={page===0} onClick={() => setPage(p => Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={page>=pageCount-1} onClick={() => setPage(p => Math.min(pageCount-1,p+1))}>Próxima</button></div></div>}
