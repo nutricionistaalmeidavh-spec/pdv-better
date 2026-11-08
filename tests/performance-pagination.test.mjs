@@ -50,7 +50,7 @@ test('vendas paginadas respeitam terminal de caixa e vendas completas continuam 
  try{
    f.store.openSession({openingCashCents:0});
    for(let i=0;i<38;i++)f.store.checkout({
-     key:'sales-paged-'+i,items:[{id:f.unit.id,quantityMilli:1000}],
+     key:'sales-paged-'+i,items:[{id:stocked.id,quantityMilli:1000}],
      payments:[{method:'pix',amountCents:1250}]
    });
    assert.equal(f.store.listSales().length,38);
