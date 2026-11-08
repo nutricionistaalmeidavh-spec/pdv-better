@@ -19,6 +19,19 @@ function Message({error,success}:{error:string;success:string}){
   return <>{error && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}</div>}{success && <div className="notice success" role="status"><Check size={17}/>{success}</div>}</>;
 }
 
+function QueryPager({page,total,pageSize,label,onChange}:{page:number;total:number;pageSize:number;label:string;onChange:(page:number)=>void}){
+  if(total<=pageSize)return null;
+  return <div className="pagination">
+    <span>Página {page+1} de {Math.ceil(total/pageSize)} · {total.toLocaleString('pt-BR')} {label}</span>
+    <div>
+      <button type="button" className="secondary" disabled={page===0}
+        onClick={()=>onChange(Math.max(0,page-1))}>Anterior</button>
+      <button type="button" className="secondary" disabled={(page+1)*pageSize>=total}
+        onClick={()=>onChange(page+1)}>Próxima</button>
+    </div>
+  </div>;
+}
+
 /* Gráficos derivados exclusivamente do SQLite; datas seguem o relógio/fuso do PC. */
 function ReportCharts({summary}:{summary:R}){
   const daily=Array.isArray(summary.daily_sales)?summary.daily_sales:reportDailySales([]);
@@ -605,7 +618,9 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
             <td><button className="secondary" type="button" disabled={busy} onClick={()=>{if(window.confirm('Desativar este kit promocional?'))void action(()=>api!.bundleArchive(b.id),'Kit desativado.');}}>Desativar</button></td></tr>)}
         </tbody></table></div>
       </div>
-      <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div></div></>}
+      <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div>
+      <QueryPager page={movementPage} total={movementTotal} pageSize={75} label="movimentações" onChange={setMovementPage}/>
+      </div></>}
     {view==='purchases'&&<>
       <div className="panel commerce-section purchase-order-card">
         <h2>Nova compra — etapa 1: revisar itens</h2>
@@ -660,9 +675,11 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
                 void action(()=>api!.purchaseReceive(p.id),'Compra recebida e custo médio atualizado.',true);}}>Conferir e receber</button>}</td>
           </tr>)}
         </tbody></table>{purchases.length===0&&<div className="commerce-empty-state">Nenhuma compra registrada. O recebimento ficará disponível após salvar um pedido.</div>}</div>
+      <QueryPager page={purchasePage} total={purchaseTotal} pageSize={40} label="compras" onChange={setPurchasePage}/>
       </div>
     </>}
-    {view==='finance'&&<FinanceP2Panel entries={finance} onChanged={load}/>}
+    {view==='finance'&&<FinanceP2Panel entries={finance} onChanged={load}
+      pageLabel={'Contas no quadro: página '+(financePage+1)+' de '+Math.max(1,Math.ceil(financeTotal/50))}/>} 
     {view==='finance'&&<><div className="panel commerce-section finance-entry-card"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn,category:financeCategory}), 'Lançamento registrado.');}}>
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
       <label>Descrição<input required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Ex.: aluguel"/></label>
@@ -686,7 +703,9 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
               if(window.confirm('Confirmar baixa de '+money(amountCents)+' via '+methodLabel(paymentMethod)+'?'))
                 void action(()=>api!.financeSettle({id:f.id,method:paymentMethod,amountCents}),'Baixa financeira registrada.');
             }catch(err){setError(errorMessage(err));}
-          }}>Dar baixa</button>}</td></tr>)}</tbody></table>{!finance.length&&<p className="commerce-empty">Nenhum lançamento financeiro.</p>}</div><p className="commerce-warning">Pagamentos não realizados em dinheiro são registrados manualmente. Nenhuma cobrança é executada em gateways externos.</p></div></>}
+          }}>Dar baixa</button>}</td></tr>)}</tbody></table>{!finance.length&&<p className="commerce-empty">Nenhum lançamento financeiro.</p>}</div>
+       <QueryPager page={financePage} total={financeTotal} pageSize={50} label="contas" onChange={setFinancePage}/>
+       <p className="commerce-warning">Pagamentos não realizados em dinheiro são registrados manualmente. Nenhuma cobrança é executada em gateways externos.</p></div></>}
     {view==='reports'&&<>
       <div className="commerce-heading">
         <div><h2>Relatório gerencial acumulado</h2><p>Exporte localmente; nenhum dado é enviado a serviços externos.</p></div>
