@@ -89,3 +89,38 @@ test('as telas cadastrais usam paginação real e relatórios não consultam his
  assert.match(commerce,/reportDailySales/);
  assert.doesNotMatch(commerce,/api\.salesList\(\)/);
 });
+
+
+test('movimentações e finanças consultam somente a página solicitada',()=>{
+ const f=createNexusParityFixture();
+ try{
+   f.store.openSession({openingCashCents:0});
+   for(let i=0;i<5;i++){
+     f.store.createFinance({type:'payable',description:'Conta QA '+i,amountCents:100+i});
+     f.store.checkout({key:'stock-perf-'+i,items:[{id:f.unit.id,quantityMilli:1000}],
+       payments:[{method:'pix',amountCents:1250}]});
+   }
+   const finance=f.store.listFinance({page:0,pageSize:2});
+   const history=f.store.listStockMovements(null,{page:0,pageSize:3});
+   assert.equal(finance.rows.length,2);
+   assert.equal(finance.total,5);
+   assert.equal(history.rows.length,3);
+   assert.ok(history.total>=5);
+   assert.equal(f.store.listFinance().length,5);
+   assert.ok(f.store.listStockMovements().length>=5);
+ }finally{f.cleanup();}
+});
+test('compras retornam lista paginada sem buscar linhas das compras fora da página',()=>{
+ const f=createNexusParityFixture();
+ try{
+   const supplier=f.store.save('suppliers',{name:'Fornecedor de testes'});
+   for(let i=0;i<4;i++)f.store.createPurchase({
+     supplierId:supplier.id,documentRef:'PERF-'+i,
+     lines:[{productId:f.unit.id,quantityMilli:1000,unitCostCents:525}]
+   });
+   const data=f.store.listPurchases({page:0,pageSize:2});
+   assert.equal(data.rows.length,2);
+   assert.equal(data.total,4);
+   assert.equal(f.store.listPurchases().length,4);
+ }finally{f.cleanup();}
+});
