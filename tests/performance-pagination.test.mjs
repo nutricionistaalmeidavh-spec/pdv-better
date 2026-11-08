@@ -49,6 +49,7 @@ test('vendas paginadas respeitam terminal de caixa e vendas completas continuam 
  const f=createNexusParityFixture();
  try{
    f.store.openSession({openingCashCents:0});
+   const stocked=f.store.save('products',{name:'Produto Volume 38',code:'VOLUME-38',unit:'UN',sale_price_cents:'12,50',stock_milli:'100'});
    for(let i=0;i<38;i++)f.store.checkout({
      key:'sales-paged-'+i,items:[{id:stocked.id,quantityMilli:1000}],
      payments:[{method:'pix',amountCents:1250}]
