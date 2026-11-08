@@ -20,6 +20,8 @@ interface PdvBridge {
   salesCancel(id: string): Promise<any>;
   stockMove(input: any): Promise<any>;
   stockHistory(id?: string): Promise<any[]>;
+  stockHistory(id:string|undefined,options:{page:number;pageSize:number}):
+    Promise<{rows:any[];total:number;page:number;pageSize:number}>;
   batchReceive(input: any): Promise<any>;
   batchesList(productId?: string): Promise<any[]>;
   promotionSet(input: any): Promise<any>;
@@ -30,11 +32,15 @@ interface PdvBridge {
   purchaseCreate(input:any):Promise<any>;
   purchaseReceive(id:string):Promise<any>;
   purchaseList():Promise<any[]>;
+  purchaseList(options:{page:number;pageSize:number}):
+    Promise<{rows:any[];total:number;page:number;pageSize:number}>;
   financeSchedule(input:any):Promise<any>;
   financeOverview(input?:any):Promise<any>;
   financeExport(input:{format:'csv'|'xlsx'|'pdf';filters?:any}):Promise<any>;
   financeCreate(input: any): Promise<any>;
   financeList(): Promise<any[]>;
+  financeList(options:{page:number;pageSize:number}):
+    Promise<{rows:any[];total:number;page:number;pageSize:number}>;
   financeSettle(input: any): Promise<any>;
   report(): Promise<any>;
   reportItems(filters?:any): Promise<any>;
