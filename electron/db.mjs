@@ -73,7 +73,9 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     'CREATE INDEX IF NOT EXISTS idx_finance_entries_status_due ON financial_entries(status,due_on,id)',
     'CREATE INDEX IF NOT EXISTS idx_finance_entries_type_status ON financial_entries(type,status)',
     'CREATE INDEX IF NOT EXISTS idx_finance_entries_sale ON financial_entries(sale_id)',
-    'CREATE INDEX IF NOT EXISTS idx_sale_items_sale_product ON sale_items(sale_id,product_id)'
+    'CREATE INDEX IF NOT EXISTS idx_sale_items_sale_product ON sale_items(sale_id,product_id)',
+    'CREATE INDEX IF NOT EXISTS idx_commercial_purchases_recent ON commercial_purchases(created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_commercial_purchase_lines_purchase ON commercial_purchase_lines(purchase_id)'
   ].join(';')+';');
   db.exec('PRAGMA optimize');
   const financeP2=createFinanceP2(db);
@@ -203,7 +205,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   }
   const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
   const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
-  const noArgs=new Set(['getCurrentSession','listOpenSessions','report','overview','listFinance','listPurchases']);
+  const noArgs=new Set(['getCurrentSession','listOpenSessions','report','overview']);
   function secureCall(method,args=[],ctx={}){
     if(typeof method!=='string'||typeof operations[method]!=='function') {
       if(method==='setPassword'){
