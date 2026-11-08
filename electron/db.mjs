@@ -16,6 +16,7 @@ import {createFinanceP2} from './finance-p2.mjs';
 import {createCommercialPurchases} from './commercial-purchases.mjs';
 import {parseCatalogCsv} from '../shared/catalog-import.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
+import {createStoreProfile} from './store-profile.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
 export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}) {
   const timeout=Number.isSafeInteger(busyTimeoutMs)&&busyTimeoutMs>=0&&busyTimeoutMs<=30000?busyTimeoutMs:5000;
@@ -87,6 +88,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   const financeP2=createFinanceP2(db);
   const commercialPurchases=createCommercialPurchases(db);
   const access=createAccess(db);
+  const storeProfile=createStoreProfile(db);
   function list(kind, search = '', options = null) {
     const schema = assertEntity(kind);
     if(typeof search!=='string'&&search!==undefined&&search!==null)throw new Error('Pesquisa inválida.');
@@ -243,9 +245,9 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
       outOfStock:summary.out_of_stock||0,lowStock:summary.low_stock||0,expired,expiring,examples
     }};
   }
-  const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
+  const operations={list,save,archive,overview,...storeProfile,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
   const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
-  const noArgs=new Set(['getCurrentSession','listOpenSessions','report','overview']);
+  const noArgs=new Set(['getCurrentSession','listOpenSessions','report','overview','getStoreProfile']);
   function secureCall(method,args=[],ctx={}){
     if(typeof method!=='string'||typeof operations[method]!=='function') {
       if(method==='setPassword'){

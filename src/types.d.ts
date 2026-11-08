@@ -8,6 +8,8 @@ interface PdvBridge {
   catalogCsvPreview(input:{csv:string}):Promise<{count:number;rows:any[]}>;
   catalogCsvImport(input:{csv:string}):Promise<{imported:number}>;
   overview(): Promise<Record<string, any>>;
+  storeProfileGet():Promise<{name:string;document:string;address:string;updated_at:string|null}>;
+  storeProfileSet(input:{name:string;document:string;address:string}):Promise<{name:string;document:string;address:string;updated_at:string}>;
   sessionCurrent(): Promise<any>;
   sessionOpen(input: any): Promise<any>;
   sessionClose(input: any): Promise<any>;

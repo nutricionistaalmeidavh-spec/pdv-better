@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   catalogCsvPreview: input => ipcRenderer.invoke(apiChannels.catalogCsvPreview,input),
   catalogCsvImport: input => ipcRenderer.invoke(apiChannels.catalogCsvImport,input),
   overview: () => ipcRenderer.invoke(apiChannels.overview),
+  storeProfileGet: () => ipcRenderer.invoke(apiChannels.storeProfileGet),
+  storeProfileSet: input => ipcRenderer.invoke(apiChannels.storeProfileSet,input),
   sessionCurrent: () => ipcRenderer.invoke(apiChannels.sessionCurrent),
   sessionOpen: (input) => ipcRenderer.invoke(apiChannels.sessionOpen, input),
   sessionClose: (input) => ipcRenderer.invoke(apiChannels.sessionClose, input),
