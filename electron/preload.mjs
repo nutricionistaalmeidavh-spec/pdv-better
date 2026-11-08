@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { apiChannels } from '../shared/contract.mjs';
 // Bridge limitada; canais importados do contrato canônico, sem SQL genérico.
 contextBridge.exposeInMainWorld('pdv', Object.freeze({
-  list: (kind, search) => ipcRenderer.invoke(apiChannels.list, kind, search),
+  list: (kind, search, options) => ipcRenderer.invoke(apiChannels.list, kind, search, options),
   save: (kind, input) => ipcRenderer.invoke(apiChannels.save, kind, input),
   archive: (kind, id) => ipcRenderer.invoke(apiChannels.archive, kind, id),
   catalogCsvPreview: input => ipcRenderer.invoke(apiChannels.catalogCsvPreview,input),
@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   cashMove: (input) => ipcRenderer.invoke(apiChannels.cashMove, input),
   checkout: (input) => ipcRenderer.invoke(apiChannels.checkout, input),
   quoteSale: (input) => ipcRenderer.invoke(apiChannels.quoteSale, input),
-  salesList: () => ipcRenderer.invoke(apiChannels.salesList),
+  salesList: options => ipcRenderer.invoke(apiChannels.salesList,options),
   saleGet: (id) => ipcRenderer.invoke(apiChannels.saleGet, id),
   salesCancel: (id) => ipcRenderer.invoke(apiChannels.salesCancel, id),
   stockMove: (input) => ipcRenderer.invoke(apiChannels.stockMove, input),
