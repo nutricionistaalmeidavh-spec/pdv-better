@@ -87,14 +87,20 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     const term=String(search||'').trim().slice(0,120);
     const searchable=schema.fields.filter(f=>f.type==='text')
       .map(f=>'"'+f.key+'" LIKE ?');
-    const clause=' WHERE active=1'+(term&&searchable.length?' AND ('+searchable.join(' OR ')+')':'');
+    let clause=' WHERE active=1'+(term&&searchable.length?' AND ('+searchable.join(' OR ')+')':'');
     const params=term&&searchable.length?searchable.map(()=>'%'+term.replace(/[%_]/g,'')+'%'):[];
     // Contrato legado: arrays completos ainda atendem rotinas de impressão e integrações.
     if(options===null||options===undefined){
       return db.prepare('SELECT * FROM "'+kind+'"'+clause+' ORDER BY name COLLATE NOCASE,id').all(...params);
     }
     if(typeof options!=='object'||Array.isArray(options))throw new Error('Paginação inválida.');
-    const {page=0,pageSize=75,includeImages=true,slim=false}=options;
+    const {page=0,pageSize=75,includeImages=true,slim=false,categoryId=null}=options;
+    if(categoryId!==null&&categoryId!==undefined&&categoryId!=='all'){
+      if(kind!=='products'||typeof categoryId!=='string'||!/^[0-9a-f-]{36}$/i.test(categoryId))
+        throw new Error('Filtro de categoria inválido.');
+      clause+=' AND category_id=?';
+      params.push(categoryId);
+    }
     if(slim===true){
       if(page!==0||pageSize!==75)throw new Error('Paginação inválida para consulta resumida.');
       const columns=kind==='products'
