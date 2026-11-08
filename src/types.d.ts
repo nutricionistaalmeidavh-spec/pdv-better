@@ -1,5 +1,8 @@
 interface PdvBridge {
   list(kind: string, search?: string): Promise<Record<string, any>[]>;
+  list(kind: string, search: string, options: {page:number; pageSize:number; includeImages?:boolean}):
+    Promise<{rows:Record<string,any>[];total:number;page:number;pageSize:number}>;
+  list(kind: string, search: string, options: {slim:true}):Promise<Record<string,any>[]>;
   save(kind: string, record: Record<string, any>): Promise<Record<string, any>>;
   archive(kind: string, id: string): Promise<{id:string; archived:boolean}>;
   catalogCsvPreview(input:{csv:string}):Promise<{count:number;rows:any[]}>;
@@ -12,6 +15,7 @@ interface PdvBridge {
   checkout(input: any): Promise<any>;
   quoteSale(input: any): Promise<any>;
   salesList(): Promise<any[]>;
+  salesList(options:{page:number;pageSize:number}):Promise<{rows:any[];total:number;page:number;pageSize:number}>;
   saleGet(id: string): Promise<any>;
   salesCancel(id: string): Promise<any>;
   stockMove(input: any): Promise<any>;
