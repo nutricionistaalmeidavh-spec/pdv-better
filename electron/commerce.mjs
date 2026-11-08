@@ -494,9 +494,20 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       return row('SELECT * FROM products WHERE id=?',id);
     });
   }
-  function listStockMovements(productId=null){
-    if(productId!==null)return all('SELECT * FROM stock_movements WHERE product_id=? ORDER BY created_at DESC,rowid DESC',assertLabel(productId,'Produto',64));
-    return all('SELECT * FROM stock_movements ORDER BY created_at DESC,rowid DESC');
+  function listStockMovements(productId=null,options=null){
+    const restricted=productId!==null&&productId!==undefined;
+    const clause=restricted?' WHERE product_id=?':'';
+    const params=restricted?[assertLabel(productId,'Produto',64)]:[];
+    if(options===null||options===undefined)
+      return all('SELECT * FROM stock_movements'+clause+' ORDER BY created_at DESC,rowid DESC',...params);
+    const {page=0,pageSize=75}=options;
+    if(!Number.isSafeInteger(page)||page<0||page>10000000||
+       !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
+      throw new Error('Paginação de estoque inválida.');
+    const total=row('SELECT COUNT(*) AS n FROM stock_movements'+clause,...params).n;
+    const rows=all('SELECT * FROM stock_movements'+clause+
+      ' ORDER BY created_at DESC,rowid DESC LIMIT ? OFFSET ?',...params,pageSize,page*pageSize);
+    return {rows,total,page,pageSize};
   }
   function financeWithBalance(entry){
     if(!entry)return null;
@@ -537,8 +548,17 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       return financeWithBalance(row('SELECT * FROM financial_entries WHERE id=?',id));
     });
   }
-  function listFinance(){
-    return all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC').map(financeWithBalance);
+  function listFinance(options=null){
+    if(options===null||options===undefined)
+      return all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC').map(financeWithBalance);
+    const {page=0,pageSize=75}=options;
+    if(!Number.isSafeInteger(page)||page<0||page>10000000||
+       !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
+      throw new Error('Paginação financeira inválida.');
+    const total=row('SELECT COUNT(*) AS n FROM financial_entries').n;
+    const rows=all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?',pageSize,page*pageSize)
+      .map(financeWithBalance);
+    return {rows,total,page,pageSize};
   }
   function reportDailySales({today=localBusinessDate(),days=7}={}){
     const key=strictDate(today,'Data do computador');
