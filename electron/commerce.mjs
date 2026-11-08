@@ -616,7 +616,34 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     const brand=filters?.brand?assertLabel(filters.brand,'Marca',200):null;
     const producer=filters?.producer?assertLabel(filters.producer,'Produtor',200):null;
     const variantGroup=filters?.variantGroup?assertLabel(filters.variantGroup,'Família de variantes',200):null;
-    const sales=all("SELECT s.*,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id ORDER BY s.created_at,s.id");
+    // Empurra os filtros para o SQLite antes de consultar itens e pagamentos.
+    // O intervalo temporal usa os limites locais do PC convertidos a UTC,
+    // permitindo usar o índice de created_at sem cortar registros de outros dias.
+    const predicates=[],bindings=[];
+    if(status!=='all'){predicates.push('s.status=?');bindings.push(status);}
+    if(training==='exclude')predicates.push('s.is_training=0');
+    if(training==='only')predicates.push('s.is_training=1');
+    if(from){
+      const [year,month,day]=from.split('-').map(Number);
+      predicates.push('s.created_at>=?');
+      bindings.push(new Date(year,month-1,day).toISOString());
+    }
+    if(to){
+      const [year,month,day]=to.split('-').map(Number);
+      predicates.push('s.created_at<?');
+      bindings.push(new Date(year,month-1,day+1).toISOString());
+    }
+    if(operatorId){predicates.push('s.operator_id=?');bindings.push(operatorId);}
+    const matchingItem=[];
+    if(productId){matchingItem.push('i.product_id=?');bindings.push(productId);}
+    if(brand){matchingItem.push('i.brand=?');bindings.push(brand);}
+    if(producer){matchingItem.push('i.producer=?');bindings.push(producer);}
+    if(variantGroup){matchingItem.push('i.variant_group=?');bindings.push(variantGroup);}
+    if(matchingItem.length)
+      predicates.push('EXISTS (SELECT 1 FROM sale_items i WHERE i.sale_id=s.id AND '+matchingItem.join(' AND ')+')');
+    const where=predicates.length?' WHERE '+predicates.join(' AND '):'';
+    const sales=all('SELECT s.*,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id'+
+      where+' ORDER BY s.created_at,s.id',...bindings);
     const rows=[];
     for(const s of sales){
       if(status!=='all'&&s.status!==status)continue;
