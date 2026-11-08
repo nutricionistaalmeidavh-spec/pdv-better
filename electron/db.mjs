@@ -65,6 +65,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   }
   db.exec([
     'CREATE INDEX IF NOT EXISTS idx_sales_recent ON sales(created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_cash_sessions_terminal_id ON cash_sessions(terminal_id,id)',
     'CREATE INDEX IF NOT EXISTS idx_sales_active_recent ON sales(status,is_training,created_at DESC,id DESC)',
     'CREATE INDEX IF NOT EXISTS idx_sale_payments_method_sale ON sale_payments(method,sale_id)',
     'CREATE INDEX IF NOT EXISTS idx_cash_movements_session_recent ON cash_movements(session_id,created_at DESC,id DESC)',
@@ -202,7 +203,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   }
   const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
   const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
-  const noArgs=new Set(['getCurrentSession','listSales','listOpenSessions','report','overview','listFinance','listPurchases']);
+  const noArgs=new Set(['getCurrentSession','listOpenSessions','report','overview','listFinance','listPurchases']);
   function secureCall(method,args=[],ctx={}){
     if(typeof method!=='string'||typeof operations[method]!=='function') {
       if(method==='setPassword'){
