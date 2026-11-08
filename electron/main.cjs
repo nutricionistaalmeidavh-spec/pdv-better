@@ -59,7 +59,7 @@ async function start() {
   ipcMain.handle(apiChannels.saleGet, (_event, id) => domain('getSale',id));
   ipcMain.handle(apiChannels.salesCancel, (_event, id) => domain('cancelSale',id));
   ipcMain.handle(apiChannels.stockMove, (_event, input) => domain('moveStock',input));
-  ipcMain.handle(apiChannels.stockHistory, (_event, id) => domain('listStockMovements',id));
+  ipcMain.handle(apiChannels.stockHistory, (_event, id, options) => options ? domain('listStockMovements',id??null,options) : domain('listStockMovements',id));
   ipcMain.handle(apiChannels.batchReceive, (_event, input) => domain('receiveBatch',input));
   ipcMain.handle(apiChannels.batchesList, (_event, id) => domain('listBatches',id));
   ipcMain.handle(apiChannels.promotionSet, (_event, input) => domain('setPromotion',input));
@@ -69,11 +69,11 @@ async function start() {
   ipcMain.handle(apiChannels.bundleArchive, (_event, id) => domain('archiveBundlePromotion',id));
   ipcMain.handle(apiChannels.purchaseCreate,(_event,input)=>domain('createPurchase',input));
   ipcMain.handle(apiChannels.purchaseReceive,(_event,id)=>domain('receivePurchase',id));
-  ipcMain.handle(apiChannels.purchaseList,()=>domain('listPurchases'));
+  ipcMain.handle(apiChannels.purchaseList,(_event,options)=>options ? domain('listPurchases',options) : domain('listPurchases'));
   ipcMain.handle(apiChannels.financeSchedule,(_event,input)=>domain('createFinanceSchedule',input));
   ipcMain.handle(apiChannels.financeOverview,(_event,input)=>domain('financeOverview',input||{}));
   ipcMain.handle(apiChannels.financeCreate, (_event, input) => domain('createFinance',input));
-  ipcMain.handle(apiChannels.financeList, (_event) => domain('listFinance'));
+  ipcMain.handle(apiChannels.financeList, (_event, options) => options ? domain('listFinance',options) : domain('listFinance'));
   ipcMain.handle(apiChannels.financeSettle, (_event, input) => domain('settleFinance',input));
   ipcMain.handle(apiChannels.report, (_event) => domain('report'));
   ipcMain.handle(apiChannels.reportItems, (_event, filters) => domain('reportItems',filters));
