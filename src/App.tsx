@@ -62,6 +62,9 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [records,setRecords] = useState<Record<string, Row[]>>({});
   const [overviewCounts,setOverviewCounts] = useState<Record<string,number>>({});
   const [entityPage,setEntityPage] = useState<{rows:Row[];total:number;page:number;pageSize:number}>({rows:[],total:0,page:0,pageSize:75});
+  const [catalogPage,setCatalogPage]=useState<{rows:Row[];total:number;page:number;pageSize:number}>({rows:[],total:0,page:0,pageSize:35});
+  const [catalogIndex,setCatalogIndex]=useState(0);
+  const [productPhotosCache,setProductPhotosCache]=useState<Record<string,string>>({});
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
@@ -125,7 +128,9 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         setRecords(prev=>({...prev,products}));
       }else if(view==='checkout'){
         const kinds=['products','categories','customers'].filter(kind=>allowed(user.role,'list',[kind]));
-        const entries=await Promise.all(kinds.map(kind=>bridge.list(kind)));
+        const entries=await Promise.all(kinds.map(kind=>kind==='products'
+          ?bridge.list('products','',{slim:true})
+          :bridge.list(kind)));
         setRecords(prev=>({...prev,...Object.fromEntries(kinds.map((kind,i)=>[kind,entries[i]]))}));
       }else if(definitions[view]){
         const references=definitions[view].fields.filter((field:any)=>field.type==='reference')
@@ -149,7 +154,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       const products=await bridge.list('products','',{slim:true});
       setRecords(prev=>({...prev,products}));
     }else if(kind==='products'&&view==='checkout'){
-      const products=await bridge.list('products');
+      const products=await bridge.list('products','',{slim:true});
       setRecords(prev=>({...prev,products}));
     }else if(allowed(user.role,'list',[kind])){
       const current=await bridge.list(kind);
@@ -168,6 +173,27 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     },search?180:0);
     return ()=>{cancelled=true;clearTimeout(timer);};
   },[view,search,page]);
+  useEffect(()=>{
+    if(view!=='checkout'||!bridge)return;
+    let cancelled=false;
+    const timer=setTimeout(()=>{
+      void bridge.list('products',cartSearch,{page:catalogIndex,pageSize:35,
+        includeImages:true,categoryId:categoryFilter==='all'?null:categoryFilter})
+        .then(data=>{
+          if(cancelled)return;
+          setCatalogPage(data);
+          setProductPhotosCache(previous=>{
+            const added=Object.fromEntries(data.rows.filter(row=>row.image_data)
+              .map(row=>[row.id,String(row.image_data)]));
+            const combined={...previous,...added};
+            return Object.fromEntries(Object.entries(combined).slice(-100));
+          });
+        })
+        .catch(error=>{if(!cancelled)setCartError('Catálogo indisponível: '+friendlyError(error));});
+    },cartSearch?140:0);
+    return()=>{cancelled=true;clearTimeout(timer);};
+  },[view,cartSearch,categoryFilter,catalogIndex]);
+  useEffect(()=>{setCatalogIndex(0);},[cartSearch,categoryFilter]);
   useEffect(()=>{
     if(view!=='dashboard'||!bridge)return;
     let alive=true;
@@ -220,11 +246,11 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const pageCount = Math.max(1,Math.ceil(entityPage.total/pageSize));
   const pageRows = entityPage.rows;
   const products:Row[] = records.products || [];
-  const productPhotos=useMemo(()=>Object.fromEntries(products.map(row=>[row.id,String(row.image_data||'')])),[products]);
+  const productPhotos=productPhotosCache;
   const categories:Row[] = records.categories || [];
   const favoriteProducts = favoriteIds.map(id=>products.find(row=>row.id===id)).filter(Boolean) as Row[];
   const undoAvailable=canUndoCashierChange(cart,undoCart);
-  const matchingProducts = useMemo(()=>filterCheckoutProducts(products,categoryFilter,cartSearch),[products,categoryFilter,cartSearch]);
+  const matchingProducts=useMemo(()=>catalogPage.rows,[catalogPage.rows]);
   const todayLocal=(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');})();
   const stockAlerts=deriveStockAlerts(products,stockBatches,todayLocal);
   const total = cartTotalCents(cart);
@@ -533,7 +559,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             onSearchChange={value=>{setCartSearch(value);setCartError('');}}
             onSearchKeyDown={scanKey}
             categories={categories} categoryFilter={categoryFilter} onCategoryFilter={setCategoryFilter}
-            products={matchingProducts} productPhotos={productPhotos} onAddProduct={addProduct}
+            products={matchingProducts} productPhotos={productPhotos} catalogTotal={catalogPage.total} catalogIndex={catalogIndex} onCatalogPageChange={setCatalogIndex} onAddProduct={addProduct}
             onProducts={openNewProductModal} canCreateProduct={allowed(user.role,'save',['products'])} cart={cart} cartError={cartError}
             total={total} sessionOpen={Boolean(session)}
             onRemoveProduct={removeCartItem}
