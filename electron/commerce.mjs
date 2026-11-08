@@ -565,18 +565,17 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     if(!Number.isSafeInteger(days)||days<1||days>366)
       throw new Error('Período do gráfico inválido.');
     const [year,month,day]=key.split('-').map(Number);
-    const end=new Date(year,month-1,day+1);
-    const start=new Date(year,month-1,day-days+1);
-    const data=all("SELECT strftime('%Y-%m-%d',created_at,'localtime') AS day,"+
-      " SUM(total_cents) AS amount FROM sales WHERE status='completed' AND is_training=0"+
-      " AND created_at>=? AND created_at<? GROUP BY day",
-      start.toISOString(),end.toISOString());
-    const amounts=new Map(data.map(x=>[x.day,x.amount]));
+    // Intervalos calculados em horário local do PC. A data UTC é armazenada
+    // inalterada; o índice de vendas resolve cada intervalo sem varrer histórico.
+    const statement=db.prepare(
+      "SELECT COALESCE(SUM(total_cents),0) AS amount FROM sales"+
+      " WHERE status='completed' AND is_training=0 AND created_at>=? AND created_at<?");
     return Array.from({length:days},(_,index)=>{
-      const current=new Date(year,month-1,day-days+1+index,12);
-      const localKey=localBusinessDate(current);
-      return {key:localKey,label:current.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),
-        amount:amounts.get(localKey)||0};
+      const current=new Date(year,month-1,day-days+1+index,0);
+      const end=new Date(year,month-1,day-days+2+index,0);
+      return {key:localBusinessDate(current),
+        label:current.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),
+        amount:statement.get(current.toISOString(),end.toISOString()).amount};
     });
   }
   function report(){
