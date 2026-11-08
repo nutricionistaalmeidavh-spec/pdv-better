@@ -7,7 +7,7 @@ interface PdvBridge {
   archive(kind: string, id: string): Promise<{id:string; archived:boolean}>;
   catalogCsvPreview(input:{csv:string}):Promise<{count:number;rows:any[]}>;
   catalogCsvImport(input:{csv:string}):Promise<{imported:number}>;
-  overview(): Promise<Record<string, number>>;
+  overview(): Promise<Record<string, any>>;
   sessionCurrent(): Promise<any>;
   sessionOpen(input: any): Promise<any>;
   sessionClose(input: any): Promise<any>;
