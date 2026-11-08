@@ -183,8 +183,8 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
           if(cancelled)return;
           setCatalogPage(data);
           setProductPhotosCache(previous=>{
-            const added=Object.fromEntries(data.rows.filter(row=>row.image_data)
-              .map(row=>[row.id,String(row.image_data)]));
+            const added:Record<string,string>=Object.fromEntries(data.rows.filter(row=>row.image_data)
+              .map((row:Row):[string,string]=>[String(row.id),String(row.image_data)]));
             const combined={...previous,...added};
             return Object.fromEntries(Object.entries(combined).slice(-100));
           });
