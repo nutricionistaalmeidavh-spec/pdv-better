@@ -1,6 +1,6 @@
 interface PdvBridge {
   list(kind: string, search?: string): Promise<Record<string, any>[]>;
-  list(kind: string, search: string, options: {page:number; pageSize:number; includeImages?:boolean}):
+  list(kind: string, search: string, options: {page:number; pageSize:number; includeImages?:boolean; categoryId?:string|null}):
     Promise<{rows:Record<string,any>[];total:number;page:number;pageSize:number}>;
   list(kind: string, search: string, options: {slim:true}):Promise<Record<string,any>[]>;
   save(kind: string, record: Record<string, any>): Promise<Record<string, any>>;
