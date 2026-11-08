@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  LayoutDashboard, ShoppingCart, Package, Tags, Users, Truck, UserRoundCog,
+  LayoutDashboard, ShoppingCart, Package, Tags, Users, Truck, UserRoundCog, Building2,
   Search, Plus, Pencil, Archive, X, Check, AlertTriangle, Database, RotateCcw,
   ChevronRight, Minus, Settings, ShieldCheck, ArrowRight, Trash2, Keyboard,
   Wallet, ClipboardList, BarChart3, Boxes, ReceiptText, PackageCheck, GraduationCap
@@ -22,6 +22,7 @@ import { SaleReceipt } from './Receipt';
 import { SystemSettings } from './SystemSettings';
 import {allowed} from '../shared/access.mjs';
 import {GuidedTour} from './GuidedTour';
+import {FirstAccess} from './FirstAccess';
 
 type Row = Record<string, any>;
 type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number;batchId?:string;batchCode?:string};
@@ -55,6 +56,7 @@ function friendlyError(error:any) {
 export function App({user,onLogout}:{user:{id:string;name:string;role:string};onLogout:()=>Promise<void>}) {
   const [view,setView] = useState('dashboard');
   const [tourRequest,setTourRequest] = useState(0);
+  const [setupRequest,setSetupRequest] = useState(0);
   const [initialPaymentMethod,setInitialPaymentMethod] = useState<'cash'|'pix'|'card'>('cash');
   const [initialPaymentFocus,setInitialPaymentFocus] = useState<'customer'|'discount'|undefined>();
 
@@ -490,6 +492,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         </nav>
         <div className="top-actions super-top-actions">
           <span className="status-pill"><span className="status-dot"/> {error && !editing ? 'Verificar banco' : 'Local'}</span>
+          {user.role==='Administrador'&&<button type="button" className="super-tour-help" onClick={()=>{selectView('dashboard');setSetupRequest(old=>old+1);}} title="Preparação do estabelecimento"><Building2 size={16}/><span>Preparar loja</span></button>}
           <button type="button" className="super-tour-help" onClick={()=>setTourRequest(old=>old+1)} title="Rever tour guiado" aria-label="Tour guiado"><GraduationCap size={16}/><span>Tour guiado</span></button>
           <span className="super-user" title="Operador autenticado"><UserRoundCog size={18}/><span>{user.name} · {user.role}</span></span>
           <button className="super-logout" onClick={()=>void onLogout()}>Sair</button>
@@ -501,18 +504,10 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         {loading ? <div className="loading">Carregando dados do estabelecimento…</div> : <>
           {view === 'dashboard' && <>
             <div className="page-heading"><div><div className="eyebrow">INÍCIO</div><h1>Bem-vindo ao PDV SUPER</h1><p>Seu comércio organizado em um único lugar, mesmo sem internet.</p></div><button className="primary" onClick={() => selectView('checkout')}><ShoppingCart size={17}/> Abrir frente de caixa</button></div>
-            {(!(overviewCounts.products||0)||!session)&&<div className="panel glass-panel" aria-label="Primeiros passos">
-              <h2>Primeiros passos</h2>
-              <p>Prepare o catálogo, abra seu caixa com o valor real de troco e faça a primeira venda.</p>
-              <div className="quick-grid">
-                <button className="secondary" type="button" onClick={()=>{selectView('products');setForm(newForm('products'));setEditing({});}}>
-                  {overviewCounts.products?'Produto cadastrado — adicionar outro':'1. Cadastrar primeiro produto'}
-                </button>
-                <button className="secondary" type="button" onClick={()=>selectView('cash')}>{session?'Caixa já aberto':'2. Abrir caixa e informar troco'}</button>
-                <button className="primary" type="button" onClick={()=>selectView('checkout')}>3. Iniciar venda</button>
-              </div>
-            </div>}
-            <div className="stat-grid">
+            {user.role==='Administrador'&&<FirstAccess userId={user.id} databaseReady={Number.isInteger(overviewCounts.products)&&!error}
+              productsCount={overviewCounts.products||0} cashOpen={Boolean(session)} startSignal={setupRequest}
+              onNavigate={selectView} onStartTour={()=>setTourRequest(old=>old+1)}/>}
+                        <div className="stat-grid">
               {entityOrder.slice(0,4).filter(kind=>canVisit(kind)).map((kind:string) => {
                 const Icon = icons[kind];
                 return <button className="stat" onClick={() => selectView(kind)} key={kind}><div className="stat-top"><span>{definitions[kind].label}</span><Icon size={20}/></div><strong>{overviewCounts[kind]||0}</strong><span className="stat-bottom">Cadastros ativos <ArrowRight size={14}/></span></button>;
