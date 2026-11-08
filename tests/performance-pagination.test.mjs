@@ -124,3 +124,20 @@ test('compras retornam lista paginada sem buscar linhas das compras fora da pág
    assert.equal(f.store.listPurchases().length,4);
  }finally{f.cleanup();}
 });
+
+
+test('dashboard consulta alertas agregados sem transferir catálogo e lotes completos',()=>{
+ const f=createNexusParityFixture();
+ try{
+   const summary=f.store.overview();
+   assert.equal(summary.products,2);
+   assert.ok(summary.stockAlerts);
+   assert.equal(summary.stockAlerts.outOfStock,0);
+   assert.equal(summary.stockAlerts.lowStock,0);
+   assert.ok(Array.isArray(summary.stockAlerts.examples));
+   assert.ok(summary.stockAlerts.examples.length<=10);
+   const app=source('src/App.tsx');
+   assert.doesNotMatch(app,/bridge\.batchesList\(\)\.then\(rows/);
+   assert.doesNotMatch(app,/view==='dashboard'\)[^{]*\{[^}]*bridge\.list\('products'/);
+ }finally{f.cleanup();}
+});
