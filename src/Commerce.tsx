@@ -307,10 +307,16 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [products,setProducts]=useState<R[]>([]);
   const [categories,setCategories]=useState<R[]>([]);
   const [movements,setMovements]=useState<R[]>([]);
+  const [movementPage,setMovementPage]=useState(0);
+  const [movementTotal,setMovementTotal]=useState(0);
   const [finance,setFinance]=useState<R[]>([]);
+  const [financePage,setFinancePage]=useState(0);
+  const [financeTotal,setFinanceTotal]=useState(0);
   const [settleAmounts,setSettleAmounts]=useState<Record<string,string>>({});
   const [suppliers,setSuppliers]=useState<R[]>([]);
   const [purchases,setPurchases]=useState<R[]>([]);
+  const [purchasePage,setPurchasePage]=useState(0);
+  const [purchaseTotal,setPurchaseTotal]=useState(0);
   const [purchaseSupplier,setPurchaseSupplier]=useState('');
   const [purchaseProduct,setPurchaseProduct]=useState('');
   const [purchaseQty,setPurchaseQty]=useState('1');
@@ -379,8 +385,8 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         ['cash','sales','finance'].includes(view)?api.sessionCurrent():Promise.resolve(null),
         view==='sales'?api.salesList({page:salesPage,pageSize:75}):Promise.resolve(null),
         wantsProducts?api.list('products','',{slim:true}):Promise.resolve([]),
-        view==='inventory'&&manager?api.stockHistory():Promise.resolve([]),
-        view==='finance'&&manager?api.financeList():Promise.resolve([]),
+        view==='inventory'&&manager?api.stockHistory(undefined,{page:movementPage,pageSize:75}):Promise.resolve(null),
+        view==='finance'&&manager?api.financeList({page:financePage,pageSize:50}):Promise.resolve(null),
         view==='reports'&&manager?api.report():Promise.resolve({}),
         view==='cash'&&manager?api.sessionsList():Promise.resolve([]),
         view==='inventory'&&manager?api.batchesList():Promise.resolve([]),
@@ -388,16 +394,17 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         view==='inventory'&&manager?api.bundleList():Promise.resolve([]),
         view==='cash'?api.authStatus():Promise.resolve({operators:[]}),
         view==='purchases'&&manager?api.list('suppliers'):Promise.resolve([]),
-        view==='purchases'&&manager?api.purchaseList():Promise.resolve([]),
+        view==='purchases'&&manager?api.purchaseList({page:purchasePage,pageSize:40}):Promise.resolve(null),
         view==='inventory'&&manager?api.list('categories'):Promise.resolve([]),
         view==='inventory'&&manager
           ?api.list('products','',{page:inventoryPage,pageSize:50,includeImages:true}):Promise.resolve(null)
       ]);
       setSession(s);
       setSales(sl?.rows||[]);setSalesTotal(sl?.total||0);
-      setProducts(pr);setMovements(m);setFinance(fin);setSummary(r);setOtherSessions(other);
+      setProducts(pr);setMovements(m?.rows||[]);setMovementTotal(m?.total||0);
+      setFinance(fin?.rows||[]);setFinanceTotal(fin?.total||0);setSummary(r);setOtherSessions(other);
       setBatches(lots);setPromotions(priceRules);setBundles(groupRules);setError('');
-      setSuppliers(sp);setPurchases(purchasesNow);setCategories(cats);
+      setSuppliers(sp);setPurchases(purchasesNow?.rows||[]);setPurchaseTotal(purchasesNow?.total||0);setCategories(cats);
       setInventoryRows(inventoryData?.rows||[]);setInventoryTotal(inventoryData?.total||0);
       setSettleAmounts({});
       const managers=(who.operators||[]).filter((x:R)=>x.role==='Administrador'||x.role==='Gerente');
@@ -405,7 +412,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       setManagerSelection(current=>current||managers[0]?.id||'');
     }catch(err){setError(errorMessage(err));}
   }
-  useEffect(()=>{setSuccess('');void load();},[view,salesPage,inventoryPage]);
+  useEffect(()=>{setSuccess('');void load();},[view,salesPage,inventoryPage,movementPage,financePage,purchasePage]);
   async function action(fn:()=>Promise<any>,message:string,updateProducts=false) {
     if(busy)return;
     setBusy(true);setError('');setSuccess('');
@@ -598,7 +605,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
             <td><button className="secondary" type="button" disabled={busy} onClick={()=>{if(window.confirm('Desativar este kit promocional?'))void action(()=>api!.bundleArchive(b.id),'Kit desativado.');}}>Desativar</button></td></tr>)}
         </tbody></table></div>
       </div>
-      <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.slice(0,300).map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div></div></>}
+      <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div></div></>}
     {view==='purchases'&&<>
       <div className="panel commerce-section purchase-order-card">
         <h2>Nova compra — etapa 1: revisar itens</h2>
