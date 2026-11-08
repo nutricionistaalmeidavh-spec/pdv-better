@@ -10,7 +10,6 @@ import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '..
 import { filterCheckoutProducts } from '../shared/catalog.mjs';
 import { resolveBatchScan,parseBatchLabel } from '../shared/batch-label.mjs';
 import {applyManualWeight} from '../shared/manual-weight.mjs';
-import {deriveStockAlerts} from '../shared/stock-alerts.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
 import { Cashier } from './Cashier';
 import {encodeProductImage} from './product-image';
@@ -76,7 +75,10 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [saving,setSaving] = useState(false);
   const [photoBusy,setPhotoBusy] = useState(false);
   const [importingCsv,setImportingCsv] = useState(false);
-  const [stockBatches,setStockBatches]=useState<Row[]>([]);
+  const [stockAlertsSummary,setStockAlertsSummary]=useState<{
+    outOfStock:number;lowStock:number;expired:number;expiring:number;
+    examples:Array<{id:string;product_name:string;code:string;days_until_expiry:number;remaining_milli:number}>
+  }>({outOfStock:0,lowStock:0,expired:0,expiring:0,examples:[]});
   const [stockAlertsLoaded,setStockAlertsLoaded]=useState(false);
   const [stockAlertsError,setStockAlertsError]=useState('');
   const [cart,setCart] = useState<CartItem[]>(() => {
@@ -122,11 +124,8 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       // Uma consulta COUNT(*) por entidade: nunca transferir tabelas completas no login.
       const counts=await bridge.overview();
       setOverviewCounts(counts);
-      if(view==='dashboard'){
-        // Só colunas de inventário para alertas. Fotos são carregadas no caixa.
-        const products=await bridge.list('products','',{slim:true});
-        setRecords(prev=>({...prev,products}));
-      }else if(view==='checkout'){
+      if(counts.stockAlerts){setStockAlertsSummary(counts.stockAlerts);setStockAlertsLoaded(true);}
+      if(view==='checkout'){
         const kinds=['products','categories','customers'].filter(kind=>allowed(user.role,'list',[kind]));
         const entries=await Promise.all(kinds.map(kind=>kind==='products'
           ?bridge.list('products','',{slim:true})
@@ -150,9 +149,6 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     if(kind===view&&definitions[view]){
       const result=await bridge.list(view,search,{page,pageSize:75,includeImages:view==='products'});
       setEntityPage(result);
-    }else if(kind==='products'&&view==='dashboard'){
-      const products=await bridge.list('products','',{slim:true});
-      setRecords(prev=>({...prev,products}));
     }else if(kind==='products'&&view==='checkout'){
       const products=await bridge.list('products','',{slim:true});
       setRecords(prev=>({...prev,products}));
@@ -160,7 +156,9 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       const current=await bridge.list(kind);
       setRecords(prev=>({...prev,[kind]:current}));
     }
-    setOverviewCounts(await bridge.overview());
+    const updated=await bridge.overview();
+    setOverviewCounts(updated);
+    if(updated.stockAlerts){setStockAlertsSummary(updated.stockAlerts);setStockAlertsLoaded(true);}
   }
   useEffect(()=>{void reloadAll();},[view]);
   useEffect(()=>{
@@ -194,14 +192,6 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     return()=>{cancelled=true;clearTimeout(timer);};
   },[view,cartSearch,categoryFilter,catalogIndex]);
   useEffect(()=>{setCatalogIndex(0);},[cartSearch,categoryFilter]);
-  useEffect(()=>{
-    if(view!=='dashboard'||!bridge)return;
-    let alive=true;
-    setStockAlertsLoaded(false);setStockAlertsError('');
-    void bridge.batchesList().then(rows=>{if(alive){setStockBatches(rows);setStockAlertsLoaded(true);}})
-      .catch(error=>{if(alive)setStockAlertsError(friendlyError(error));});
-    return ()=>{alive=false;};
-  },[view]);
   useEffect(()=>{
     try{if(cart.length)localStorage.setItem('pdv-better:draft-v1:'+user.id,JSON.stringify(cart));else localStorage.removeItem('pdv-better:draft-v1:'+user.id);}
     catch{/* A ausência de armazenamento temporário não impede uma venda */ }
@@ -251,8 +241,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const favoriteProducts = favoriteIds.map(id=>products.find(row=>row.id===id)).filter(Boolean) as Row[];
   const undoAvailable=canUndoCashierChange(cart,undoCart);
   const matchingProducts=useMemo(()=>catalogPage.rows,[catalogPage.rows]);
-  const todayLocal=(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');})();
-  const stockAlerts=deriveStockAlerts(products,stockBatches,todayLocal);
+  const stockAlerts=stockAlertsSummary;
   const total = cartTotalCents(cart);
   function openPayment(method?:'cash'|'pix'|'card',focus?:'customer'|'discount'){
     if(!session||!cart.length)return;
@@ -512,12 +501,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         {loading ? <div className="loading">Carregando dados do estabelecimento…</div> : <>
           {view === 'dashboard' && <>
             <div className="page-heading"><div><div className="eyebrow">INÍCIO</div><h1>Bem-vindo ao PDV SUPER</h1><p>Seu comércio organizado em um único lugar, mesmo sem internet.</p></div><button className="primary" onClick={() => selectView('checkout')}><ShoppingCart size={17}/> Abrir frente de caixa</button></div>
-            {(!products.length||!session)&&<div className="panel glass-panel" aria-label="Primeiros passos">
+            {(!(overviewCounts.products||0)||!session)&&<div className="panel glass-panel" aria-label="Primeiros passos">
               <h2>Primeiros passos</h2>
               <p>Prepare o catálogo, abra seu caixa com o valor real de troco e faça a primeira venda.</p>
               <div className="quick-grid">
                 <button className="secondary" type="button" onClick={()=>{selectView('products');setForm(newForm('products'));setEditing({});}}>
-                  {products.length?'Produto cadastrado — adicionar outro':'1. Cadastrar primeiro produto'}
+                  {overviewCounts.products?'Produto cadastrado — adicionar outro':'1. Cadastrar primeiro produto'}
                 </button>
                 <button className="secondary" type="button" onClick={()=>selectView('cash')}>{session?'Caixa já aberto':'2. Abrir caixa e informar troco'}</button>
                 <button className="primary" type="button" onClick={()=>selectView('checkout')}>3. Iniciar venda</button>
@@ -534,12 +523,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
                {stockAlertsError&&<p role="alert">Falha ao consultar lotes: {stockAlertsError}. Os alertas de validade podem estar incompletos.</p>}
                {!stockAlertsLoaded&&!stockAlertsError&&<p>Consultando lotes locais…</p>}
                {stockAlertsLoaded&&<div className="stat-grid">
-                 <div className="stat"><span>Sem estoque</span><strong>{stockAlerts.outOfStock.length}</strong></div>
-                 <div className="stat"><span>Estoque baixo</span><strong>{stockAlerts.lowStock.length}</strong></div>
-                 <div className="stat"><span>Lotes vencidos</span><strong>{stockAlerts.expired.length}</strong></div>
-                 <div className="stat"><span>Vencem em até 30 dias</span><strong>{stockAlerts.expiring.length}</strong></div>
+                 <div className="stat"><span>Sem estoque</span><strong>{stockAlerts.outOfStock}</strong></div>
+                 <div className="stat"><span>Estoque baixo</span><strong>{stockAlerts.lowStock}</strong></div>
+                 <div className="stat"><span>Lotes vencidos</span><strong>{stockAlerts.expired}</strong></div>
+                 <div className="stat"><span>Vencem em até 30 dias</span><strong>{stockAlerts.expiring}</strong></div>
                </div>}
-               {stockAlertsLoaded&&[...stockAlerts.expired,...stockAlerts.expiring].slice(0,10).map(batch=>
+               {stockAlertsLoaded&&stockAlerts.examples.map(batch=>
                  <p key={batch.id}><strong>{batch.product_name}</strong> · Lote {batch.code||batch.id.slice(0,8)} ·
                    {batch.days_until_expiry<0?' Vencido há '+Math.abs(batch.days_until_expiry)+' dias':' Vence em '+batch.days_until_expiry+' dias'} ·
                    Saldo rastreado {batch.remaining_milli/1000}
