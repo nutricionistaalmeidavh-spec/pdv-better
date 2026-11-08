@@ -60,6 +60,8 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [initialPaymentFocus,setInitialPaymentFocus] = useState<'customer'|'discount'|undefined>();
 
   const [records,setRecords] = useState<Record<string, Row[]>>({});
+  const [overviewCounts,setOverviewCounts] = useState<Record<string,number>>({});
+  const [entityPage,setEntityPage] = useState<{rows:Row[];total:number;page:number;pageSize:number}>({rows:[],total:0,page:0,pageSize:75});
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
@@ -109,21 +111,63 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const dialogSchema = definitions[editingEntity || view];
   const bridge = window.pdv;
   async function reloadAll() {
-    if (!bridge) { setError('O banco local está disponível somente no aplicativo Electron. Abra pelo instalador ou npm run dev.'); setLoading(false); return; }
-    try {
-      const accessible = entityOrder.filter(kind=>allowed(user.role,'list',[kind]));
-      const data = await Promise.all(accessible.map((kind:string) => bridge.list(kind)));
-      setRecords(Object.fromEntries(accessible.map((kind:string,i:number) => [kind,data[i]])));
+    if(!bridge){
+      setError('O banco local está disponível somente no aplicativo Electron. Abra pelo instalador ou npm run dev.');
+      setLoading(false);return;
+    }
+    try{
+      // Uma consulta COUNT(*) por entidade: nunca transferir tabelas completas no login.
+      const counts=await bridge.overview();
+      setOverviewCounts(counts);
+      if(view==='dashboard'){
+        // Só colunas de inventário para alertas. Fotos são carregadas no caixa.
+        const products=await bridge.list('products','',{slim:true});
+        setRecords(prev=>({...prev,products}));
+      }else if(view==='checkout'){
+        const kinds=['products','categories','customers'].filter(kind=>allowed(user.role,'list',[kind]));
+        const entries=await Promise.all(kinds.map(kind=>bridge.list(kind)));
+        setRecords(prev=>({...prev,...Object.fromEntries(kinds.map((kind,i)=>[kind,entries[i]]))}));
+      }else if(definitions[view]){
+        const references=definitions[view].fields.filter((field:any)=>field.type==='reference')
+          .map((field:any)=>field.entity).filter((kind:string)=>kind!==view&&allowed(user.role,'list',[kind]));
+        const unique=[...new Set(references)] as string[];
+        if(unique.length){
+          const entries=await Promise.all(unique.map(kind=>bridge.list(kind)));
+          setRecords(prev=>({...prev,...Object.fromEntries(unique.map((kind,i)=>[kind,entries[i]]))}));
+        }
+      }
       setError('');
-    } catch (err) { setError('Não foi possível carregar o banco: ' + friendlyError(err)); }
-    finally { setLoading(false); }
+    }catch(err){setError('Não foi possível consultar o banco: '+friendlyError(err));}
+    finally{setLoading(false);}
   }
   async function reload(kind:string) {
-    if (!bridge) return;
-    const current = await bridge.list(kind);
-    setRecords(prev => ({...prev,[kind]:current}));
+    if(!bridge)return;
+    if(kind===view&&definitions[view]){
+      const result=await bridge.list(view,search,{page,pageSize:75,includeImages:view==='products'});
+      setEntityPage(result);
+    }else if(kind==='products'&&view==='dashboard'){
+      const products=await bridge.list('products','',{slim:true});
+      setRecords(prev=>({...prev,products}));
+    }else if(kind==='products'&&view==='checkout'){
+      const products=await bridge.list('products');
+      setRecords(prev=>({...prev,products}));
+    }else if(allowed(user.role,'list',[kind])){
+      const current=await bridge.list(kind);
+      setRecords(prev=>({...prev,[kind]:current}));
+    }
+    setOverviewCounts(await bridge.overview());
   }
-  useEffect(() => { void reloadAll(); }, []);
+  useEffect(()=>{void reloadAll();},[view]);
+  useEffect(()=>{
+    if(!definitions[view]||!bridge)return;
+    let cancelled=false;
+    const timer=setTimeout(()=>{
+      void bridge.list(view,search,{page,pageSize:75,includeImages:view==='products'})
+        .then(data=>{if(!cancelled)setEntityPage(data);})
+        .catch(error=>{if(!cancelled)setError('Não foi possível consultar os cadastros: '+friendlyError(error));});
+    },search?180:0);
+    return ()=>{cancelled=true;clearTimeout(timer);};
+  },[view,search,page]);
   useEffect(()=>{
     if(view!=='dashboard'||!bridge)return;
     let alive=true;
@@ -171,13 +215,10 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     window.addEventListener('keydown',onKey);
     return () => window.removeEventListener('keydown',onKey);
   }, [editing,view,session,cart,heldSales,undoCart,records,paymentOpen,receipt,passwordTarget]);
-  const rows:Row[] = records[view] || [];
-  const filteredRows = useMemo(() => rows.filter(row =>
-    !search || Object.entries(row).some(([key,value]) => key!=='image_data' && String(value??'').toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
-  ),[rows,search]);
+  const filteredRows = entityPage.rows;
   const pageSize = 75;
-  const pageCount = Math.max(1,Math.ceil(filteredRows.length/pageSize));
-  const pageRows = filteredRows.slice(page*pageSize,(page+1)*pageSize);
+  const pageCount = Math.max(1,Math.ceil(entityPage.total/pageSize));
+  const pageRows = entityPage.rows;
   const products:Row[] = records.products || [];
   const productPhotos=useMemo(()=>Object.fromEntries(products.map(row=>[row.id,String(row.image_data||'')])),[products]);
   const categories:Row[] = records.categories || [];
@@ -459,7 +500,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             <div className="stat-grid">
               {entityOrder.slice(0,4).filter(kind=>canVisit(kind)).map((kind:string) => {
                 const Icon = icons[kind];
-                return <button className="stat" onClick={() => selectView(kind)} key={kind}><div className="stat-top"><span>{definitions[kind].label}</span><Icon size={20}/></div><strong>{(records[kind] || []).length}</strong><span className="stat-bottom">Cadastros ativos <ArrowRight size={14}/></span></button>;
+                return <button className="stat" onClick={() => selectView(kind)} key={kind}><div className="stat-top"><span>{definitions[kind].label}</span><Icon size={20}/></div><strong>{overviewCounts[kind]||0}</strong><span className="stat-bottom">Cadastros ativos <ArrowRight size={14}/></span></button>;
               })}
             </div>
             <div className="panel glass-panel" aria-label="Alertas de estoque e validade">
@@ -522,12 +563,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
               </label>}
               {allowed(user.role,"save",[view])&&<button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button>}</div>
             <div className={"panel data-panel"+(view==='products'?" data-panel-products":"")}>
-              <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{filteredRows.length} cadastros</span></div>
+              <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{entityPage.total} cadastros</span></div>
               <div className="table-wrap"><table><thead><tr>{view==='products'&&<th className="photo-column">Foto</th>}{listFields.map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
               <tbody>{pageRows.map(row => <tr key={row.id}>{view==='products'&&<td className="photo-column">{row.image_data?<img className="product-thumbnail" alt={'Foto de '+row.name} src={row.image_data}/>:<span className="product-thumbnail product-thumbnail-empty" aria-label="Produto sem foto"><Package size={19}/></span>}</td>}{listFields.map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col">{view==='operators'&&<button className="secondary" type="button" onClick={()=>{setPasswordTarget(row);setOperatorPassword('');setRepeatPassword('');}}>Definir senha</button>}{view==='products'&&<button title="Imprimir etiqueta" className="icon-btn" onClick={()=>void bridge?.devicePrint({kind:'label',productId:row.id}).catch(err=>setError(friendlyError(err)))}><Tags size={16}/></button>}{allowed(user.role,"save",[view])&&<button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button>}{allowed(user.role,"archive",[view])&&<button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button>}</td></tr>)}</tbody></table>
                 {!filteredRows.length && <div className="empty-state"><Package size={26}/><strong>{search ? 'Nenhum resultado para a pesquisa' : 'Ainda não há cadastros'}</strong><p>{search ? 'Experimente outro termo.' : 'Use o botão Adicionar para começar.'}</p></div>}
               </div>
-              {filteredRows.length > pageSize && <div className="pagination"><span>Página {page+1} de {pageCount} · {filteredRows.length} registros</span><div><button className="secondary" disabled={page===0} onClick={() => setPage(p => Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={page>=pageCount-1} onClick={() => setPage(p => Math.min(pageCount-1,p+1))}>Próxima</button></div></div>}
+              {entityPage.total > pageSize && <div className="pagination"><span>Página {page+1} de {pageCount} · {entityPage.total} registros</span><div><button className="secondary" disabled={page===0} onClick={() => setPage(p => Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={page>=pageCount-1} onClick={() => setPage(p => Math.min(pageCount-1,p+1))}>Próxima</button></div></div>}
             </div>
             {view === 'operators' && <div className="info-bar"><AlertTriangle size={19}/><p>Os perfis controlam o acesso a vendas, estoque e gestão. Defina uma senha para cada operador recém-criado.</p></div>}
           </>}
