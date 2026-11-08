@@ -454,9 +454,27 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       return getSale(id);
     });
   }
-  function listSales(ctx){
-    if(ctx?.role==='Caixa')return all("SELECT s.* FROM sales s JOIN cash_sessions c ON c.id=s.session_id WHERE c.terminal_id=? ORDER BY s.created_at DESC,s.id DESC",terminal(ctx));
-    return all('SELECT * FROM sales ORDER BY created_at DESC,id DESC');
+  function listSales(optionsOrCtx={},optionalCtx=null){
+    // Sem opções, mantém o contrato histórico (array completo) para compatibilidade.
+    const paged=optionsOrCtx!==null&&typeof optionsOrCtx==='object'&&
+      ('page' in optionsOrCtx||'pageSize' in optionsOrCtx);
+    const ctx=optionalCtx||(!paged?optionsOrCtx:{});
+    const restricted=ctx?.role==='Caixa';
+    const from=restricted
+      ?' FROM sales s JOIN cash_sessions c ON c.id=s.session_id WHERE c.terminal_id=?'
+      :' FROM sales s';
+    const params=restricted?[terminal(ctx)]:[];
+    if(!paged){
+      return all('SELECT s.*'+from+' ORDER BY s.created_at DESC,s.id DESC',...params);
+    }
+    const {page=0,pageSize=75}=optionsOrCtx;
+    if(!Number.isSafeInteger(page)||page<0||page>10000000||
+       !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
+      throw new Error('Paginação de vendas inválida.');
+    const total=row('SELECT COUNT(*) AS n'+from,...params).n;
+    const rows=all('SELECT s.id,s.session_id,s.customer_id,s.total_cents,s.status,s.is_training,s.created_at'+
+      from+' ORDER BY s.created_at DESC,s.id DESC LIMIT ? OFFSET ?',...params,pageSize,page*pageSize);
+    return {rows,total,page,pageSize};
   }
   function listOpenSessions(){
     return all("SELECT s.id,s.terminal_id,s.operator_id,o.name AS operator_name,s.opened_at,s.opening_cash_cents FROM cash_sessions s LEFT JOIN operators o ON o.id=s.operator_id WHERE s.status='open' ORDER BY s.opened_at")
@@ -476,9 +494,20 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       return row('SELECT * FROM products WHERE id=?',id);
     });
   }
-  function listStockMovements(productId=null){
-    if(productId!==null)return all('SELECT * FROM stock_movements WHERE product_id=? ORDER BY created_at DESC,rowid DESC',assertLabel(productId,'Produto',64));
-    return all('SELECT * FROM stock_movements ORDER BY created_at DESC,rowid DESC');
+  function listStockMovements(productId=null,options=null){
+    const restricted=productId!==null&&productId!==undefined;
+    const clause=restricted?' WHERE product_id=?':'';
+    const params=restricted?[assertLabel(productId,'Produto',64)]:[];
+    if(options===null||options===undefined)
+      return all('SELECT * FROM stock_movements'+clause+' ORDER BY created_at DESC,rowid DESC',...params);
+    const {page=0,pageSize=75}=options;
+    if(!Number.isSafeInteger(page)||page<0||page>10000000||
+       !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
+      throw new Error('Paginação de estoque inválida.');
+    const total=row('SELECT COUNT(*) AS n FROM stock_movements'+clause,...params).n;
+    const rows=all('SELECT * FROM stock_movements'+clause+
+      ' ORDER BY created_at DESC,rowid DESC LIMIT ? OFFSET ?',...params,pageSize,page*pageSize);
+    return {rows,total,page,pageSize};
   }
   function financeWithBalance(entry){
     if(!entry)return null;
@@ -519,23 +548,57 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       return financeWithBalance(row('SELECT * FROM financial_entries WHERE id=?',id));
     });
   }
-  function listFinance(){
-    return all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC').map(financeWithBalance);
+  function listFinance(options=null){
+    if(options===null||options===undefined)
+      return all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC').map(financeWithBalance);
+    const {page=0,pageSize=75}=options;
+    if(!Number.isSafeInteger(page)||page<0||page>10000000||
+       !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
+      throw new Error('Paginação financeira inválida.');
+    const total=row('SELECT COUNT(*) AS n FROM financial_entries').n;
+    const rows=all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?',pageSize,page*pageSize)
+      .map(financeWithBalance);
+    return {rows,total,page,pageSize};
   }
-    function report(){
+  function reportDailySales({today=localBusinessDate(),days=7}={}){
+    const key=strictDate(today,'Data do computador');
+    if(!Number.isSafeInteger(days)||days<1||days>366)
+      throw new Error('Período do gráfico inválido.');
+    const [year,month,day]=key.split('-').map(Number);
+    // Intervalos calculados em horário local do PC. A data UTC é armazenada
+    // inalterada; o índice de vendas resolve cada intervalo sem varrer histórico.
+    const statement=db.prepare(
+      "SELECT COALESCE(SUM(total_cents),0) AS amount FROM sales"+
+      " WHERE status='completed' AND is_training=0 AND created_at>=? AND created_at<?");
+    return Array.from({length:days},(_,index)=>{
+      const current=new Date(year,month-1,day-days+1+index,0);
+      const end=new Date(year,month-1,day-days+2+index,0);
+      return {key:localBusinessDate(current),
+        label:current.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),
+        amount:statement.get(current.toISOString(),end.toISOString()).amount};
+    });
+  }
+  function report(){
     const totals=row("SELECT COUNT(*) AS sales_count, COALESCE(SUM(total_cents),0) AS sales_total_cents, COALESCE(SUM(discount_cents),0) AS discounts_cents FROM sales WHERE status='completed' AND is_training=0");
     const payments=all("SELECT p.method,SUM(p.amount_cents) AS total FROM sale_payments p JOIN sales s ON s.id=p.sale_id WHERE s.status='completed' AND s.is_training=0 GROUP BY p.method");
     const amounts=Object.fromEntries(methodIds.map(id=>[id+'_cents',payments.find(p=>p.method===id)?.total||0]));
-    const finance=listFinance().filter(x=>x.status!=='cancelled');
+    // Agrega lançamentos financeiros direto no SQL, sem carregar todas as baixas.
+    const financial=all("SELECT f.type,"+
+      " SUM(f.amount_cents-COALESCE(p.paid,0)) AS open_cents,"+
+      " SUM(COALESCE(p.paid,0)) AS paid_cents FROM financial_entries f"+
+      " LEFT JOIN (SELECT entry_id,SUM(amount_cents) AS paid FROM finance_settlements GROUP BY entry_id) p ON p.entry_id=f.id"+
+      " WHERE f.status<>'cancelled' GROUP BY f.type");
     for(const type of ['payable','receivable']){
-      const entries=finance.filter(x=>x.type===type);
-      amounts[type+'s_open_cents']=entries.reduce((sum,x)=>sum+x.remaining_cents,0);
-      amounts[type+'s_paid_cents']=entries.reduce((sum,x)=>sum+x.paid_cents,0);
+      const group=financial.find(x=>x.type===type);
+      amounts[type+'s_open_cents']=group?.open_cents||0;
+      amounts[type+'s_paid_cents']=group?.paid_cents||0;
     }
-    const products=all('SELECT id,name,stock_milli,cost_price_cents FROM products WHERE active=1');
-    return {...totals,...amounts,
-      inventory_value_cents:products.reduce((sum,p)=>sum+Math.round(p.stock_milli*p.cost_price_cents/1000),0),
-      product_count:products.length,low_stock_count:products.filter(p=>p.stock_milli<=0).length,
+    const stock=row('SELECT COUNT(*) AS product_count,'+
+      ' COALESCE(SUM(CASE WHEN stock_milli<=0 THEN 1 ELSE 0 END),0) AS low_stock_count,'+
+      ' COALESCE(SUM(CAST((stock_milli*cost_price_cents+500)/1000 AS INTEGER)),0) AS inventory_value_cents'+
+      ' FROM products WHERE active=1');
+    return {...totals,...amounts,...stock,
+      daily_sales:reportDailySales(),
       cancelled_count:row("SELECT COUNT(*) AS n FROM sales WHERE status='cancelled' AND is_training=0").n
     };
   }
@@ -553,7 +616,34 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     const brand=filters?.brand?assertLabel(filters.brand,'Marca',200):null;
     const producer=filters?.producer?assertLabel(filters.producer,'Produtor',200):null;
     const variantGroup=filters?.variantGroup?assertLabel(filters.variantGroup,'Família de variantes',200):null;
-    const sales=all("SELECT s.*,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id ORDER BY s.created_at,s.id");
+    // Empurra os filtros para o SQLite antes de consultar itens e pagamentos.
+    // O intervalo temporal usa os limites locais do PC convertidos a UTC,
+    // permitindo usar o índice de created_at sem cortar registros de outros dias.
+    const predicates=[],bindings=[];
+    if(status!=='all'){predicates.push('s.status=?');bindings.push(status);}
+    if(training==='exclude')predicates.push('s.is_training=0');
+    if(training==='only')predicates.push('s.is_training=1');
+    if(from){
+      const [year,month,day]=from.split('-').map(Number);
+      predicates.push('s.created_at>=?');
+      bindings.push(new Date(year,month-1,day).toISOString());
+    }
+    if(to){
+      const [year,month,day]=to.split('-').map(Number);
+      predicates.push('s.created_at<?');
+      bindings.push(new Date(year,month-1,day+1).toISOString());
+    }
+    if(operatorId){predicates.push('s.operator_id=?');bindings.push(operatorId);}
+    const matchingItem=[];
+    if(productId){matchingItem.push('i.product_id=?');bindings.push(productId);}
+    if(brand){matchingItem.push('i.brand=?');bindings.push(brand);}
+    if(producer){matchingItem.push('i.producer=?');bindings.push(producer);}
+    if(variantGroup){matchingItem.push('i.variant_group=?');bindings.push(variantGroup);}
+    if(matchingItem.length)
+      predicates.push('EXISTS (SELECT 1 FROM sale_items i WHERE i.sale_id=s.id AND '+matchingItem.join(' AND ')+')');
+    const where=predicates.length?' WHERE '+predicates.join(' AND '):'';
+    const sales=all('SELECT s.*,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id'+
+      where+' ORDER BY s.created_at,s.id',...bindings);
     const rows=[];
     for(const s of sales){
       if(status!=='all'&&s.status!==status)continue;
@@ -613,6 +703,6 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     openSession,getCurrentSession,closeSession,moveCash,checkout,getSale,cancelSale,listSales,listOpenSessions,
     moveStock,listStockMovements,receiveBatch,listBatches,setPromotion,listPromotions,
     setBundlePromotion,listBundlePromotions,archiveBundlePromotion,quoteSale,reportItems,compareReportPeriods,
-    createFinance,settleFinance,listFinance,report,recordInitialStock
+    createFinance,settleFinance,listFinance,report,reportDailySales,recordInitialStock
   };
 }

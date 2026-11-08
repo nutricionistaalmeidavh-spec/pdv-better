@@ -15,8 +15,17 @@ export function createCommercialPurchases(db){
   if(!purchase)throw new Error('Compra não encontrada.');
   return {...purchase,lines:all('SELECT * FROM commercial_purchase_lines WHERE purchase_id=? ORDER BY rowid',id)};
  }
- function listPurchases(){
-  return all('SELECT id FROM commercial_purchases ORDER BY created_at DESC,rowid DESC').map(x=>details(x.id));
+ function listPurchases(options=null){
+  if(options===null||options===undefined)
+    return all('SELECT id FROM commercial_purchases ORDER BY created_at DESC,rowid DESC').map(x=>details(x.id));
+  const {page=0,pageSize=75}=options;
+  if(!Number.isSafeInteger(page)||page<0||page>10000000||
+     !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
+    throw new Error('Paginação de compras inválida.');
+  const total=get('SELECT COUNT(*) AS n FROM commercial_purchases').n;
+  const rows=all('SELECT id FROM commercial_purchases ORDER BY created_at DESC,rowid DESC LIMIT ? OFFSET ?',
+    pageSize,page*pageSize).map(x=>details(x.id));
+  return {rows,total,page,pageSize};
  }
  function createPurchase(input,ctx={}){
   return atomic(db,()=>{

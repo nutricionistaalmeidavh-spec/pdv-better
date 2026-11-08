@@ -1379,3 +1379,16 @@ select option {color:var(--super-text);background:white}
   outline:3px solid #52a7ff;outline-offset:2px;
 }
 .shell.super-shell .catalog-import-control:has(input:disabled) {opacity:.65;cursor:wait}
+
+
+/* Paginação real: a lista apenas exibe o resultado da consulta LIMIT/OFFSET no SQLite. */
+.shell.super-shell .cashier-catalog-pagination{
+  display:flex;align-items:center;justify-content:flex-end;gap:9px;
+  padding:6px 3px 12px;color:#42638a;font-size:11px;
+}
+.shell.super-shell .cashier-catalog-pagination button{
+  font-size:11px;padding:6px 11px;min-height:32px;
+}
+.shell.super-shell .cashier-catalog-pagination span{
+  min-width:94px;text-align:center;font-variant-numeric:tabular-nums;
+}

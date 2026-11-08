@@ -1,10 +1,13 @@
 interface PdvBridge {
   list(kind: string, search?: string): Promise<Record<string, any>[]>;
+  list(kind: string, search: string, options: {page:number; pageSize:number; includeImages?:boolean; categoryId?:string|null}):
+    Promise<{rows:Record<string,any>[];total:number;page:number;pageSize:number}>;
+  list(kind: string, search: string, options: {slim:true}):Promise<Record<string,any>[]>;
   save(kind: string, record: Record<string, any>): Promise<Record<string, any>>;
   archive(kind: string, id: string): Promise<{id:string; archived:boolean}>;
   catalogCsvPreview(input:{csv:string}):Promise<{count:number;rows:any[]}>;
   catalogCsvImport(input:{csv:string}):Promise<{imported:number}>;
-  overview(): Promise<Record<string, number>>;
+  overview(): Promise<Record<string, any>>;
   sessionCurrent(): Promise<any>;
   sessionOpen(input: any): Promise<any>;
   sessionClose(input: any): Promise<any>;
@@ -12,10 +15,13 @@ interface PdvBridge {
   checkout(input: any): Promise<any>;
   quoteSale(input: any): Promise<any>;
   salesList(): Promise<any[]>;
+  salesList(options:{page:number;pageSize:number}):Promise<{rows:any[];total:number;page:number;pageSize:number}>;
   saleGet(id: string): Promise<any>;
   salesCancel(id: string): Promise<any>;
   stockMove(input: any): Promise<any>;
   stockHistory(id?: string): Promise<any[]>;
+  stockHistory(id:string|undefined,options:{page:number;pageSize:number}):
+    Promise<{rows:any[];total:number;page:number;pageSize:number}>;
   batchReceive(input: any): Promise<any>;
   batchesList(productId?: string): Promise<any[]>;
   promotionSet(input: any): Promise<any>;
@@ -26,11 +32,15 @@ interface PdvBridge {
   purchaseCreate(input:any):Promise<any>;
   purchaseReceive(id:string):Promise<any>;
   purchaseList():Promise<any[]>;
+  purchaseList(options:{page:number;pageSize:number}):
+    Promise<{rows:any[];total:number;page:number;pageSize:number}>;
   financeSchedule(input:any):Promise<any>;
   financeOverview(input?:any):Promise<any>;
   financeExport(input:{format:'csv'|'xlsx'|'pdf';filters?:any}):Promise<any>;
   financeCreate(input: any): Promise<any>;
   financeList(): Promise<any[]>;
+  financeList(options:{page:number;pageSize:number}):
+    Promise<{rows:any[];total:number;page:number;pageSize:number}>;
   financeSettle(input: any): Promise<any>;
   report(): Promise<any>;
   reportItems(filters?:any): Promise<any>;

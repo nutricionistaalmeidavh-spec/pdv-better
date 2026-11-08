@@ -10,7 +10,6 @@ import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '..
 import { filterCheckoutProducts } from '../shared/catalog.mjs';
 import { resolveBatchScan,parseBatchLabel } from '../shared/batch-label.mjs';
 import {applyManualWeight} from '../shared/manual-weight.mjs';
-import {deriveStockAlerts} from '../shared/stock-alerts.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
 import { Cashier } from './Cashier';
 import {encodeProductImage} from './product-image';
@@ -60,6 +59,11 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [initialPaymentFocus,setInitialPaymentFocus] = useState<'customer'|'discount'|undefined>();
 
   const [records,setRecords] = useState<Record<string, Row[]>>({});
+  const [overviewCounts,setOverviewCounts] = useState<Record<string,number>>({});
+  const [entityPage,setEntityPage] = useState<{rows:Row[];total:number;page:number;pageSize:number}>({rows:[],total:0,page:0,pageSize:75});
+  const [catalogPage,setCatalogPage]=useState<{rows:Row[];total:number;page:number;pageSize:number}>({rows:[],total:0,page:0,pageSize:35});
+  const [catalogIndex,setCatalogIndex]=useState(0);
+  const [productPhotosCache,setProductPhotosCache]=useState<Record<string,string>>({});
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
@@ -71,7 +75,10 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [saving,setSaving] = useState(false);
   const [photoBusy,setPhotoBusy] = useState(false);
   const [importingCsv,setImportingCsv] = useState(false);
-  const [stockBatches,setStockBatches]=useState<Row[]>([]);
+  const [stockAlertsSummary,setStockAlertsSummary]=useState<{
+    outOfStock:number;lowStock:number;expired:number;expiring:number;
+    examples:Array<{id:string;product_name:string;code:string;days_until_expiry:number;remaining_milli:number}>
+  }>({outOfStock:0,lowStock:0,expired:0,expiring:0,examples:[]});
   const [stockAlertsLoaded,setStockAlertsLoaded]=useState(false);
   const [stockAlertsError,setStockAlertsError]=useState('');
   const [cart,setCart] = useState<CartItem[]>(() => {
@@ -109,29 +116,82 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const dialogSchema = definitions[editingEntity || view];
   const bridge = window.pdv;
   async function reloadAll() {
-    if (!bridge) { setError('O banco local está disponível somente no aplicativo Electron. Abra pelo instalador ou npm run dev.'); setLoading(false); return; }
-    try {
-      const accessible = entityOrder.filter(kind=>allowed(user.role,'list',[kind]));
-      const data = await Promise.all(accessible.map((kind:string) => bridge.list(kind)));
-      setRecords(Object.fromEntries(accessible.map((kind:string,i:number) => [kind,data[i]])));
+    if(!bridge){
+      setError('O banco local está disponível somente no aplicativo Electron. Abra pelo instalador ou npm run dev.');
+      setLoading(false);return;
+    }
+    try{
+      // Uma consulta COUNT(*) por entidade: nunca transferir tabelas completas no login.
+      const counts=await bridge.overview();
+      setOverviewCounts(counts);
+      if(counts.stockAlerts){setStockAlertsSummary(counts.stockAlerts);setStockAlertsLoaded(true);}
+      if(view==='checkout'){
+        const kinds=['products','categories','customers'].filter(kind=>allowed(user.role,'list',[kind]));
+        const entries=await Promise.all(kinds.map(kind=>kind==='products'
+          ?bridge.list('products','',{slim:true})
+          :bridge.list(kind)));
+        setRecords(prev=>({...prev,...Object.fromEntries(kinds.map((kind,i)=>[kind,entries[i]]))}));
+      }else if(definitions[view]){
+        const references=definitions[view].fields.filter((field:any)=>field.type==='reference')
+          .map((field:any)=>field.entity).filter((kind:string)=>kind!==view&&allowed(user.role,'list',[kind]));
+        const unique=[...new Set(references)] as string[];
+        if(unique.length){
+          const entries=await Promise.all(unique.map(kind=>bridge.list(kind)));
+          setRecords(prev=>({...prev,...Object.fromEntries(unique.map((kind,i)=>[kind,entries[i]]))}));
+        }
+      }
       setError('');
-    } catch (err) { setError('Não foi possível carregar o banco: ' + friendlyError(err)); }
-    finally { setLoading(false); }
+    }catch(err){setError('Não foi possível consultar o banco: '+friendlyError(err));}
+    finally{setLoading(false);}
   }
   async function reload(kind:string) {
-    if (!bridge) return;
-    const current = await bridge.list(kind);
-    setRecords(prev => ({...prev,[kind]:current}));
+    if(!bridge)return;
+    if(kind===view&&definitions[view]){
+      const result=await bridge.list(view,search,{page,pageSize:75,includeImages:view==='products'});
+      setEntityPage(result);
+    }else if(kind==='products'&&view==='checkout'){
+      const products=await bridge.list('products','',{slim:true});
+      setRecords(prev=>({...prev,products}));
+    }else if(allowed(user.role,'list',[kind])){
+      const current=await bridge.list(kind);
+      setRecords(prev=>({...prev,[kind]:current}));
+    }
+    const updated=await bridge.overview();
+    setOverviewCounts(updated);
+    if(updated.stockAlerts){setStockAlertsSummary(updated.stockAlerts);setStockAlertsLoaded(true);}
   }
-  useEffect(() => { void reloadAll(); }, []);
+  useEffect(()=>{void reloadAll();},[view]);
   useEffect(()=>{
-    if(view!=='dashboard'||!bridge)return;
-    let alive=true;
-    setStockAlertsLoaded(false);setStockAlertsError('');
-    void bridge.batchesList().then(rows=>{if(alive){setStockBatches(rows);setStockAlertsLoaded(true);}})
-      .catch(error=>{if(alive)setStockAlertsError(friendlyError(error));});
-    return ()=>{alive=false;};
-  },[view]);
+    if(!definitions[view]||!bridge)return;
+    let cancelled=false;
+    const timer=setTimeout(()=>{
+      void bridge.list(view,search,{page,pageSize:75,includeImages:view==='products'})
+        .then(data=>{if(!cancelled)setEntityPage(data);})
+        .catch(error=>{if(!cancelled)setError('Não foi possível consultar os cadastros: '+friendlyError(error));});
+    },search?180:0);
+    return ()=>{cancelled=true;clearTimeout(timer);};
+  },[view,search,page]);
+  useEffect(()=>{
+    if(view!=='checkout'||!bridge)return;
+    let cancelled=false;
+    const timer=setTimeout(()=>{
+      void bridge.list('products',cartSearch,{page:catalogIndex,pageSize:35,
+        includeImages:true,categoryId:categoryFilter==='all'?null:categoryFilter})
+        .then(data=>{
+          if(cancelled)return;
+          setCatalogPage(data);
+          setProductPhotosCache(previous=>{
+            const added:Record<string,string>=Object.fromEntries(data.rows.filter(row=>row.image_data)
+              .map((row:Row):[string,string]=>[String(row.id),String(row.image_data)]));
+            const combined={...previous,...added};
+            return Object.fromEntries(Object.entries(combined).slice(-100));
+          });
+        })
+        .catch(error=>{if(!cancelled)setCartError('Catálogo indisponível: '+friendlyError(error));});
+    },cartSearch?140:0);
+    return()=>{cancelled=true;clearTimeout(timer);};
+  },[view,cartSearch,categoryFilter,catalogIndex]);
+  useEffect(()=>{setCatalogIndex(0);},[cartSearch,categoryFilter]);
   useEffect(()=>{
     try{if(cart.length)localStorage.setItem('pdv-better:draft-v1:'+user.id,JSON.stringify(cart));else localStorage.removeItem('pdv-better:draft-v1:'+user.id);}
     catch{/* A ausência de armazenamento temporário não impede uma venda */ }
@@ -171,21 +231,17 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     window.addEventListener('keydown',onKey);
     return () => window.removeEventListener('keydown',onKey);
   }, [editing,view,session,cart,heldSales,undoCart,records,paymentOpen,receipt,passwordTarget]);
-  const rows:Row[] = records[view] || [];
-  const filteredRows = useMemo(() => rows.filter(row =>
-    !search || Object.entries(row).some(([key,value]) => key!=='image_data' && String(value??'').toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
-  ),[rows,search]);
+  const filteredRows = entityPage.rows;
   const pageSize = 75;
-  const pageCount = Math.max(1,Math.ceil(filteredRows.length/pageSize));
-  const pageRows = filteredRows.slice(page*pageSize,(page+1)*pageSize);
+  const pageCount = Math.max(1,Math.ceil(entityPage.total/pageSize));
+  const pageRows = entityPage.rows;
   const products:Row[] = records.products || [];
-  const productPhotos=useMemo(()=>Object.fromEntries(products.map(row=>[row.id,String(row.image_data||'')])),[products]);
+  const productPhotos=productPhotosCache;
   const categories:Row[] = records.categories || [];
   const favoriteProducts = favoriteIds.map(id=>products.find(row=>row.id===id)).filter(Boolean) as Row[];
   const undoAvailable=canUndoCashierChange(cart,undoCart);
-  const matchingProducts = useMemo(()=>filterCheckoutProducts(products,categoryFilter,cartSearch),[products,categoryFilter,cartSearch]);
-  const todayLocal=(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');})();
-  const stockAlerts=deriveStockAlerts(products,stockBatches,todayLocal);
+  const matchingProducts=useMemo(()=>catalogPage.rows,[catalogPage.rows]);
+  const stockAlerts=stockAlertsSummary;
   const total = cartTotalCents(cart);
   function openPayment(method?:'cash'|'pix'|'card',focus?:'customer'|'discount'){
     if(!session||!cart.length)return;
@@ -445,12 +501,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         {loading ? <div className="loading">Carregando dados do estabelecimento…</div> : <>
           {view === 'dashboard' && <>
             <div className="page-heading"><div><div className="eyebrow">INÍCIO</div><h1>Bem-vindo ao PDV SUPER</h1><p>Seu comércio organizado em um único lugar, mesmo sem internet.</p></div><button className="primary" onClick={() => selectView('checkout')}><ShoppingCart size={17}/> Abrir frente de caixa</button></div>
-            {(!products.length||!session)&&<div className="panel glass-panel" aria-label="Primeiros passos">
+            {(!(overviewCounts.products||0)||!session)&&<div className="panel glass-panel" aria-label="Primeiros passos">
               <h2>Primeiros passos</h2>
               <p>Prepare o catálogo, abra seu caixa com o valor real de troco e faça a primeira venda.</p>
               <div className="quick-grid">
                 <button className="secondary" type="button" onClick={()=>{selectView('products');setForm(newForm('products'));setEditing({});}}>
-                  {products.length?'Produto cadastrado — adicionar outro':'1. Cadastrar primeiro produto'}
+                  {overviewCounts.products?'Produto cadastrado — adicionar outro':'1. Cadastrar primeiro produto'}
                 </button>
                 <button className="secondary" type="button" onClick={()=>selectView('cash')}>{session?'Caixa já aberto':'2. Abrir caixa e informar troco'}</button>
                 <button className="primary" type="button" onClick={()=>selectView('checkout')}>3. Iniciar venda</button>
@@ -459,7 +515,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             <div className="stat-grid">
               {entityOrder.slice(0,4).filter(kind=>canVisit(kind)).map((kind:string) => {
                 const Icon = icons[kind];
-                return <button className="stat" onClick={() => selectView(kind)} key={kind}><div className="stat-top"><span>{definitions[kind].label}</span><Icon size={20}/></div><strong>{(records[kind] || []).length}</strong><span className="stat-bottom">Cadastros ativos <ArrowRight size={14}/></span></button>;
+                return <button className="stat" onClick={() => selectView(kind)} key={kind}><div className="stat-top"><span>{definitions[kind].label}</span><Icon size={20}/></div><strong>{overviewCounts[kind]||0}</strong><span className="stat-bottom">Cadastros ativos <ArrowRight size={14}/></span></button>;
               })}
             </div>
             <div className="panel glass-panel" aria-label="Alertas de estoque e validade">
@@ -467,12 +523,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
                {stockAlertsError&&<p role="alert">Falha ao consultar lotes: {stockAlertsError}. Os alertas de validade podem estar incompletos.</p>}
                {!stockAlertsLoaded&&!stockAlertsError&&<p>Consultando lotes locais…</p>}
                {stockAlertsLoaded&&<div className="stat-grid">
-                 <div className="stat"><span>Sem estoque</span><strong>{stockAlerts.outOfStock.length}</strong></div>
-                 <div className="stat"><span>Estoque baixo</span><strong>{stockAlerts.lowStock.length}</strong></div>
-                 <div className="stat"><span>Lotes vencidos</span><strong>{stockAlerts.expired.length}</strong></div>
-                 <div className="stat"><span>Vencem em até 30 dias</span><strong>{stockAlerts.expiring.length}</strong></div>
+                 <div className="stat"><span>Sem estoque</span><strong>{stockAlerts.outOfStock}</strong></div>
+                 <div className="stat"><span>Estoque baixo</span><strong>{stockAlerts.lowStock}</strong></div>
+                 <div className="stat"><span>Lotes vencidos</span><strong>{stockAlerts.expired}</strong></div>
+                 <div className="stat"><span>Vencem em até 30 dias</span><strong>{stockAlerts.expiring}</strong></div>
                </div>}
-               {stockAlertsLoaded&&[...stockAlerts.expired,...stockAlerts.expiring].slice(0,10).map(batch=>
+               {stockAlertsLoaded&&stockAlerts.examples.map(batch=>
                  <p key={batch.id}><strong>{batch.product_name}</strong> · Lote {batch.code||batch.id.slice(0,8)} ·
                    {batch.days_until_expiry<0?' Vencido há '+Math.abs(batch.days_until_expiry)+' dias':' Vence em '+batch.days_until_expiry+' dias'} ·
                    Saldo rastreado {batch.remaining_milli/1000}
@@ -492,7 +548,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             onSearchChange={value=>{setCartSearch(value);setCartError('');}}
             onSearchKeyDown={scanKey}
             categories={categories} categoryFilter={categoryFilter} onCategoryFilter={setCategoryFilter}
-            products={matchingProducts} productPhotos={productPhotos} onAddProduct={addProduct}
+            products={matchingProducts} productPhotos={productPhotos} catalogTotal={catalogPage.total} catalogIndex={catalogIndex} onCatalogPageChange={setCatalogIndex} onAddProduct={addProduct}
             onProducts={openNewProductModal} canCreateProduct={allowed(user.role,'save',['products'])} cart={cart} cartError={cartError}
             total={total} sessionOpen={Boolean(session)}
             onRemoveProduct={removeCartItem}
@@ -522,12 +578,12 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
               </label>}
               {allowed(user.role,"save",[view])&&<button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button>}</div>
             <div className={"panel data-panel"+(view==='products'?" data-panel-products":"")}>
-              <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{filteredRows.length} cadastros</span></div>
+              <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{entityPage.total} cadastros</span></div>
               <div className="table-wrap"><table><thead><tr>{view==='products'&&<th className="photo-column">Foto</th>}{listFields.map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
               <tbody>{pageRows.map(row => <tr key={row.id}>{view==='products'&&<td className="photo-column">{row.image_data?<img className="product-thumbnail" alt={'Foto de '+row.name} src={row.image_data}/>:<span className="product-thumbnail product-thumbnail-empty" aria-label="Produto sem foto"><Package size={19}/></span>}</td>}{listFields.map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col">{view==='operators'&&<button className="secondary" type="button" onClick={()=>{setPasswordTarget(row);setOperatorPassword('');setRepeatPassword('');}}>Definir senha</button>}{view==='products'&&<button title="Imprimir etiqueta" className="icon-btn" onClick={()=>void bridge?.devicePrint({kind:'label',productId:row.id}).catch(err=>setError(friendlyError(err)))}><Tags size={16}/></button>}{allowed(user.role,"save",[view])&&<button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button>}{allowed(user.role,"archive",[view])&&<button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button>}</td></tr>)}</tbody></table>
                 {!filteredRows.length && <div className="empty-state"><Package size={26}/><strong>{search ? 'Nenhum resultado para a pesquisa' : 'Ainda não há cadastros'}</strong><p>{search ? 'Experimente outro termo.' : 'Use o botão Adicionar para começar.'}</p></div>}
               </div>
-              {filteredRows.length > pageSize && <div className="pagination"><span>Página {page+1} de {pageCount} · {filteredRows.length} registros</span><div><button className="secondary" disabled={page===0} onClick={() => setPage(p => Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={page>=pageCount-1} onClick={() => setPage(p => Math.min(pageCount-1,p+1))}>Próxima</button></div></div>}
+              {entityPage.total > pageSize && <div className="pagination"><span>Página {page+1} de {pageCount} · {entityPage.total} registros</span><div><button className="secondary" disabled={page===0} onClick={() => setPage(p => Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={page>=pageCount-1} onClick={() => setPage(p => Math.min(pageCount-1,p+1))}>Próxima</button></div></div>}
             </div>
             {view === 'operators' && <div className="info-bar"><AlertTriangle size={19}/><p>Os perfis controlam o acesso a vendas, estoque e gestão. Defina uma senha para cada operador recém-criado.</p></div>}
           </>}

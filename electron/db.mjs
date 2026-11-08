@@ -25,6 +25,9 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   db = new DatabaseSync(filename);
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = '+timeout);
+  // Cache por conexão, sem alterar o nível de durabilidade do journal.
+  db.exec('PRAGMA cache_size = -16384');
+  db.exec('PRAGMA temp_store = MEMORY');
   if (filename !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
   const check=db.prepare('PRAGMA quick_check').get();
   if(!check||check.quick_check!=='ok')throw new Error('Integridade do SQLite inválida: falha no quick_check.');
@@ -54,17 +57,76 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   migratePhase10(db);
   migratePhase11(db);
   migratePhase12(db);
+  // Índices incrementais e idempotentes: nenhum dado antigo é reescrito.
+  // Criados depois de todas as migrações, também em instalações pré-existentes.
+  const existingTables=new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(t=>t.name));
+  for(const kind of entityOrder){
+    if(existingTables.has(kind))db.exec('CREATE INDEX IF NOT EXISTS "idx_'+kind+'_active_name" ON "'+kind+
+      '"(name COLLATE NOCASE,id) WHERE active=1');
+  }
+  const indexStatements=[
+    'CREATE INDEX IF NOT EXISTS idx_sales_recent ON sales(created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_cash_sessions_terminal_id ON cash_sessions(terminal_id,id)',
+    'CREATE INDEX IF NOT EXISTS idx_sales_active_recent ON sales(status,is_training,created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_payments_method_sale ON sale_payments(method,sale_id)',
+    'CREATE INDEX IF NOT EXISTS idx_cash_movements_session_recent ON cash_movements(session_id,created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_stock_movements_product_recent ON stock_movements(product_id,created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_entries_status_due ON financial_entries(status,due_on,id)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_entries_type_status ON financial_entries(type,status)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_entries_sale ON financial_entries(sale_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_items_sale_product ON sale_items(sale_id,product_id)',
+    'CREATE INDEX IF NOT EXISTS idx_commercial_purchases_recent ON commercial_purchases(created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_commercial_purchase_lines_purchase ON commercial_purchase_lines(purchase_id)',
+    'CREATE INDEX IF NOT EXISTS idx_product_batches_expiry ON product_batches(expires_on,remaining_milli,product_id)'
+  ];
+  for(const sql of indexStatements){
+    const table=sql.match(/ON ([a-z_]+)\(/i)?.[1];
+    if(table&&existingTables.has(table))db.exec(sql+';');
+  }
+  db.exec('PRAGMA optimize');
   const financeP2=createFinanceP2(db);
   const commercialPurchases=createCommercialPurchases(db);
   const access=createAccess(db);
-  function list(kind, search = '') {
+  function list(kind, search = '', options = null) {
     const schema = assertEntity(kind);
-    const term = String(search || '').trim().slice(0, 120);
-    const searchable = schema.fields.filter(f => f.type === 'text').map(f => '"' + f.key + '" LIKE ?');
-    const query = 'SELECT * FROM "' + kind + '" WHERE active=1' +
-      (term && searchable.length ? ' AND (' + searchable.join(' OR ') + ')' : '') +
-      ' ORDER BY name COLLATE NOCASE';
-    return db.prepare(query).all(...(term ? searchable.map(() => '%' + term.replace(/[%_]/g, '') + '%') : []));
+    if(typeof search!=='string'&&search!==undefined&&search!==null)throw new Error('Pesquisa inválida.');
+    const term=String(search||'').trim().slice(0,120);
+    const searchable=schema.fields.filter(f=>f.type==='text')
+      .map(f=>'"'+f.key+'" LIKE ?');
+    let clause=' WHERE active=1'+(term&&searchable.length?' AND ('+searchable.join(' OR ')+')':'');
+    const params=term&&searchable.length?searchable.map(()=>'%'+term.replace(/[%_]/g,'')+'%'):[];
+    // Contrato legado: arrays completos ainda atendem rotinas de impressão e integrações.
+    if(options===null||options===undefined){
+      return db.prepare('SELECT * FROM "'+kind+'"'+clause+' ORDER BY name COLLATE NOCASE,id').all(...params);
+    }
+    if(typeof options!=='object'||Array.isArray(options))throw new Error('Paginação inválida.');
+    const {page=0,pageSize=75,includeImages=true,slim=false,categoryId=null}=options;
+    if(categoryId!==null&&categoryId!==undefined&&categoryId!=='all'){
+      if(kind!=='products'||typeof categoryId!=='string'||!/^[0-9a-f-]{36}$/i.test(categoryId))
+        throw new Error('Filtro de categoria inválido.');
+      clause+=' AND category_id=?';
+      params.push(categoryId);
+    }
+    if(slim===true){
+      if(page!==0||pageSize!==75)throw new Error('Paginação inválida para consulta resumida.');
+      const columns=kind==='products'
+        ?'id,name,code,unit,stock_milli,sale_price_cents,cost_price_cents,category_id'
+        :'id,name';
+      return db.prepare('SELECT '+columns+' FROM "'+kind+'"'+clause+' ORDER BY name COLLATE NOCASE,id').all(...params);
+    }
+    if(!Number.isSafeInteger(page)||page<0||page>10000000||
+       !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250||
+       typeof includeImages!=='boolean')
+      throw new Error('Paginação inválida: página ou tamanho fora do intervalo.');
+    const offset=page*pageSize;
+    if(!Number.isSafeInteger(offset))throw new Error('Paginação inválida.');
+    const total=db.prepare('SELECT COUNT(*) AS n FROM "'+kind+'"'+clause).get(...params).n;
+    const columns=kind==='products'&&!includeImages
+      ?'id,active,created_at,updated_at,'+schema.fields.filter(f=>f.key!=='image_data').map(f=>'"'+f.key+'"').join(',')
+      :'*';
+    const rows=db.prepare('SELECT '+columns+' FROM "'+kind+'"'+clause+
+      ' ORDER BY name COLLATE NOCASE,id LIMIT ? OFFSET ?').all(...params,pageSize,offset);
+    return {rows,total,page,pageSize};
   }
   function save(kind, input) {
     const schema = assertEntity(kind);
@@ -151,11 +213,39 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     return { id, archived: true };
   }
   function overview() {
-    return Object.fromEntries(entityOrder.map(kind => [kind, db.prepare('SELECT COUNT(*) AS n FROM "' + kind + '" WHERE active=1').get().n]));
+    const totals=Object.fromEntries(entityOrder.map(kind =>
+      [kind,db.prepare('SELECT COUNT(*) AS n FROM "'+kind+'" WHERE active=1').get().n]));
+    // O painel transfere somente 4 contagens e até 10 lotes em risco.
+    // Fotos e listas completas permanecem no SQLite até serem solicitadas.
+    const today=new Date();
+    const dateKey=date=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),
+      String(date.getDate()).padStart(2,'0')].join('-');
+    const begin=dateKey(today);
+    const end=new Date(today.getFullYear(),today.getMonth(),today.getDate()+30);
+    const finalDate=dateKey(end);
+    const summary=db.prepare(
+      "SELECT"+
+      " SUM(CASE WHEN stock_milli<=0 THEN 1 ELSE 0 END) AS out_of_stock,"+
+      " SUM(CASE WHEN stock_milli>0 AND stock_milli<=CASE WHEN unit='UN' THEN 2000 ELSE 1000 END THEN 1 ELSE 0 END) AS low_stock"+
+      " FROM products WHERE active=1").get();
+    const base=" FROM product_batches b JOIN products p ON p.id=b.product_id"+
+      " WHERE p.active=1 AND b.remaining_milli>0";
+    const expired=db.prepare('SELECT COUNT(*) AS n'+base+' AND b.expires_on<?').get(begin).n;
+    const expiring=db.prepare('SELECT COUNT(*) AS n'+base+
+      ' AND b.expires_on>=? AND b.expires_on<=?').get(begin,finalDate).n;
+    const examples=db.prepare(
+      'SELECT b.id,b.code,b.expires_on,b.remaining_milli,p.name AS product_name'+base+
+      ' AND b.expires_on<=? ORDER BY b.expires_on,b.id LIMIT 10').all(finalDate)
+      .map(item=>({...item,days_until_expiry:
+        Math.floor((Date.parse(item.expires_on+'T12:00:00Z')-
+          Date.parse(begin+'T12:00:00Z'))/86400000)}));
+    return {...totals,stockAlerts:{
+      outOfStock:summary.out_of_stock||0,lowStock:summary.low_stock||0,expired,expiring,examples
+    }};
   }
   const operations={list,save,archive,overview,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
   const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
-  const noArgs=new Set(['getCurrentSession','listSales','listOpenSessions','report','overview','listFinance','listPurchases']);
+  const noArgs=new Set(['getCurrentSession','listOpenSessions','report','overview']);
   function secureCall(method,args=[],ctx={}){
     if(typeof method!=='string'||typeof operations[method]!=='function') {
       if(method==='setPassword'){

@@ -19,9 +19,22 @@ function Message({error,success}:{error:string;success:string}){
   return <>{error && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}</div>}{success && <div className="notice success" role="status"><Check size={17}/>{success}</div>}</>;
 }
 
+function QueryPager({page,total,pageSize,label,onChange}:{page:number;total:number;pageSize:number;label:string;onChange:(page:number)=>void}){
+  if(total<=pageSize)return null;
+  return <div className="pagination">
+    <span>Página {page+1} de {Math.ceil(total/pageSize)} · {total.toLocaleString('pt-BR')} {label}</span>
+    <div>
+      <button type="button" className="secondary" disabled={page===0}
+        onClick={()=>onChange(Math.max(0,page-1))}>Anterior</button>
+      <button type="button" className="secondary" disabled={(page+1)*pageSize>=total}
+        onClick={()=>onChange(page+1)}>Próxima</button>
+    </div>
+  </div>;
+}
+
 /* Gráficos derivados exclusivamente do SQLite; datas seguem o relógio/fuso do PC. */
-function ReportCharts({sales,summary}:{sales:R[];summary:R}){
-  const daily=reportDailySales(sales);
+function ReportCharts({summary}:{summary:R}){
+  const daily=Array.isArray(summary.daily_sales)?summary.daily_sales:reportDailySales([]);
   const maximum=Math.max(1,...daily.map(day=>day.amount));
   const breakdown=reportPaymentBreakdown(summary);
   const {paymentMethods,recordedPaymentCents,creditSaleCents,openReceivablesCents,differenceCents}=breakdown;
@@ -298,14 +311,25 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [session,setSession]=useState<R|null>(null);
   const [otherSessions,setOtherSessions]=useState<R[]>([]);
   const [sales,setSales]=useState<R[]>([]);
+  const [salesPage,setSalesPage]=useState(0);
+  const [salesTotal,setSalesTotal]=useState(0);
+  const [inventoryPage,setInventoryPage]=useState(0);
+  const [inventoryRows,setInventoryRows]=useState<R[]>([]);
+  const [inventoryTotal,setInventoryTotal]=useState(0);
   const [receipt,setReceipt]=useState<R|null>(null);
   const [products,setProducts]=useState<R[]>([]);
   const [categories,setCategories]=useState<R[]>([]);
   const [movements,setMovements]=useState<R[]>([]);
+  const [movementPage,setMovementPage]=useState(0);
+  const [movementTotal,setMovementTotal]=useState(0);
   const [finance,setFinance]=useState<R[]>([]);
+  const [financePage,setFinancePage]=useState(0);
+  const [financeTotal,setFinanceTotal]=useState(0);
   const [settleAmounts,setSettleAmounts]=useState<Record<string,string>>({});
   const [suppliers,setSuppliers]=useState<R[]>([]);
   const [purchases,setPurchases]=useState<R[]>([]);
+  const [purchasePage,setPurchasePage]=useState(0);
+  const [purchaseTotal,setPurchaseTotal]=useState(0);
   const [purchaseSupplier,setPurchaseSupplier]=useState('');
   const [purchaseProduct,setPurchaseProduct]=useState('');
   const [purchaseQty,setPurchaseQty]=useState('1');
@@ -367,22 +391,41 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     if(!api){setError('Abra pelo aplicativo Electron.');return;}
     try{
       const manager=role!=='Caixa';
-      const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules,who,sp,purchasesNow,cats]=await Promise.all([
-        api.sessionCurrent(),api.salesList(),api.list('products'),manager?api.stockHistory():Promise.resolve([]),
-        manager?api.financeList():Promise.resolve([]),manager?api.report():Promise.resolve({}),
-        manager?api.sessionsList():Promise.resolve([]),
-        manager?api.batchesList():Promise.resolve([]),manager?api.promotionsList():Promise.resolve([]),manager?api.bundleList():Promise.resolve([]),
-        api.authStatus(),manager?api.list('suppliers'):Promise.resolve([]),manager?api.purchaseList():Promise.resolve([]),
-        manager?api.list('categories'):Promise.resolve([])
+      // Cada tela consulta apenas as coleções que usa. Listas longas são
+      // paginadas no SQLite; selects recebem apenas colunas leves, sem fotos.
+      const wantsProducts=['inventory','purchases','reports'].includes(view);
+      const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules,who,sp,purchasesNow,cats,inventoryData]=await Promise.all([
+        ['cash','sales','finance'].includes(view)?api.sessionCurrent():Promise.resolve(null),
+        view==='sales'?api.salesList({page:salesPage,pageSize:75}):Promise.resolve(null),
+        wantsProducts?api.list('products','',{slim:true}):Promise.resolve([]),
+        view==='inventory'&&manager?api.stockHistory(undefined,{page:movementPage,pageSize:75}):Promise.resolve(null),
+        view==='finance'&&manager?api.financeList({page:financePage,pageSize:50}):Promise.resolve(null),
+        view==='reports'&&manager?api.report():Promise.resolve({}),
+        view==='cash'&&manager?api.sessionsList():Promise.resolve([]),
+        view==='inventory'&&manager?api.batchesList():Promise.resolve([]),
+        view==='inventory'&&manager?api.promotionsList():Promise.resolve([]),
+        view==='inventory'&&manager?api.bundleList():Promise.resolve([]),
+        view==='cash'?api.authStatus():Promise.resolve({operators:[]}),
+        view==='purchases'&&manager?api.list('suppliers'):Promise.resolve([]),
+        view==='purchases'&&manager?api.purchaseList({page:purchasePage,pageSize:40}):Promise.resolve(null),
+        view==='inventory'&&manager?api.list('categories'):Promise.resolve([]),
+        view==='inventory'&&manager
+          ?api.list('products','',{page:inventoryPage,pageSize:50,includeImages:true}):Promise.resolve(null)
       ]);
-      setSession(s);setSales(sl);setProducts(pr);setMovements(m);setFinance(fin);setSummary(r);setOtherSessions(other);setBatches(lots);setPromotions(priceRules);setBundles(groupRules);setError('');
-      setSuppliers(sp);setPurchases(purchasesNow);setCategories(cats);setSettleAmounts({});
-      const possibleManagers=(who.operators||[]).filter((x:R)=>x.role==='Administrador'||x.role==='Gerente');
-      setManagerOperators(possibleManagers);
-      setManagerSelection(current=>current||possibleManagers[0]?.id||'');
+      setSession(s);
+      setSales(sl?.rows||[]);setSalesTotal(sl?.total||0);
+      setProducts(pr);setMovements(m?.rows||[]);setMovementTotal(m?.total||0);
+      setFinance(fin?.rows||[]);setFinanceTotal(fin?.total||0);setSummary(r);setOtherSessions(other);
+      setBatches(lots);setPromotions(priceRules);setBundles(groupRules);setError('');
+      setSuppliers(sp);setPurchases(purchasesNow?.rows||[]);setPurchaseTotal(purchasesNow?.total||0);setCategories(cats);
+      setInventoryRows(inventoryData?.rows||[]);setInventoryTotal(inventoryData?.total||0);
+      setSettleAmounts({});
+      const managers=(who.operators||[]).filter((x:R)=>x.role==='Administrador'||x.role==='Gerente');
+      setManagerOperators(managers);
+      setManagerSelection(current=>current||managers[0]?.id||'');
     }catch(err){setError(errorMessage(err));}
   }
-  useEffect(()=>{setSuccess('');void load();},[view]);
+  useEffect(()=>{setSuccess('');void load();},[view,salesPage,inventoryPage,movementPage,financePage,purchasePage]);
   async function action(fn:()=>Promise<any>,message:string,updateProducts=false) {
     if(busy)return;
     setBusy(true);setError('');setSuccess('');
@@ -475,7 +518,15 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
     </div>}
     {view==='sales'&&<div className="panel commerce-section"><h2>Histórico de vendas</h2><p>O cancelamento só é permitido no mesmo turno aberto e atualiza os movimentos locais. Estornos de Pix/cartão devem ser realizados externamente.</p><div className="commerce-table"><table><thead><tr><th>Data</th><th>Venda</th><th>Cliente</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{sales.map(s=><tr key={s.id}><td>{pretty(s.created_at)}</td><td title={s.id}>{s.id.slice(0,8)}</td><td>{s.customer_id?.slice(0,8)||'Consumidor final'}</td><td>{money(s.total_cents)}</td><td>{s.is_training?'TREINAMENTO — '+statusText[s.status]:statusText[s.status]}</td><td><button className="secondary" type="button" disabled={busy} onClick={async()=>{try{setReceipt(await api!.saleGet(s.id));setError('');}catch(err){setError(errorMessage(err));}}}>Comprovante</button> {s.status==='completed'&&<button disabled={busy||session?.id!==s.session_id} className="secondary button-danger" onClick={()=>{
             if(window.confirm('Cancelar venda? Estoque e registros locais serão revertidos. Pix e cartão exigem reembolso externo manual.')) void action(()=>api!.salesCancel(s.id),'Venda cancelada e estoque restaurado.',true);
-          }}>Cancelar venda</button>}</td></tr>)}</tbody></table>{sales.length===0&&<p className="commerce-empty">Nenhuma venda foi realizada ainda.</p>}</div></div>}
+          }}>Cancelar venda</button>}</td></tr>)}</tbody></table>{salesTotal===0&&<p className="commerce-empty">Nenhuma venda foi realizada ainda.</p>}</div>
+      {salesTotal>75&&<div className="pagination">
+        <span>Página {salesPage+1} de {Math.ceil(salesTotal/75)} · {salesTotal} vendas</span>
+        <div><button type="button" className="secondary" disabled={salesPage===0}
+          onClick={()=>setSalesPage(value=>Math.max(0,value-1))}>Anterior</button>
+        <button type="button" className="secondary" disabled={(salesPage+1)*75>=salesTotal}
+          onClick={()=>setSalesPage(value=>value+1)}>Próxima</button></div>
+      </div>}
+    </div>}
     {view==='inventory'&&<>
       <div className="panel commerce-section super-inventory-overview">
         <div className="commerce-heading"><div><h2>Controle de estoque</h2><p>Saldo real dos produtos. Alerta de atenção: até 5 unidades ou kg, sem configurar mínimo.</p></div>
@@ -487,13 +538,20 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
           <div className="super-inventory-stat super-inventory-danger"><strong>{products.filter(p=>Number(p.stock_milli||0)<=0).length}</strong><span>Sem estoque</span></div>
         </div>
         <div className="commerce-table super-inventory-table"><table><thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th>Estoque atual</th><th>Situação</th></tr></thead>
-          <tbody>{products.slice(0,100).map(p=><tr key={p.id}>
+          <tbody>{inventoryRows.map(p=><tr key={p.id}>
             <td>{p.code||'—'}</td>
             <td className="super-stock-product">{p.image_data?<img src={p.image_data} alt="" loading="lazy"/>:<span className="super-stock-empty"><Package size={18}/></span>}<strong>{p.name}</strong></td>
             <td>{categories.find(c=>c.id===p.category_id)?.name||'Sem categoria'}</td>
             <td>{(Number(p.stock_milli||0)/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})} {p.unit}</td>
             <td><span className={'super-stock-status '+(Number(p.stock_milli||0)<=0?'out':Number(p.stock_milli||0)<=5000?'low':'good')}>{Number(p.stock_milli||0)<=0?'Sem estoque':Number(p.stock_milli||0)<=5000?'Atenção':'Em estoque'}</span></td>
-          </tr>)}</tbody></table>{products.length>100&&<p className="commerce-warning">Mostrando os primeiros 100 itens. Use o cadastro de produtos para consultar todo o catálogo.</p>}</div>
+          </tr>)}</tbody></table></div>
+        {inventoryTotal>50&&<div className="pagination">
+          <span>Página {inventoryPage+1} de {Math.ceil(inventoryTotal/50)} · {inventoryTotal} produtos</span>
+          <div><button type="button" className="secondary" disabled={inventoryPage===0}
+            onClick={()=>setInventoryPage(value=>Math.max(0,value-1))}>Anterior</button>
+          <button type="button" className="secondary" disabled={(inventoryPage+1)*50>=inventoryTotal}
+            onClick={()=>setInventoryPage(value=>value+1)}>Próxima</button></div>
+        </div>}
         <div className="super-inventory-actions">
           <button className="primary" type="button" onClick={()=>{setStockKind('receipt');setStockDirection('positive');document.getElementById('inventory-move-form')?.scrollIntoView({block:'center',behavior:'smooth'});}}><Plus size={16}/> Entrada de estoque</button>
           <button className="secondary" type="button" onClick={()=>{setStockKind('adjustment');setStockDirection('negative');document.getElementById('inventory-move-form')?.scrollIntoView({block:'center',behavior:'smooth'});}}><ArrowDownToLine size={16}/> Saída de estoque</button>
@@ -560,7 +618,9 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
             <td><button className="secondary" type="button" disabled={busy} onClick={()=>{if(window.confirm('Desativar este kit promocional?'))void action(()=>api!.bundleArchive(b.id),'Kit desativado.');}}>Desativar</button></td></tr>)}
         </tbody></table></div>
       </div>
-      <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.slice(0,300).map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div></div></>}
+      <div className="panel commerce-section"><h2>Histórico de movimentações</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>{movements.map(m=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{products.find(p=>p.id===m.product_id)?.name||m.product_id.slice(0,8)}</td><td>{m.kind}</td><td>{(m.delta_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td>{m.reason}</td></tr>)}</tbody></table>{!movements.length&&<p className="commerce-empty">Nenhuma movimentação encontrada.</p>}</div>
+      <QueryPager page={movementPage} total={movementTotal} pageSize={75} label="movimentações" onChange={setMovementPage}/>
+      </div></>}
     {view==='purchases'&&<>
       <div className="panel commerce-section purchase-order-card">
         <h2>Nova compra — etapa 1: revisar itens</h2>
@@ -615,9 +675,11 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
                 void action(()=>api!.purchaseReceive(p.id),'Compra recebida e custo médio atualizado.',true);}}>Conferir e receber</button>}</td>
           </tr>)}
         </tbody></table>{purchases.length===0&&<div className="commerce-empty-state">Nenhuma compra registrada. O recebimento ficará disponível após salvar um pedido.</div>}</div>
+      <QueryPager page={purchasePage} total={purchaseTotal} pageSize={40} label="compras" onChange={setPurchasePage}/>
       </div>
     </>}
-    {view==='finance'&&<FinanceP2Panel entries={finance} onChanged={load}/>}
+    {view==='finance'&&<FinanceP2Panel entries={finance} onChanged={load}
+      pageLabel={'Contas no quadro: página '+(financePage+1)+' de '+Math.max(1,Math.ceil(financeTotal/50))}/>} 
     {view==='finance'&&<><div className="panel commerce-section finance-entry-card"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn,category:financeCategory}), 'Lançamento registrado.');}}>
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
       <label>Descrição<input required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Ex.: aluguel"/></label>
@@ -641,7 +703,9 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
               if(window.confirm('Confirmar baixa de '+money(amountCents)+' via '+methodLabel(paymentMethod)+'?'))
                 void action(()=>api!.financeSettle({id:f.id,method:paymentMethod,amountCents}),'Baixa financeira registrada.');
             }catch(err){setError(errorMessage(err));}
-          }}>Dar baixa</button>}</td></tr>)}</tbody></table>{!finance.length&&<p className="commerce-empty">Nenhum lançamento financeiro.</p>}</div><p className="commerce-warning">Pagamentos não realizados em dinheiro são registrados manualmente. Nenhuma cobrança é executada em gateways externos.</p></div></>}
+          }}>Dar baixa</button>}</td></tr>)}</tbody></table>{!finance.length&&<p className="commerce-empty">Nenhum lançamento financeiro.</p>}</div>
+       <QueryPager page={financePage} total={financeTotal} pageSize={50} label="contas" onChange={setFinancePage}/>
+       <p className="commerce-warning">Pagamentos não realizados em dinheiro são registrados manualmente. Nenhuma cobrança é executada em gateways externos.</p></div></>}
     {view==='reports'&&<>
       <div className="commerce-heading">
         <div><h2>Relatório gerencial acumulado</h2><p>Exporte localmente; nenhum dado é enviado a serviços externos.</p></div>
@@ -653,7 +717,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         <div className="stat"><span>Ticket médio</span><strong>{money(summary.sales_count?Math.round((summary.sales_total_cents||0)/summary.sales_count):0)}</strong><small>Por venda concluída</small></div>
         <div className="stat"><span>Descontos</span><strong>{money(summary.discounts_cents||0)}</strong><small>Concedidos</small></div>
       </div>
-      <ReportCharts sales={sales} summary={summary}/>
+      <ReportCharts summary={summary}/>
       <details className="super-report-details"><summary>Ver todos os indicadores do relatório</summary>
         <div className="report-grid">{reportRows(summary).map(row=><div className="stat" key={row.key}><span className="report-label">{row.label}</span><strong className="report-number">{row.type==='money'?money(row.raw):row.value}</strong><span className="stat-bottom">Acumulado local</span></div>)}</div>
       </details>
