@@ -49,6 +49,8 @@ async function start() {
   ipcMain.handle(apiChannels.catalogCsvPreview,(_evt,input)=>domain('previewCatalogCsv',input));
   ipcMain.handle(apiChannels.catalogCsvImport,(_evt,input)=>domain('importCatalogCsv',input));
   ipcMain.handle(apiChannels.overview, () => domain('overview'));
+  ipcMain.handle(apiChannels.storeProfileGet, () => domain('getStoreProfile'));
+  ipcMain.handle(apiChannels.storeProfileSet, (_evt,input) => domain('saveStoreProfile',input));
   ipcMain.handle(apiChannels.sessionCurrent, (_event) => domain('getCurrentSession'));
   ipcMain.handle(apiChannels.sessionOpen, (_event, input) => domain('openSession',input));
   ipcMain.handle(apiChannels.sessionClose, (_event, input) => domain('closeSession',input));

@@ -4,7 +4,7 @@ import { assertDeviceAddress } from '../shared/peripherals.mjs';
 
 // Somente operações do domínio; nunca SQL, arquivos, backup, shell ou parâmetros arbitrários.
 export const ALLOWED_RPC=Object.freeze([
-  'list','save','archive','previewCatalogCsv','importCatalogCsv','overview','getCurrentSession','openSession','closeSession',
+  'list','save','archive','previewCatalogCsv','importCatalogCsv','overview','getStoreProfile','saveStoreProfile','getCurrentSession','openSession','closeSession',
   'moveCash','checkout','quoteSale','listSales','getSale','cancelSale','moveStock',
   'listStockMovements','receiveBatch','listBatches','setPromotion','listPromotions','setBundlePromotion','listBundlePromotions','archiveBundlePromotion','reportItems','compareReportPeriods','createPurchase','receivePurchase','listPurchases','createFinance','listFinance','settleFinance','createFinanceSchedule','financeOverview','report','listOpenSessions',
   'authStatus','authBootstrap','authLogin','authLogout','setPassword'
