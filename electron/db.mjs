@@ -59,11 +59,12 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   migratePhase12(db);
   // Índices incrementais e idempotentes: nenhum dado antigo é reescrito.
   // Criados depois de todas as migrações, também em instalações pré-existentes.
+  const existingTables=new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(t=>t.name));
   for(const kind of entityOrder){
-    db.exec('CREATE INDEX IF NOT EXISTS "idx_'+kind+'_active_name" ON "'+kind+
+    if(existingTables.has(kind))db.exec('CREATE INDEX IF NOT EXISTS "idx_'+kind+'_active_name" ON "'+kind+
       '"(name COLLATE NOCASE,id) WHERE active=1');
   }
-  db.exec([
+  const indexStatements=[
     'CREATE INDEX IF NOT EXISTS idx_sales_recent ON sales(created_at DESC,id DESC)',
     'CREATE INDEX IF NOT EXISTS idx_cash_sessions_terminal_id ON cash_sessions(terminal_id,id)',
     'CREATE INDEX IF NOT EXISTS idx_sales_active_recent ON sales(status,is_training,created_at DESC,id DESC)',
@@ -77,7 +78,11 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     'CREATE INDEX IF NOT EXISTS idx_commercial_purchases_recent ON commercial_purchases(created_at DESC,id DESC)',
     'CREATE INDEX IF NOT EXISTS idx_commercial_purchase_lines_purchase ON commercial_purchase_lines(purchase_id)',
     'CREATE INDEX IF NOT EXISTS idx_product_batches_expiry ON product_batches(expires_on,remaining_milli,product_id)'
-  ].join(';')+';');
+  ];
+  for(const sql of indexStatements){
+    const table=sql.match(/ON ([a-z_]+)\(/i)?.[1];
+    if(table&&existingTables.has(table))db.exec(sql+';');
+  }
   db.exec('PRAGMA optimize');
   const financeP2=createFinanceP2(db);
   const commercialPurchases=createCommercialPurchases(db);
