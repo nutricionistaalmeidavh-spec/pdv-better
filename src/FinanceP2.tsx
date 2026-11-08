@@ -8,7 +8,7 @@ const groupNames:Record<string,string>={overdue:'Vencidas',upcoming:'A vencer',p
 const ptType=(type:string)=>type==='payable'?'A pagar':'A receber';
 const defaultFavoriteKey='pdv-better:p2:finance-filter:v1';
 
-export function FinanceP2Panel({entries,onChanged}:{entries:R[];onChanged:()=>Promise<void>}){
+export function FinanceP2Panel({entries,onChanged,pageLabel}:{entries:R[];onChanged:()=>Promise<void>;pageLabel?:string}){
  const api=window.pdv;
  const [type,setType]=useState('payable');
  const [description,setDescription]=useState('');
@@ -21,6 +21,7 @@ export function FinanceP2Panel({entries,onChanged}:{entries:R[];onChanged:()=>Pr
  const [message,setMessage]=useState('');
  const [error,setError]=useState('');
  const [selection,setSelection]=useState('');
+ const [timelineVisible,setTimelineVisible]=useState(150);
  const [search,setSearch]=useState('');
  const [filterType,setFilterType]=useState('all');
  const [from,setFrom]=useState('');
@@ -108,15 +109,22 @@ export function FinanceP2Panel({entries,onChanged}:{entries:R[];onChanged:()=>Pr
      </p>}
      <details><summary>Ver lançamentos do fluxo no período</summary>
        <div className="commerce-table"><table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Meio</th><th>Valor</th></tr></thead><tbody>
-         {[...(overview?.timeline||[]),...(overview?.forecasts||[])].slice(0,150).map((r:R)=>
+         {[...(overview?.timeline||[]),...(overview?.forecasts||[])].slice(0,timelineVisible).map((r:R)=>
            <tr key={r.id}><td>{r.date}</td><td>{r.source==='forecast'?'Previsto '+r.kind:r.kind}</td>
              <td>{r.description}</td><td>{r.method}</td><td>{money(r.amount_cents)}</td></tr>)}
        </tbody></table></div>
-       <p>Visualização limitada a 150 linhas. Exportações CSV/XLSX/PDF incluem o fluxo filtrado completo.</p>
+       {(overview?.timeline?.length||0)+(overview?.forecasts?.length||0)>timelineVisible&&
+          <div className="pagination">
+            <span>Exibindo {timelineVisible.toLocaleString('pt-BR')} de {((overview?.timeline?.length||0)+(overview?.forecasts?.length||0)).toLocaleString('pt-BR')} movimentos</span>
+            <button type="button" className="secondary" onClick={()=>setTimelineVisible(n=>n+150)}>Mostrar mais 150</button>
+            <button type="button" className="secondary"
+              onClick={()=>setTimelineVisible((overview?.timeline?.length||0)+(overview?.forecasts?.length||0))}>Exibir todos</button>
+          </div>}
      </details>
    </div>
    <div className="panel commerce-section">
      <h2>Contas por situação — Kanban</h2>
+     {pageLabel&&<p className="count-chip">{pageLabel}. Navegue pelas páginas na tabela de contas abaixo.</p>}
      <p>Selecione uma conta para ver seus documentos e baixas; mover visualmente um cartão não realiza pagamento.</p>
      <div className="commerce-inline-form">
        <label>Pesquisar<input aria-label="Pesquisar conta no Kanban" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Descrição, categoria ou ID"/></label>
@@ -127,14 +135,13 @@ export function FinanceP2Panel({entries,onChanged}:{entries:R[];onChanged:()=>Pr
      <div className="finance-kanban" aria-label="Quadro de contas">
        {Object.entries(board).map(([bucket,rows])=><section className="finance-kanban-column" key={bucket}>
          <h3>{groupNames[bucket]} <span>{(rows as R[]).length}</span></h3>
-         {(rows as R[]).slice(0,80).map(e=><button type="button" className={'finance-kanban-item'+(selection===e.id?' selected':'')}
+         {(rows as R[]).map(e=><button type="button" className={'finance-kanban-item'+(selection===e.id?' selected':'')}
            key={e.id} onClick={()=>setSelection(e.id)} aria-pressed={selection===e.id}>
            <strong>{e.description}</strong>
            <span>{ptType(e.type)} · {e.category||'Sem categoria'}</span>
            <span>{e.due_on||'Sem data'}</span>
            <b>{money(e.remaining_cents??e.amount_cents)}</b>
          </button>)}
-         {(rows as R[]).length>80&&<p>Mais {(rows as R[]).length-80} contas. Refine a pesquisa.</p>}
        </section>)}
      </div>
      {selected&&<div className="finance-p2-detail" role="region" aria-label="Detalhe da conta selecionada">
