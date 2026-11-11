@@ -93,6 +93,18 @@ jobs:
         run: npm run test:desktop
       - name: Gerar instalador NSIS
         run: npm run dist:win
+      - name: Validar feed de atualização (latest.yml e SHA-512)
+        shell: pwsh
+        run: |
+          $expectedVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $installer = Get-ChildItem release -Filter "PDV-Plus-Setup-$expectedVersion.exe" | Select-Object -First 1
+          if (-not $installer) { throw "Instalador com versão esperada ausente" }
+          if (!(Test-Path 'release/latest.yml')) { throw "Manifesto latest.yml ausente; atualização automática indisponível" }
+          $feed = Get-Content 'release/latest.yml' -Raw
+          if (!$feed.Contains("version: $expectedVersion")) { throw "Manifesto não contém a versão compilada" }
+          if (!$feed.Contains($installer.Name)) { throw "Manifesto não aponta para este instalador" }
+          if ($feed -notmatch '(?m)^sha512:\s*[A-Za-z0-9+/=]+') { throw "Manifesto sem SHA-512" }
+          Write-Output "Feed Windows validado: $($installer.Name)"
       - name: Instalar NSIS silenciosamente e testar o executável instalado
         shell: pwsh
         run: |
@@ -121,6 +133,8 @@ jobs:
           name: PDV-Better-Win10-11-${{ matrix.os }}
           path: |
             release/*Setup*.exe
+            release/*.blockmap
+            release/latest.yml
             release/SHA256SUMS.txt
           if-no-files-found: error
 
