@@ -61,6 +61,8 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   printQueuePurge: () => ipcRenderer.invoke(apiChannels.printQueuePurge),
   drawerOpen: () => ipcRenderer.invoke(apiChannels.drawerOpen),
   scaleRead: () => ipcRenderer.invoke(apiChannels.scaleRead),
+  scalePorts: () => ipcRenderer.invoke(apiChannels.scalePorts),
+  scaleExport: brand => ipcRenderer.invoke(apiChannels.scaleExport,brand),
   backupCreate: () => ipcRenderer.invoke(apiChannels.backupCreate),
   backupRestore: () => ipcRenderer.invoke(apiChannels.backupRestore)
 }));
