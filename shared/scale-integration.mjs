@@ -96,13 +96,30 @@ export function normalizeScaleConfig(input){
 export function parseSerialScaleFrame(frame,{brand='generic-streaming'}={}){
   const raw=String(frame??'');
   if(!BRANDS.includes(brand))throw new Error('Protocolo serial inválido.');
-  if(/\bUS[,;\s]|\bunstable\b|inst[aá]vel/i.test(raw))throw new Error('Leitura instável da balança.');
+  if(/(?:^|[,;\s])US(?:[,;\s]|$)|unstable|inst[aá]vel/i.test(raw))throw new Error('Leitura instável da balança.');
   if(/overload|sobrecarga/i.test(raw))throw new Error('Sobrecarga na balança.');
+  // Toledo: frame longo carrega 6 dígitos de peso, byte de estado e preços.
+  // É o mesmo divisor de peso utilizado pelo adaptador Nexus.
+  if(brand==='toledo'&&raw.length>20){
+    const peso=raw.slice(2,8);
+    if(/^\d{6}$/.test(peso)){
+      const divisor=(raw.charCodeAt(8)&8)!==0?100:1000;
+      const milli=Math.round(Number(peso)*1000/divisor);
+      if(Number.isSafeInteger(milli)&&milli>0&&milli<=100000000)return milli;
+      throw new Error('Peso inválido na trama Toledo.');
+    }
+  }
   const body=raw.includes('\x02')?raw.split('\x02').at(-1).split(/[\x03\r\n]/)[0].trim():raw.trim();
+  if(!body)throw new Error('Resposta vazia da balança.');
+  const status=body[0]?.toUpperCase();
+  if(body==='I')throw new Error('Leitura instável da balança.');
+  if(body==='N')throw new Error('Peso negativo da balança.');
+  if(body==='S')throw new Error('Sobrecarga da balança.');
   if(/^-/.test(body))throw new Error('Peso negativo não é aceito.');
   let kg;
   const explicit=body.match(/(?:ST[,;\s]+GS[,;\s]+)?\+?(-?\d+(?:[.,]\d{1,3})?)\s*kg\b/i);
   if(explicit)kg=Number(explicit[1].replace(',','.'));
+  else if(brand==='filizola'&&body.length>10&&/^\d{6}/.test(body))kg=Number(body.slice(0,6))/1000;
   else if(/^\+?\d{4,8}$/.test(body))kg=Number(body)/1000;
   else if(/^\+?\d+(?:[.,]\d{1,3})?$/.test(body))kg=Number(body.replace(',','.'));
   else throw new Error('Resposta serial da balança não reconhecida.');
