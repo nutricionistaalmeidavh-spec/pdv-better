@@ -251,6 +251,10 @@ async function start() {
     if(!target)throw new Error('Configure primeiro a balança TCP nas configurações.');
     return readScale(target);
   });
+  ipcMain.handle(apiChannels.scaleProfile,()=>{
+    runtime.authorize('scaleProfile');
+    return {scaleLabelMode:normalizeScaleConfig(readDevice()).scaleLabelMode};
+  });
   ipcMain.handle(apiChannels.scalePorts,async()=>{
     runtime.authorize('scalePorts');
     return listScalePorts();
