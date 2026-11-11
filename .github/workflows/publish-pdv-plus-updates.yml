@@ -1,0 +1,79 @@
+name: Publicar PDV Plus — release com atualização automática
+on:
+  workflow_run:
+    workflows: ["QA PDV SUPER — Windows Desktop"]
+    types: [completed]
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: pdv-plus-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: \${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: \${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar versão e SHA da main
+        env:
+          GH_TOKEN: \${{ github.token }}
+          APPROVED_SHA: \${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" = "$APPROVED_SHA" || {
+            echo "Branch main avançou após o QA; não publicar artefato antigo"; exit 1;
+          }
+          version="$(node -p "require('./package.json').version")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Versão de release inválida"; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "ALREADY_PUBLISHED=true" >> "$GITHUB_ENV"
+          fi
+      - name: Baixar somente artefatos aprovados do QA Windows
+        if: env.ALREADY_PUBLISHED != 'true'
+        env:
+          GH_TOKEN: \${{ github.token }}
+          RUN_ID: \${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p installer
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name PDV-Better-Win10-11-windows-2022 --dir installer
+          cd installer
+          test -s "PDV-Plus-Setup-$VERSION.exe"
+          test -s latest.yml
+          test -s SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+          grep -Fq "version: $VERSION" latest.yml
+          grep -Fq "PDV-Plus-Setup-$VERSION.exe" latest.yml
+          grep -Eq '^sha512: [A-Za-z0-9+/=]+' latest.yml
+          test -s "PDV-Plus-Setup-$VERSION.exe.blockmap" || echo "Blockmap ausente: cliente baixará instalador completo."
+      - name: Publicar versão e feed GitHub Releases
+        if: env.ALREADY_PUBLISHED != 'true'
+        env:
+          GH_TOKEN: \${{ github.token }}
+          APPROVED_SHA: \${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd installer
+          shopt -s nullglob
+          assets=("PDV-Plus-Setup-$VERSION.exe" latest.yml SHA256SUMS.txt)
+          blocks=("PDV-Plus-Setup-$VERSION.exe.blockmap")
+          if [[ -s "${blocks[0]}" ]]; then assets+=("${blocks[0]}"); fi
+          gh release create "v$VERSION" "${assets[@]}" --repo "$GITHUB_REPOSITORY" \
+            --target "$APPROVED_SHA" --title "PDV Plus v$VERSION" --latest \
+            --notes "Release Windows 10/11 aprovada pelo QA. Para clientes na v0.6.0 ou superior, a atualização será detectada e baixada automaticamente, e a instalação exige confirmação após fechar caixas. Versões 0.5.0 ou anteriores precisam instalar manualmente a v0.6.0 uma única vez. Backup SQLite automático no servidor antes de instalar."
+          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json url,assets
+          curl --fail --silent --show-error --location --range 0-3 --output /dev/null \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/PDV-Plus-Setup-$VERSION.exe"
