@@ -67,6 +67,7 @@ interface PdvBridge {
   printQueuePurge(): Promise<{removed:number}>;
   drawerOpen(): Promise<any>;
   scaleRead(): Promise<number>;
+  scaleProfile(): Promise<{scaleLabelMode:string}>;
   scalePorts(): Promise<Array<{path:string;manufacturer:string;vendorId:string;productId:string}>>;
   scaleExport(brand:'toledo'|'urano'): Promise<{cancelled:boolean;fileName?:string;count?:number;skipped?:number}>;
   backupCreate(): Promise<any>;
