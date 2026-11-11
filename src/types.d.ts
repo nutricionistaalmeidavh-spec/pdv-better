@@ -66,6 +66,10 @@ interface PdvBridge {
   printQueueRetry(id:string): Promise<any>;
   printQueuePurge(): Promise<{removed:number}>;
   drawerOpen(): Promise<any>;
+  updateStatus(): Promise<{enabled:boolean;currentVersion:string;phase:string;version:string|null;progress:number;error:string|null;canInstall?:boolean}>;
+  updateCheck(): Promise<any>;
+  updateInstall(): Promise<any>;
+  onUpdateStatus(callback:(status:{enabled:boolean;currentVersion:string;phase:string;version:string|null;progress:number;error:string|null})=>void):()=>void;
   scaleRead(): Promise<number>;
   scaleProfile(): Promise<{scaleLabelMode:string}>;
   scalePorts(): Promise<Array<{path:string;manufacturer:string;vendorId:string;productId:string}>>;
