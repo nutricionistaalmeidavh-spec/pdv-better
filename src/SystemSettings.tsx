@@ -5,7 +5,8 @@ const errText=(e:any)=>String(e?.message||e||'Operação indisponível').replace
 export function SystemSettings(){
   const api=window.pdv;
   const [lan,setLan]=useState<Any>({});
-  const [device,setDevice]=useState<Any>({printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001});
+  const [device,setDevice]=useState<Any>({printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001,scaleTransport:'tcp',scaleBrand:'generic-streaming',scaleLabelMode:'DEFAULT_PRICE',scaleSerialPort:'',scaleBaudRate:9600,scaleRequestCommand:'ENQ'});
+  const [scalePorts,setScalePorts]=useState<Array<{path:string;manufacturer:string}>>([]);
   const [printers,setPrinters]=useState<Any[]>([]);
   const [printJobs,setPrintJobs]=useState<Any[]>([]);
   const [printQueueError,setPrintQueueError]=useState('');
@@ -27,6 +28,13 @@ export function SystemSettings(){
     }catch(e){setError(errText(e));}
   }
   useEffect(()=>{void reload();},[]);
+  useEffect(()=>{
+    if(tab!=='devices'||device.scaleTransport!=='serial'||!api)return;
+    let active=true;
+    void api.scalePorts().then(ports=>{if(active)setScalePorts(ports);})
+      .catch(e=>{if(active)setError(errText(e));});
+    return ()=>{active=false;};
+  },[tab,device.scaleTransport]);
   async function run(job:()=>Promise<any>,message:string,refresh=true){
     if(!api||pending)return;
     setPending(true);setError('');setNotice('');
@@ -93,12 +101,64 @@ export function SystemSettings(){
             void run(()=>api!.printQueuePurge(),'Itens concluídos removidos da fila.');
         }}>Limpar impressões concluídas</button>
       </div>
-      <div className="panel settings-block"><h2><Scale size={19}/> Balança de rede</h2>
-        <p>Leitura TCP de peso estável em quilogramas. O PDV rejeita leituras negativas ou instáveis.</p>
-        <label className="settings-label">IP da balança<input value={device.scaleHost||''} placeholder="192.168.1.110" onChange={e=>setDevice((p:Any)=>({...p,scaleHost:e.target.value}))}/></label>
-        <label className="settings-label">Porta TCP<input type="number" min="1" max="65535" value={device.scalePort||4001} onChange={e=>setDevice((p:Any)=>({...p,scalePort:Number(e.target.value)}))}/></label>
-        <button className="secondary" disabled={pending||!device.scaleHost} onClick={()=>void run(async()=>{return api!.scaleRead();},'',false)}>Ler peso agora</button>
-        <p className="settings-tip">Leitor de código de barras USB tipo teclado funciona na pesquisa da frente de caixa; etiquetas podem ser impressas pelo cadastro de produtos.</p>
+      <div className="panel settings-block">
+        <h2><Scale size={19}/> Balanças e etiquetas</h2>
+        <p>Use etiquetas EAN-13 geradas pela balança com leitor USB (modo teclado), ou capture o peso diretamente por rede TCP ou serial COM/USB.</p>
+        <label className="settings-label">Formato da etiqueta EAN-13
+          <select aria-label="Perfil de código da balança" value={device.scaleLabelMode||'DEFAULT_PRICE'} onChange={e=>setDevice((p:Any)=>({...p,scaleLabelMode:e.target.value}))}>
+            <option value="DEFAULT_PRICE">Preço total embutido (prefixo 2)</option>
+            <option value="DEFAULT_WEIGHT">Peso em gramas embutido (prefixo 2)</option>
+            <option value="EXTENDED_PRODUCT">Produto estendido (prefixo 20)</option>
+            <option value="legacy-brasil">Legado brasileiro (5 dígitos de preço)</option>
+          </select>
+        </label>
+        <p className="settings-tip">O formato depende da configuração da balança, não apenas da marca. Para Ramuza, confirme o padrão com uma etiqueta real. Código de produto na etiqueta deve corresponder ao cadastro do PDV.</p>
+        <label className="settings-label">Tipo de conexão para ler peso
+          <select aria-label="Conexão da balança" value={device.scaleTransport||'tcp'} onChange={e=>setDevice((p:Any)=>({...p,scaleTransport:e.target.value}))}>
+            <option value="tcp">Rede TCP</option>
+            <option value="serial">Porta serial COM / USB</option>
+          </select>
+        </label>
+        {device.scaleTransport==='serial'?<>
+          <label className="settings-label">Porta COM da balança
+            <select aria-label="Porta serial da balança" value={device.scaleSerialPort||''} onChange={e=>setDevice((p:Any)=>({...p,scaleSerialPort:e.target.value}))}>
+              <option value="">Selecione uma porta COM</option>
+              {device.scaleSerialPort&&!scalePorts.some(port=>port.path===device.scaleSerialPort)&&<option value={device.scaleSerialPort}>{device.scaleSerialPort} (salva, desconectada)</option>}
+              {scalePorts.map(port=><option key={port.path} value={port.path}>{port.path} {port.manufacturer?'— '+port.manufacturer:''}</option>)}
+            </select>
+          </label>
+          <button className="secondary" disabled={pending} onClick={()=>void run(async()=>{setScalePorts(await api!.scalePorts());},'Portas seriais atualizadas.',false)}>Atualizar portas COM</button>
+          <label className="settings-label">Velocidade serial
+            <select aria-label="Velocidade da balança" value={device.scaleBaudRate||9600} onChange={e=>setDevice((p:Any)=>({...p,scaleBaudRate:Number(e.target.value)}))}>
+              {[1200,2400,4800,9600,19200,38400,57600,115200].map(baud=><option key={baud} value={baud}>{baud} baud</option>)}
+            </select>
+          </label>
+          <label className="settings-label">Protocolo serial
+            <select aria-label="Protocolo da balança" value={device.scaleBrand||'generic-streaming'} onChange={e=>setDevice((p:Any)=>({...p,scaleBrand:e.target.value}))}>
+              <option value="toledo">Toledo</option>
+              <option value="filizola">Filizola</option>
+              <option value="generic-request-response">Genérico: solicita leitura</option>
+              <option value="generic-streaming">Genérico: transmissão contínua</option>
+            </select>
+          </label>
+          <label className="settings-label">Comando de leitura
+            <select aria-label="Comando serial" value={device.scaleRequestCommand||'ENQ'} onChange={e=>setDevice((p:Any)=>({...p,scaleRequestCommand:e.target.value}))}>
+              <option value="ENQ">ENQ (0x05)</option><option value="CR">CR (0x0D)</option><option value="NONE">Nenhum</option>
+            </select>
+          </label>
+        </>:<>
+          <label className="settings-label">IP da balança<input value={device.scaleHost||''} placeholder="192.168.1.110" onChange={e=>setDevice((p:Any)=>({...p,scaleHost:e.target.value}))}/></label>
+          <label className="settings-label">Porta TCP<input type="number" min="1" max="65535" value={device.scalePort||4001} onChange={e=>setDevice((p:Any)=>({...p,scalePort:Number(e.target.value)}))}/></label>
+        </>}
+        <button className="secondary" disabled={pending||(device.scaleTransport==='serial'?!device.scaleSerialPort:!device.scaleHost)} onClick={()=>void run(()=>api!.scaleRead(),'',false)}>Ler peso agora</button>
+        <p className="settings-tip">A leitura direta rejeita peso inválido e instável. O leitor USB de etiquetas EAN-13 funciona pelo campo Código da frente de caixa, mesmo sem conexão direta com a balança.</p>
+      </div>
+      <div className="panel settings-block">
+        <h2><Scale size={19}/> Exportar produtos para balanças etiquetadoras</h2>
+        <p>Gera arquivos TXT locais de carga de produtos para Toledo e Urano usando nome, código numérico e preço do cadastro. A marca Ramuza exige layout confirmado pelo manual do modelo.</p>
+        <button className="secondary" disabled={pending} onClick={()=>void run(()=>api!.scaleExport('toledo'),'Arquivo ITENSMGV.TXT gerado. Confira os produtos na balança.',false)}>Exportar Toledo (ITENSMGV.TXT)</button>
+        <button className="secondary" disabled={pending} onClick={()=>void run(()=>api!.scaleExport('urano'),'Arquivo PRODUTOS.TXT gerado. Confira os produtos na balança.',false)}>Exportar Urano (PRODUTOS.TXT)</button>
+        <p className="settings-tip">Somente produtos ativos com código numérico de até 6 dígitos são elegíveis. Nada é enviado automaticamente para dispositivos.</p>
       </div>
       <div className="settings-wide"><button className="primary" disabled={pending} onClick={()=>void run(()=>api!.deviceSet(device),'Configuração de periféricos salva neste computador.')}><Check size={16}/> Salvar periféricos</button></div>
     </div>}
