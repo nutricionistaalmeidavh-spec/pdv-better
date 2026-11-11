@@ -38,7 +38,7 @@ export function createUpdateManager({
     return status();
   }
   async function install(){
-    if(!enabled||state.phase!=='downloaded'||installing)throw new Error('Atualização ainda não está pronta para instalação.');
+    if(!enabled||state.phase!=='downloaded'||installing)throw new Error('Atualização ainda não foi baixada e não está pronta para instalação.');
     installing=true;
     try{
       const sessions=await listOpenSessions();
