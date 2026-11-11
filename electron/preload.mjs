@@ -60,6 +60,15 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   printQueueRetry: id => ipcRenderer.invoke(apiChannels.printQueueRetry,id),
   printQueuePurge: () => ipcRenderer.invoke(apiChannels.printQueuePurge),
   drawerOpen: () => ipcRenderer.invoke(apiChannels.drawerOpen),
+  updateStatus: () => ipcRenderer.invoke(apiChannels.updateStatus),
+  updateCheck: () => ipcRenderer.invoke(apiChannels.updateCheck),
+  updateInstall: () => ipcRenderer.invoke(apiChannels.updateInstall),
+  onUpdateStatus: callback => {
+    if(typeof callback!=='function')return ()=>{};
+    const handler=(_event,status)=>callback(status);
+    ipcRenderer.on(apiChannels.updateEvent,handler);
+    return ()=>ipcRenderer.removeListener(apiChannels.updateEvent,handler);
+  },
   scaleRead: () => ipcRenderer.invoke(apiChannels.scaleRead),
   scaleProfile: () => ipcRenderer.invoke(apiChannels.scaleProfile),
   scalePorts: () => ipcRenderer.invoke(apiChannels.scalePorts),
