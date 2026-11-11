@@ -16,6 +16,8 @@ async function start() {
   const { renderPrintDocument } = await import('./printing.mjs');
   const {openPrintQueue} = await import('./print-queue.mjs');
   const { sendTcp, readScale } = await import('./peripherals.mjs');
+  const { listScalePorts, readSerialScale } = await import('./serial-scale.mjs');
+  const { normalizeScaleConfig, buildScaleExport } = await import('../shared/scale-integration.mjs');
   const { makeReceipt,drawerPulse,assertDeviceAddress } = await import('../shared/peripherals.mjs');
   if(process.env.PDV_TEST_SMOKE==='1' && process.env.PDV_TEST_USER_DATA) {
     const smokeDir=path.resolve(process.env.PDV_TEST_USER_DATA);
@@ -209,8 +211,9 @@ async function start() {
   });
   const deviceFile=path.join(folder,'device-config.json');
   const readDevice=()=>{
-    try{return JSON.parse(fs.readFileSync(deviceFile,'utf8'));}
-    catch{return {printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001};}
+    const defaults={printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001,scaleTransport:'tcp',scaleBrand:'generic-streaming',scaleLabelMode:'DEFAULT_PRICE',scaleSerialPort:'',scaleBaudRate:9600,scaleRequestCommand:'ENQ'};
+    try{return {...defaults,...JSON.parse(fs.readFileSync(deviceFile,'utf8'))};}
+    catch{return defaults;}
   };
   const deviceTarget=(host,port)=>host?assertDeviceAddress(host,port):null;
   ipcMain.handle(apiChannels.lanStatus,()=>runtime.status());
@@ -222,8 +225,9 @@ async function start() {
     runtime.authorize('deviceSet');
     const printer=deviceTarget(String(input?.printerHost||'').trim(),input?.printerPort||9100);
     const scale=deviceTarget(String(input?.scaleHost||'').trim(),input?.scalePort||4001);
-    const config={printerHost:printer?.host||'',printerPort:printer?.port||9100,
-      scaleHost:scale?.host||'',scalePort:scale?.port||4001};
+    const config=normalizeScaleConfig({...readDevice(),...input,
+      printerHost:printer?.host||'',printerPort:printer?.port||9100,
+      scaleHost:scale?.host||'',scalePort:scale?.port||4001});
     fs.writeFileSync(deviceFile,JSON.stringify(config),{mode:0o600});
     return config;
   });
@@ -241,9 +245,32 @@ async function start() {
   });
   ipcMain.handle(apiChannels.scaleRead,async()=>{
     runtime.authorize('scaleRead');
-    const prefs=readDevice(),target=deviceTarget(prefs.scaleHost,prefs.scalePort);
+    const prefs=normalizeScaleConfig(readDevice());
+    if(prefs.scaleTransport==='serial')return readSerialScale(prefs);
+    const target=deviceTarget(prefs.scaleHost,prefs.scalePort);
     if(!target)throw new Error('Configure primeiro a balança TCP nas configurações.');
     return readScale(target);
+  });
+  ipcMain.handle(apiChannels.scaleProfile,()=>{
+    runtime.authorize('scaleProfile');
+    return {scaleLabelMode:normalizeScaleConfig(readDevice()).scaleLabelMode};
+  });
+  ipcMain.handle(apiChannels.scalePorts,async()=>{
+    runtime.authorize('scalePorts');
+    return listScalePorts();
+  });
+  ipcMain.handle(apiChannels.scaleExport,async(_evt,brand)=>{
+    runtime.authorize('scaleExport');
+    const products=await domain('list','products','',{slim:true});
+    const exported=buildScaleExport(products,brand);
+    const selection=await dialog.showSaveDialog(window,{
+      title:'Exportar carga de produtos da balança',
+      defaultPath:exported.fileName,
+      filters:[{name:'Arquivo da balança',extensions:['txt']}]
+    });
+    if(selection.canceled||!selection.filePath)return {cancelled:true};
+    fs.writeFileSync(selection.filePath,exported.content,{encoding:'latin1',flag:'w'});
+    return {cancelled:false,fileName:exported.fileName,count:exported.count,skipped:exported.skipped};
   });
   async function performPrint(input){
     const kind=input?.kind;

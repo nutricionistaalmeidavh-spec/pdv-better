@@ -9,6 +9,7 @@ import { entities, entityOrder } from '../shared/contract.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
 import { filterCheckoutProducts } from '../shared/catalog.mjs';
 import { resolveBatchScan,parseBatchLabel } from '../shared/batch-label.mjs';
+import {resolveScaleScan} from '../shared/scale-integration.mjs';
 import {applyManualWeight} from '../shared/manual-weight.mjs';
 import { CommerceView, PaymentModal } from './Commerce';
 import { Cashier } from './Cashier';
@@ -99,6 +100,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   });
   const [undoCart,setUndoCart] = useState<{before:CartItem[];after:CartItem[]}|null>(null);
   const [cartSearch,setCartSearch] = useState('');
+  const [scaleLabelMode,setScaleLabelMode] = useState('DEFAULT_PRICE');
   const [categoryFilter,setCategoryFilter] = useState('all');
   const [cartError,setCartError] = useState('');
   const [scanningBatch,setScanningBatch] = useState(false);
@@ -117,6 +119,13 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     : activeSchema.fields.filter((field:any)=>field.type!=='image').slice(0,4)) : [];
   const dialogSchema = definitions[editingEntity || view];
   const bridge = window.pdv;
+  useEffect(()=>{
+    if(view!=='checkout'||!bridge)return;
+    let active=true;
+    void bridge.scaleProfile().then(prefs=>{if(active)setScaleLabelMode(prefs.scaleLabelMode||'DEFAULT_PRICE');})
+      .catch(error=>{if(active)setCartError('Não foi possível carregar o perfil da balança: '+friendlyError(error));});
+    return ()=>{active=false;};
+  },[view,bridge]);
   async function reloadAll() {
     if(!bridge){
       setError('O banco local está disponível somente no aplicativo Electron. Abra pelo instalador ou npm run dev.');
@@ -402,8 +411,20 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         return;
       }
     }catch(err){setCartError(friendlyError(err));return;}
+    // Respeite um código EAN/GTIN cadastrado literalmente antes de interpretar o prefixo 2.
+    const exact=products.find(p=>String(p.code||'').toUpperCase()===raw.toUpperCase());
+    if(!exact&&/^\d{13}$/.test(raw)){
+      try{
+        const weighed=resolveScaleScan(raw,products,scaleLabelMode);
+        if(weighed){
+          setCart(addToCart(cart,weighed.product,weighed.quantityMilli));
+          setUndoCart(null);setCartError('');setCartSearch('');searchInput.current?.focus();
+          return;
+        }
+      }catch(error){setCartError(friendlyError(error));return;}
+    }
     const code = raw.toUpperCase();
-    const found = products.find(p => p.code === code) || (matchingProducts.length === 1 ? matchingProducts[0] : null);
+    const found = exact || (matchingProducts.length === 1 ? matchingProducts[0] : null);
     if (found) addProduct(found);
     else setCartError('Selecione um produto na lista ou confira o código.');
   }
