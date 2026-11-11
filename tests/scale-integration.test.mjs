@@ -80,3 +80,13 @@ test('exportações de carga Toledo e Urano usam produtos reais por KG e UN',()=
   assert.doesNotMatch(toledo.content,/Inativo/);
   assert.equal(toledo.count,2);
 });
+
+test('trama Toledo longa inclui peso, status e campos monetários como no Nexus',()=>{
+  const long='\x02'+'0'+'000750'+'0'+'001995'+'003990'+'\x03';
+  assert.equal(parseSerialScaleFrame(long,{brand:'toledo'}),750);
+});
+test('protocolo serial identifica instabilidade, peso negativo e sobrecarga',()=>{
+  assert.throws(()=>parseSerialScaleFrame('\x02I\x03',{brand:'generic-request-response'}),/instável/i);
+  assert.throws(()=>parseSerialScaleFrame('\x02N\x03',{brand:'filizola'}),/negativo/i);
+  assert.throws(()=>parseSerialScaleFrame('\x02S\x03',{brand:'toledo'}),/sobrecarga/i);
+});
