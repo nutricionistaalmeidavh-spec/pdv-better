@@ -1,0 +1,39 @@
+name: Publicar PDV SUPER v0.4.0 (download direto)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-pdv-super-v0.4.0.yml']
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    name: Publicar instalador Windows aprovado no GitHub Releases
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Baixar instalador aprovado e conferir SHA256
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download 42501221022 --repo "$GITHUB_REPOSITORY" --name PDV-Better-Win10-11-windows-2022 --dir ./installer
+          test -s 'installer/PDV SUPER Setup 0.4.0.exe'
+          (cd installer && sha256sum --check SHA256SUMS.txt)
+          mv 'installer/PDV SUPER Setup 0.4.0.exe' 'installer/PDV-SUPER-Setup-0.4.0.exe'
+          (cd installer && sha256sum PDV-SUPER-Setup-0.4.0.exe > SHA256SUMS.txt)
+      - name: Criar ou atualizar release pública
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v0.4.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v0.4.0 installer/PDV-SUPER-Setup-0.4.0.exe installer/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create v0.4.0 installer/PDV-SUPER-Setup-0.4.0.exe installer/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target b903e60cf7a9dc8cb8ff842798fbf172ebf981c0 --title 'PDV SUPER v0.4.0' --notes 'PDV SUPER não fiscal para Windows 10 e Windows 11 (64 bits). Instalador NSIS validado por QA no Windows e acompanhado do checksum SHA-256.' --latest
+          fi
+          gh release view v0.4.0 --repo "$GITHUB_REPOSITORY" --json url,assets
+          curl --fail --silent --show-error --location --range 0-3 --output /dev/null "https://github.com/$GITHUB_REPOSITORY/releases/download/v0.4.0/PDV-SUPER-Setup-0.4.0.exe"
