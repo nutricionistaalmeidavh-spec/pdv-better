@@ -1,0 +1,47 @@
+name: Publicar PDV Plus v0.5.0 — instalador direto
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-pdv-plus-v0.5.0.yml']
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    name: Publicar release após QA Windows aprovado
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Verificar QA aprovado e origem do artefato
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id=43039935130
+          expected_head=484654109e9c8cbc2486369257cc9069af8c7ba7
+          conclusion="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion')"
+          head="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json headSha --jq '.headSha')"
+          test "$conclusion" = "success" || { echo "::error::QA Windows não aprovado: $conclusion"; exit 1; }
+          test "$head" = "$expected_head" || { echo "::error::Artefato não corresponde ao código aprovado"; exit 1; }
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name PDV-Better-Win10-11-windows-2022 --dir installer
+          test -s 'installer/PDV SUPER Setup 0.5.0.exe'
+          (cd installer && sha256sum --check SHA256SUMS.txt)
+          mv 'installer/PDV SUPER Setup 0.5.0.exe' 'installer/PDV-Plus-Setup-0.5.0.exe'
+          (cd installer && sha256sum PDV-Plus-Setup-0.5.0.exe > SHA256SUMS.txt)
+      - name: Publicar release oficial v0.5.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="PDV Plus v0.5.0 para Windows 10/11 x64. Integração de balanças: etiquetas EAN-13 com perfis de preço e peso, conexão TCP e serial COM/USB, exportação Toledo/Urano. Código integrado via PR #34 com QA Windows 2022/2025 aprovado. Para usuários das versões anteriores: baixar e executar o instalador sobre a versão existente, sem desinstalar e sem excluir dados. O PDV Plus 0.4.0 não possui atualização automática: publicar esta release não inicia instalação remota. Recomenda-se backup SQLite antes da atualização. A compatibilidade física Ramuza depende de homologação do modelo exato. Aplicativo local não fiscal, sem serviços pagos."
+          if gh release view v0.5.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v0.5.0 installer/PDV-Plus-Setup-0.5.0.exe installer/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit v0.5.0 --repo "$GITHUB_REPOSITORY" --latest --notes "$notes"
+          else
+            gh release create v0.5.0 installer/PDV-Plus-Setup-0.5.0.exe installer/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target 383393ebfdc2291f4e481081faccc581dd601b52 --title 'PDV Plus v0.5.0 — balanças' --notes "$notes" --latest
+          fi
+          gh release view v0.5.0 --repo "$GITHUB_REPOSITORY" --json url,assets
+          curl --fail --silent --show-error --location --range 0-3 --output /dev/null "https://github.com/$GITHUB_REPOSITORY/releases/download/v0.5.0/PDV-Plus-Setup-0.5.0.exe"
