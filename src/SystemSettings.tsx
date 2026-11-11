@@ -1,5 +1,5 @@
 import React,{useEffect,useState} from 'react';
-import { Server,MonitorSmartphone,WifiOff,Printer,Scale,DatabaseBackup,ShieldAlert,RefreshCcw,Copy,Check,Settings2 } from 'lucide-react';
+import { Server,MonitorSmartphone,WifiOff,Printer,Scale,DatabaseBackup,ShieldAlert,RefreshCcw,Copy,Check,Settings2,Download,RotateCw } from 'lucide-react';
 type Any=Record<string,any>;
 const errText=(e:any)=>String(e?.message||e||'Operação indisponível').replace(/^Error invoking remote method.*?: Error: /,'');
 export function SystemSettings(){
@@ -16,7 +16,9 @@ export function SystemSettings(){
   const [pending,setPending]=useState(false);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
-  const [tab,setTab]=useState<'network'|'devices'|'backup'>('network');
+  const [tab,setTab]=useState<'network'|'devices'|'backup'|'updates'>('network');
+  const [updateInfo,setUpdateInfo]=useState<Any|null>(null);
+  const [updateBusy,setUpdateBusy]=useState(false);
   async function reload(){
     if(!api)return;
     try{
@@ -28,6 +30,25 @@ export function SystemSettings(){
     }catch(e){setError(errText(e));}
   }
   useEffect(()=>{void reload();},[]);
+  useEffect(()=>{
+    if(!api)return;
+    let mounted=true;
+    void api.updateStatus().then(status=>{if(mounted)setUpdateInfo(status);})
+      .catch(error=>{if(mounted)setUpdateInfo({phase:'error',error:errText(error),enabled:false});});
+    const unsubscribe=api.onUpdateStatus(status=>{if(mounted)
+      setUpdateInfo((previous:Any)=>({...previous,...status}));});
+    return ()=>{mounted=false;unsubscribe();};
+  },[api]);
+  async function updateAction(action:'check'|'install'){
+    if(!api||updateBusy)return;
+    if(action==='install'&&!window.confirm('Feche as vendas antes de atualizar. O aplicativo salvará um backup local, fechará e executará o instalador. Continuar?'))return;
+    setUpdateBusy(true);setError('');
+    try{
+      const status=action==='check'?await api.updateCheck():await api.updateInstall();
+      setUpdateInfo((previous:Any)=>({...previous,...status}));
+    }catch(e){setError(errText(e));}
+    finally{setUpdateBusy(false);}
+  }
   useEffect(()=>{
     if(tab!=='devices'||device.scaleTransport!=='serial'||!api)return;
     let active=true;
@@ -52,6 +73,7 @@ export function SystemSettings(){
       <button role="tab" aria-selected={tab==='network'} onClick={()=>setTab('network')}><Server size={16}/> Rede local</button>
       <button role="tab" aria-selected={tab==='devices'} onClick={()=>setTab('devices')}><Printer size={16}/> Periféricos</button>
       <button role="tab" aria-selected={tab==='backup'} onClick={()=>setTab('backup')}><DatabaseBackup size={16}/> Backups</button>
+      <button role="tab" aria-selected={tab==='updates'} onClick={()=>setTab('updates')}><Download size={16}/> Atualizações{updateInfo?.phase==='downloaded'?' • Pronta':''}</button>
     </div>
     {error&&<div className="notice danger" role="alert">{error}</div>}
     {notice&&<div className="notice success" role="status"><Check size={17}/>{notice}</div>}
@@ -161,6 +183,39 @@ export function SystemSettings(){
         <p className="settings-tip">Somente produtos ativos com código numérico de até 6 dígitos são elegíveis. Nada é enviado automaticamente para dispositivos.</p>
       </div>
       <div className="settings-wide"><button className="primary" disabled={pending} onClick={()=>void run(()=>api!.deviceSet(device),'Configuração de periféricos salva neste computador.')}><Check size={16}/> Salvar periféricos</button></div>
+    </div>}
+    {updateInfo?.phase==='downloaded'&&tab!=='updates'&&
+      <div className="notice success" role="status">
+        Nova versão {updateInfo.version} baixada. Acesse Atualizações para instalá-la após fechar os caixas.
+      </div>}
+    {tab==='updates'&&<div className="settings-grid">
+      <div className="panel settings-block">
+        <h2><Download size={19}/> Atualização do PDV Plus</h2>
+        <p>Versão instalada: <strong>{updateInfo?.currentVersion||'—'}</strong></p>
+        <p>Distribuição gratuita via GitHub Releases. O sistema verifica novas versões ao iniciar e a cada seis horas, quando conectado à internet.</p>
+        <div className="settings-info" role="status">
+          {updateInfo?.phase==='disabled'?'Atualizador disponível somente no aplicativo Windows instalado.':
+           updateInfo?.phase==='checking'?'Procurando uma nova versão...':
+           updateInfo?.phase==='available'?'Nova versão '+updateInfo.version+' encontrada; iniciando download...':
+           updateInfo?.phase==='downloading'?'Baixando versão '+updateInfo.version+': '+updateInfo.progress+'%':
+           updateInfo?.phase==='downloaded'?'Versão '+updateInfo.version+' pronta para instalação.':
+           updateInfo?.phase==='installing'?'Fechando o aplicativo para concluir a atualização...':
+           updateInfo?.phase==='up-to-date'?'Sistema atualizado.':
+           updateInfo?.phase==='error'?'Falha ao verificar ou baixar: '+(updateInfo.error||'Erro de rede'):
+           'Aguardando verificação automática.'}
+        </div>
+        {updateInfo?.phase==='downloading'&&
+          <progress style={{width:'100%'}} max={100} value={Number(updateInfo.progress)||0}/>}
+        <button className="secondary" disabled={updateBusy||!updateInfo?.enabled||['checking','downloading','installing','downloaded'].includes(updateInfo?.phase)}
+          onClick={()=>void updateAction('check')}><RefreshCcw size={16}/> Buscar atualização agora</button>
+        <button className="primary" disabled={updateBusy||updateInfo?.phase!=='downloaded'||!updateInfo?.canInstall}
+          onClick={()=>void updateAction('install')}><RotateCw size={16}/> Instalar e reiniciar</button>
+        {updateInfo?.phase==='downloaded'&&!updateInfo.canInstall&&
+          <p className="settings-tip">Um gerente ou administrador deve autorizar a instalação.</p>}
+      </div>
+      <div className="settings-note"><ShieldAlert size={19}/>
+        <p>A atualização é baixada em segundo plano, mas <strong>nunca reinicia durante uma venda</strong>. Antes da instalação, todos os caixas abertos devem ser fechados. No computador servidor, é gerado um backup SQLite validado. Sem internet, o PDV continua operando normalmente. As instalações anteriores à versão 0.6.0 precisam de uma última atualização manual.</p>
+      </div>
     </div>}
     {tab==='backup'&&<div className="settings-grid">
       <div className="panel settings-block"><h2><DatabaseBackup size={19}/> Exportar backup</h2>

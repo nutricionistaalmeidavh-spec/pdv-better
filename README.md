@@ -21,7 +21,7 @@ Sistema de ponto de venda local da ArtiSys inspirado no PDVNexus, com contrato c
 - Backup SQLite íntegro e restauração com retenção do banco anterior e reinício seguro.
 - QA no Electron e no NSIS instalado, com hash SHA256 no artefato GitHub Actions.
 
-**Limites:** balança serial COM, TEF, múltiplos turnos de caixa separados por terminal e homologação de hardware físico não foram implementados. HTTP na LAN não cifra o tráfego: use rede privada confiável. Pix e cartão continuam manuais.
+**Limites:** a homologação física de balanças por modelo, TEF e emissão fiscal não estão incluídos. A leitura serial COM e EAN-13 está disponível desde a v0.5.0. HTTP na LAN não cifra o tráfego: use rede privada confiável. Pix e cartão continuam manuais.
 
 ## Marco D — caixas simultâneos e perfis
 - Cada terminal pode abrir e fechar seu próprio caixa em paralelo, com saldos, sangrias, divergências e operador de abertura separados.
@@ -75,3 +75,7 @@ Não adicione regras de preços, quantidades, cadastros ou canais IPC duplicadas
 - Barra lateral azul-marinho, superfícies claras, ações azuis e botão verde de pagamento, aplicados transversalmente ao login, operações, cadastros, gestão, relatórios, configurações e modais.
 - O sistema permanece não fiscal, offline-first e sem dependências pagas; armazenamento SQLite, chaves e appId originais foram preservados para migração sem perda.
 - Executar `npm test`, `npm run build` e a auditoria visual real por screenshots do Electron/Windows; imagens promocionais não substituem esses prints. Ver `DESIGN.md`.
+
+## Atualizações automáticas — v0.6.0+
+
+O aplicativo Windows verifica novas releases oficiais no início e a cada seis horas, baixa NSIS em segundo plano e permite que gerente/administrador instale após fechamento dos caixas. A base SQLite é preservada e recebe backup validado antes da instalação no servidor. A versão 0.5.0 e anteriores precisam instalar a 0.6.0 manualmente uma única vez. Ver docs/11-atualizacao-automatica.md.

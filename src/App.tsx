@@ -70,6 +70,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
+  const [updateReadyVersion,setUpdateReadyVersion] = useState<string|null>(null);
   const [search,setSearch] = useState('');
   const [page,setPage] = useState(0);
   const [editing,setEditing] = useState<Row|null>(null);
@@ -119,6 +120,15 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     : activeSchema.fields.filter((field:any)=>field.type!=='image').slice(0,4)) : [];
   const dialogSchema = definitions[editingEntity || view];
   const bridge = window.pdv;
+  useEffect(()=>{
+    if(!bridge)return;
+    let active=true;
+    const apply=(status:{phase:string;version:string|null})=>{if(active)
+      setUpdateReadyVersion(status.phase==='downloaded'?status.version:null);};
+    void bridge.updateStatus().then(apply).catch(()=>{});
+    const detach=bridge.onUpdateStatus(apply);
+    return ()=>{active=false;detach();};
+  },[bridge]);
   useEffect(()=>{
     if(view!=='checkout'||!bridge)return;
     let active=true;
@@ -520,6 +530,10 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         </div>
       </header>
       <section className="content">
+        {updateReadyVersion&&view!=='checkout'&&<div className="notice success" role="status">
+          <Check size={17}/> Nova versão {updateReadyVersion} baixada e pronta.
+          <button onClick={()=>selectView('settings')}>Abrir configurações para atualizar</button>
+        </div>}
         {notice && <div className="notice success" role="status"><Check size={17}/>{notice}<button aria-label="Fechar aviso" onClick={() => setNotice('')}><X size={15}/></button></div>}
         {error && !editing && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}<button onClick={() => {setLoading(true); void reloadAll();}}><RotateCcw size={15}/>Tentar novamente</button></div>}
         {loading ? <div className="loading">Carregando dados do estabelecimento…</div> : <>

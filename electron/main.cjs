@@ -15,6 +15,9 @@ async function start() {
   const { applyPendingRestore,verifyDatabase,scheduleRestore } = await import('./backup.mjs');
   const { renderPrintDocument } = await import('./printing.mjs');
   const {openPrintQueue} = await import('./print-queue.mjs');
+  const {createUpdateManager} = await import('./auto-update.mjs');
+  const {allowed} = await import('../shared/access.mjs');
+  const {autoUpdater} = require('electron-updater');
   const { sendTcp, readScale } = await import('./peripherals.mjs');
   const { listScalePorts, readSerialScale } = await import('./serial-scale.mjs');
   const { normalizeScaleConfig, buildScaleExport } = await import('../shared/scale-integration.mjs');
@@ -91,6 +94,34 @@ async function start() {
       webSecurity: true
     }
   });
+  // O binário é substituído pelo NSIS; o SQLite continua no diretório userData.
+  // A versão anterior permanece funcional se não houver rede ou se o backup falhar.
+  const updaterManager=createUpdateManager({
+    app,updater:autoUpdater,
+    notify:status=>{if(!window.isDestroyed()&&!window.webContents.isDestroyed())
+      window.webContents.send(apiChannels.updateEvent,status);},
+    listOpenSessions:()=>runtime.call('listOpenSessions'),
+    backup:async()=>{
+      if(runtime.isRemote())return; // O SQLite canônico fica no servidor LAN.
+      const backupPath=path.join(folder,'pre-update-'+app.getVersion()+'-'+Date.now()+'.sqlite');
+      await store.backupTo(backupPath);
+      verifyDatabase(backupPath);
+    }
+  });
+  ipcMain.handle(apiChannels.updateStatus,()=>{
+    runtime.authorize('updateStatus');
+    return {...updaterManager.status(),canInstall:allowed(runtime.currentUser()?.role,'updateInstall')};
+  });
+  ipcMain.handle(apiChannels.updateCheck,()=>{
+    runtime.authorize('updateCheck');
+    return updaterManager.check();
+  });
+  ipcMain.handle(apiChannels.updateInstall,()=>{
+    runtime.authorize('updateInstall');
+    return updaterManager.install();
+  });
+  updaterManager.start();
+  window.once('closed',()=>updaterManager.stop());
   ipcMain.handle(apiChannels.reportExport, async (_evt,format) => {
     runtime.authorize('reportExport');
     if(!['pdf','csv','xlsx'].includes(format)) throw new Error('Formato não suportado.');
