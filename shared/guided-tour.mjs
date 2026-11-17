@@ -1,8 +1,8 @@
-// Tour offline do PDV SUPER. Sem serviço externo, telemetria ou dados de terceiros.
+// Tour offline do PDV Plus. Sem serviço externo, telemetria ou dados de terceiros.
 export const TOUR_VERSION = 1;
 const ALL_STEPS = Object.freeze([
   {id:'welcome',view:'dashboard',selector:'[data-tour="brand"]',
-    title:'Bem-vindo ao PDV SUPER',
+    title:'Bem-vindo ao PDV Plus',
     description:'Este é seu espaço de trabalho. Em poucos passos você vai conhecer o caixa, os cadastros e os controles da loja.'},
   {id:'navigation',view:'dashboard',selector:'[data-tour="navigation"]',
     title:'Tudo ao seu alcance',

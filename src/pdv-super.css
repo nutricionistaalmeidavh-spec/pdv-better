@@ -1,5 +1,5 @@
 /*
- * PDV SUPER — identidade visual única de produção.
+ * PDV Plus — identidade visual única de produção.
  * Referência: frente de caixa azul-marinho, superfícies claras, seleção azul,
  * totais legíveis e ação verde de recebimento.
  * Transversal: entrada, operação, gestão, tabelas, modais, configurações e caixa.
@@ -508,7 +508,7 @@ select option {color:var(--super-text);background:white}
 @media(max-width:760px){.payment-summary{grid-template-columns:1fr}}
 
 
-/* PDV SUPER — fidelidade à referência de caixa: tabela operacional com fotos e totais. */
+/* PDV Plus — fidelidade à referência de caixa: tabela operacional com fotos e totais. */
 .cashier-shell .content{padding-top:18px}
 .cashier-heading{margin-bottom:12px}
 .cashier-heading-title .cashier-bolt{width:41px;height:41px;border-radius:9px}
@@ -623,7 +623,7 @@ select option {color:var(--super-text);background:white}
 
 
 /* --------------------------------------------------------------------------
-   PDV SUPER • diretriz visual referenciada pelas telas aprovadas (07/11/2026)
+   PDV Plus • diretriz visual referenciada pelas telas aprovadas (07/11/2026)
    UI real do Electron: barra superior azul, catálogo com fotos, carrinho claro.
    Todas as rotas, diálogos e módulos compartilham estes tokens; offline, R$ 0.
    -------------------------------------------------------------------------- */
@@ -1111,7 +1111,7 @@ select option {color:var(--super-text);background:white}
 }
 
 /* --------------------------------------------------------------------------
-   PDV SUPER — refino transversal de telas secundárias
+   PDV Plus — refino transversal de telas secundárias
    UI real: cadastros, vendas, compras, financeiro, relatórios e configurações.
    Apenas apresentação. Sem alteracoes de dados, IPC, pagamento ou regra fiscal.
    -------------------------------------------------------------------------- */

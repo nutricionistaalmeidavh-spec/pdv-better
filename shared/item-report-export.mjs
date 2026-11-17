@@ -41,7 +41,7 @@ export function itemReportHtml(report){
     'body{font-family:Arial,sans-serif;color:#232733;padding:14px}h1{font-size:21px}'+
     'table{border-collapse:collapse;width:100%;font-size:9px}th,td{padding:5px;border:1px solid #bbb;text-align:left;overflow-wrap:anywhere}'+
     'thead{display:table-header-group}tr{page-break-inside:avoid}footer{margin-top:16px}'+
-    '</style></head><body><h1>Relatório detalhado por item — PDV SUPER</h1>'+
+    '</style></head><body><h1>Relatório detalhado por item — PDV Plus</h1>'+
     '<p>Registros: '+items.length+' · Total líquido (centavos): '+total+'</p>'+
     '<table><thead><tr>'+header+'</tr></thead><tbody>'+body+'</tbody></table>'+
     '<footer>Documento gerencial não fiscal. Valores de pagamento externo confirmados manualmente.</footer></body></html>';

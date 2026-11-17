@@ -1,8 +1,8 @@
-# PDV SUPER — direção visual canônica (07/11/2026)
+# PDV Plus — direção visual canônica (07/11/2026)
 
 ## Referência e objetivo
 
-Interface de produção do PDV SUPER inspirada nas telas de referência apresentadas pelo usuário: barra de navegação superior azul-marinho, superfícies brancas/azul-claro, seleção azul viva, grade de produtos com fotos, carrinho lateral claro, total destacado em azul, botão verde de receber e informações operacionais legíveis.
+Interface de produção do PDV Plus inspirada nas telas de referência apresentadas pelo usuário: barra de navegação superior azul-marinho, superfícies brancas/azul-claro, seleção azul viva, grade de produtos com fotos, carrinho lateral claro, total destacado em azul, botão verde de receber e informações operacionais legíveis.
 
 As imagens promocionais são referências estéticas, **não capturas fiéis do aplicativo**. O objetivo é aproximar a aplicação real sem desenhar ações inexistentes nem alterar a lógica comercial.
 
@@ -25,7 +25,7 @@ A interface apresenta uma única direção visual, sem seletor de modos. Os valo
 
 ## Restrições inegociáveis
 
-- A marca exibida é **PDV SUPER** (não "Caixa Rápido", "PDV Better" ou "ArtiSys" em telas de marketing).
+- A marca exibida é **PDV Plus** (não "Caixa Rápido", "PDV Better" ou "ArtiSys" em telas de marketing).
 - **Funcionalidades existentes intocadas**: leitura de código de barras, quantidades/peso, favoritos, catálogo, espera/retomada, desfazer, métodos de pagamento, descontos, cliente, relatórios, estoque e atalhos.
 - **Não fiscal**: não adicionar NFC-e, NF-e, cupom fiscal, SEFAZ, captura automática de cartão/Pix ou confirmação financeira implícita.
 - **Core R$ 0, offline-first, self-hosted/open source**, sem dependências pagas nem fontes remotas.

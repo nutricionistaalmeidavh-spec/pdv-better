@@ -1,7 +1,7 @@
 name: Publicar PDV Plus — release com atualização automática
 on:
   workflow_run:
-    workflows: ["QA PDV SUPER — Windows Desktop"]
+    workflows: ["QA PDV Plus — Windows Desktop"]
     types: [completed]
 permissions:
   actions: read
