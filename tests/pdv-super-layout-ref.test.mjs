@@ -7,7 +7,7 @@ test('layout transversal usa navegação superior com telas de gestão acessíve
   const app=source('src/App.tsx');
   assert.match(app,/className="super-top-navigation"/);
   assert.match(app,/aria-label="Navegação principal"/);
-  assert.match(app,/PDV SUPER/);
+  assert.match(app,/PDV Plus/);
   assert.match(app,/menus\.map/);
   assert.match(app,/selectView\(id\)/);
 });

@@ -17,12 +17,12 @@ try{
   });
   page=await app.firstWindow();
   await page.setViewportSize({width:1440,height:900});
-  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'PDV Plus',exact:true}).waitFor();
   await page.getByRole('textbox',{name:'Nome do administrador'}).fill('Administrador Tour QA');
   await page.locator('.auth-form input[type=password]').nth(0).fill(pwd);
   await page.locator('.auth-form input[type=password]').nth(1).fill(pwd);
   await page.getByRole('button',{name:'Criar administrador'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV Plus'}).waitFor();
   const invite=page.locator('.guided-tour-invite');
   await invite.waitFor({state:'visible',timeout:15000});
   // O convite inicial não deve obstruir formulários fora do dashboard.
@@ -33,7 +33,7 @@ try{
   await invite.waitFor({state:'visible'});
   await page.screenshot({path:join(out,'tour-convite.png')});
   await invite.getByRole('button',{name:'Começar tour'}).click();
-  const dlg=page.getByRole('dialog',{name:'Tour guiado do PDV SUPER'});
+  const dlg=page.getByRole('dialog',{name:'Tour guiado do PDV Plus'});
   await dlg.waitFor();
   const steps=getTourSteps('Administrador');
   for(let i=0;i<steps.length;i++){
@@ -61,7 +61,7 @@ try{
   await page.getByRole('button',{name:'Entrar no PDV'}).waitFor();
   await page.locator('.auth-form input[type=password]').first().fill(pwd);
   await page.getByRole('button',{name:'Entrar no PDV'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV Plus'}).waitFor();
   assert.equal(await invite.count(),0,'tour pulado não reabre após novo login');
   console.log('QA_TOUR_OK: convite, spotlight em todos os passos, persistência, voltar e reabrir.');
 }catch(error){

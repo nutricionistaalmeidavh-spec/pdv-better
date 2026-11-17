@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 
-test('tema PDV SUPER é o último stylesheet carregado globalmente',()=>{
+test('tema PDV Plus é o último stylesheet carregado globalmente',()=>{
  const code=read('src/main.tsx');
  assert.match(code,/import '\.\/pdv-super\.css';/);
  assert.equal(code.trim().split('\n').at(-2)?.trim(),"import './pdv-super.css';");
  assert.doesNotMatch(code,/import '\.\/graphite\.css';/);
 });
-test('tokens PDV SUPER cobrem superfícies, navegação, tabelas, caixa e modais',()=>{
+test('tokens PDV Plus cobrem superfícies, navegação, tabelas, caixa e modais',()=>{
  const css=read('src/pdv-super.css');
  for(const selector of ['.sidebar','.topbar','.nav-item.selected','.data-panel td',
   '.commerce-table td','.glass-product-grid .product-option','.auth-panel',

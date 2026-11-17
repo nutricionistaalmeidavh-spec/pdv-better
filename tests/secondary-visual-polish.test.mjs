@@ -27,7 +27,7 @@ test('cadastro de produtos prioriza colunas comerciais reais sem perder as demai
 
 test('linguagem visual secundaria e acessibilidade responsiva permanecem no tema gratuito',()=>{
   const css=source('src/pdv-super.css');
-  assert.match(css,/PDV SUPER — refino transversal de telas secundárias/);
+  assert.match(css,/PDV Plus — refino transversal de telas secundárias/);
   for(const selector of ['.commerce-screen[data-module="purchases"]','.commerce-screen[data-module="finance"]','.system-settings .settings-tabs','.p2-finance-stack .report-grid','.shell.super-shell .data-panel','.shell.super-shell .dialog:not(.product-editor-dialog)']){
     assert.ok(css.includes(selector),'seletor ausente: '+selector);
   }
