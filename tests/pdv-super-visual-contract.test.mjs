@@ -4,10 +4,10 @@ import {readFileSync} from 'node:fs';
 
 const source = path => readFileSync(new URL('../'+path, import.meta.url), 'utf8');
 
-test('PDV SUPER é a única marca apresentada no shell, login e frente de caixa',()=>{
+test('PDV Plus é a única marca apresentada no shell, login e frente de caixa',()=>{
   for(const path of ['src/App.tsx','src/AuthGate.tsx','src/Cashier.tsx','index.html']){
     const content=source(path);
-    assert.match(content,/PDV SUPER/,path+' deve conter a marca');
+    assert.match(content,/PDV Plus/,path+' deve conter a marca');
     assert.doesNotMatch(content,/Caixa Rápido|PDV Better|by ArtiSys/,path+' não pode exibir marca antiga');
   }
 });
@@ -54,7 +54,7 @@ test('frente de caixa usa uma única aparência e não exibe seletor de modos le
   assert.doesNotMatch(cashier,/cashier-mode-picker|Escolher visual do caixa/);
   assert.doesNotMatch(app,/setCashierMode|onModeChange=|cashierMode/);
   assert.match(app,/cashier-shell mode-light/);
-  assert.match(cashier,/<h1>PDV SUPER<\/h1>/);
+  assert.match(cashier,/<h1>PDV Plus<\/h1>/);
 });
 
 test('financeiro P2 e resumo de pagamentos mantêm geometria funcional',()=>{

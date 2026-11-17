@@ -90,7 +90,7 @@ export function FirstAccess({userId,databaseReady,productsCount,cashOpen,startSi
 
   return <>
     <section className={'panel first-access-card'+(dismissed?' first-access-card-compact':'')}
-      aria-label="Preparação do PDV SUPER">
+      aria-label="Preparação do PDV Plus">
       {dismissed?
         <><div className="first-access-card-heading"><ClipboardList size={23}/><div>
           <strong>Preparação do PDV</strong><p>Revise o checklist ou atualize os dados da loja.</p>

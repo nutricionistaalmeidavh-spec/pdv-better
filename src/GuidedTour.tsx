@@ -95,11 +95,11 @@ export function GuidedTour({userId,role,view,loading,startSignal,onNavigate}:Pro
   if(loading||mode==='idle')return null;
   // Não sobrepor botões de cadastro, pagamento ou modais operacionais.
   if(mode==='invite'&&view!=='dashboard')return null;
-  if(mode==='invite')return <aside className="guided-tour-invite" aria-label="Convite para conhecer o PDV SUPER">
+  if(mode==='invite')return <aside className="guided-tour-invite" aria-label="Convite para conhecer o PDV Plus">
     <div className="guided-tour-invite-icon"><GraduationCap size={21}/></div>
     <div className="guided-tour-invite-copy">
       <strong>Primeira vez por aqui?</strong>
-      <p>Conheça as telas do PDV SUPER em um tour rápido e interativo.</p>
+      <p>Conheça as telas do PDV Plus em um tour rápido e interativo.</p>
       <div className="guided-tour-invite-actions">
         <button type="button" className="guided-tour-start" onClick={start}><Play size={14}/> Começar tour</button>
         <button type="button" className="guided-tour-skip" onClick={()=>exit('dismissed')}>Agora não</button>
@@ -116,7 +116,7 @@ export function GuidedTour({userId,role,view,loading,startSignal,onNavigate}:Pro
       top:spotlight.top,left:spotlight.left,width:spotlight.width,height:spotlight.height
     }}/>}
     <div className="guided-tour-card" ref={dialogRef} tabIndex={-1}
-      role="dialog" aria-modal="true" aria-label="Tour guiado do PDV SUPER"
+      role="dialog" aria-modal="true" aria-label="Tour guiado do PDV Plus"
       style={position?{top:position.top,left:position.left}:undefined}>
       <div className="guided-tour-card-top">
         <span><GraduationCap size={17}/> TOUR GUIADO</span>
