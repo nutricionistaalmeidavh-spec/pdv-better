@@ -127,13 +127,13 @@ async function seed(){
 }
 async function buildPDF(){
   const pdf=await PDFDocument.create();
-  pdf.setTitle('PDV SUPER | QA Visual Completo');
+  pdf.setTitle('PDV Plus | QA Visual Completo');
   pdf.setSubject('Capturas do Electron real usando SQLite e dados ficticios');
   const font=await pdf.embedFont(StandardFonts.Helvetica);
   const bold=await pdf.embedFont(StandardFonts.HelveticaBold);
   const cover=pdf.addPage([842,595]);
   cover.drawRectangle({x:0,y:0,width:842,height:595,color:rgb(0.058,0.074,0.125)});
-  cover.drawText('PDV SUPER', {x:58,y:460,size:34,font:bold,color:rgb(1,1,1)});
+  cover.drawText('PDV Plus', {x:58,y:460,size:34,font:bold,color:rgb(1,1,1)});
   cover.drawText('AUDITORIA VISUAL | WINDOWS 10/11',{x:58,y:414,size:18,font,color:rgb(0.73,0.83,1)});
   cover.drawText('Electron real  -  SQLite temporario  -  Dados inteiramente ficticios',{x:58,y:374,size:13,font,color:rgb(0.91,0.94,1)});
   cover.drawText('Capturas: '+captures.length+'  |  Gerado em: '+now().replace(/[^\x20-\x7e]/g,''),{x:58,y:330,size:12,font,color:rgb(1,1,1)});
@@ -148,10 +148,10 @@ async function buildPDF(){
     const img=await pdf.embedJpg(new Uint8Array((await import('node:fs')).readFileSync(join(shots,item.file))));
     const scale=Math.min(782/img.width,510/img.height);
     p.drawImage(img,{x:(842-img.width*scale)/2,y:28+(510-img.height*scale)/2,width:img.width*scale,height:img.height*scale});
-    p.drawText('PDV SUPER | Evidencia real | '+item.id+'/'+String(captures.length).padStart(2,'0'),{x:32,y:12,size:8,font,color:rgb(0.42,0.44,0.51)});
+    p.drawText('PDV Plus | Evidencia real | '+item.id+'/'+String(captures.length).padStart(2,'0'),{x:32,y:12,size:8,font,color:rgb(0.42,0.44,0.51)});
   }
   const bytes=await pdf.save({useObjectStreams:true});
-  writeFileSync(join(output,'PDV-Better-QA-Todas-as-Telas.pdf'),bytes);
+  writeFileSync(join(output,'PDV-Plus-QA-Todas-as-Telas.pdf'),bytes);
 }
 async function main(){
   app=await electron.launch({
@@ -163,7 +163,7 @@ async function main(){
   await page.setViewportSize({width:1440,height:900});
   const pageErrors=[];
   page.on('pageerror',e=>pageErrors.push(e.message));
-  await page.getByRole('heading',{name:'PDV SUPER',exact:true}).waitFor({timeout:30000});
+  await page.getByRole('heading',{name:'PDV Plus',exact:true}).waitFor({timeout:30000});
   await page.getByRole('button',{name:'Criar administrador'}).waitFor();
   await capture('Primeiro acesso - cadastrar administrador',{selector:'.auth-panel'});
   await page.getByRole('textbox',{name:'Nome do administrador'}).fill('Administrador Principal QA');
@@ -171,7 +171,7 @@ async function main(){
   await page.locator('.auth-form input[type=password]').nth(1).fill(pwd);
   await capture('Primeiro acesso - formulario preenchido');
   await page.getByRole('button',{name:'Criar administrador'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV Plus'}).waitFor();
   await page.locator('.guided-tour-invite').waitFor({state:'visible'});
   await capture('Primeiro acesso - convite para tour guiado');
   await page.locator('.guided-tour-invite').getByRole('button',{name:'Agora não'}).click();
@@ -184,7 +184,7 @@ async function main(){
   await capture('Login de operador - lista de perfis');
   await page.locator('.auth-form input[type=password]').first().fill(pwd);
   await page.getByRole('button',{name:'Entrar no PDV'}).click();
-  await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
+  await page.getByRole('heading',{name:'Bem-vindo ao PDV Plus'}).waitFor();
   const buttons=await page.getByRole('navigation',{name:'Navegação principal'}).locator('button.nav-item').allTextContents();
   for(const [,label] of names)if(!buttons.some(s=>s.trim()===label))throw new Error('Falta tela no menu administrativo: '+label);
   for(const [key,label] of names){
@@ -248,7 +248,7 @@ async function main(){
     }
   }
   await go('Frente de caixa');
-  await capture('PDV SUPER - frente de caixa unificada');
+  await capture('PDV Plus - frente de caixa unificada');
   await page.getByRole('button',{name:'Abrir catálogo'}).click();
   await page.locator('button.cashier-product-option').nth(0).click();
   await page.getByRole('button',{name:'Abrir catálogo'}).click();
@@ -273,7 +273,7 @@ async function main(){
     await page.locator('.auth-form select').selectOption(value);
     await page.locator('.auth-form input[type=password]').first().fill(pwd);
     await page.getByRole('button',{name:'Entrar no PDV'}).click();
-    await page.getByRole('heading',{name:'Bem-vindo ao PDV SUPER'}).waitFor();
+    await page.getByRole('heading',{name:'Bem-vindo ao PDV Plus'}).waitFor();
     const invite=page.locator('.guided-tour-invite');
     if(await invite.isVisible())await invite.getByRole('button',{name:'Agora não'}).click();
     await capture('Perfil '+role+' - visao geral e permissoes');
