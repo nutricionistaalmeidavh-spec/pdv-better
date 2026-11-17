@@ -505,9 +505,9 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   return <div className={'shell super-shell'+(view==='checkout'?' cashier-shell mode-light':'')}>
     <main className="main">
       <header className="topbar super-topbar">
-        <div className="super-top-brand" aria-label="PDV SUPER" data-tour="brand">
+        <div className="super-top-brand" aria-label="PDV Plus" data-tour="brand">
           <span className="super-brand-icon"><ShoppingCart size={23}/></span>
-          <strong>PDV SUPER</strong>
+          <strong>PDV Plus</strong>
         </div>
         <nav className="super-top-navigation" aria-label="Navegação principal" data-tour="navigation">
           {menus.map(section => <div className="menu-section" key={section.title}>
@@ -538,7 +538,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         {error && !editing && <div className="notice danger" role="alert"><AlertTriangle size={17}/>{error}<button onClick={() => {setLoading(true); void reloadAll();}}><RotateCcw size={15}/>Tentar novamente</button></div>}
         {loading ? <div className="loading">Carregando dados do estabelecimento…</div> : <>
           {view === 'dashboard' && <>
-            <div className="page-heading"><div><div className="eyebrow">INÍCIO</div><h1>Bem-vindo ao PDV SUPER</h1><p>Seu comércio organizado em um único lugar, mesmo sem internet.</p></div><button className="primary" onClick={() => selectView('checkout')}><ShoppingCart size={17}/> Abrir frente de caixa</button></div>
+            <div className="page-heading"><div><div className="eyebrow">INÍCIO</div><h1>Bem-vindo ao PDV Plus</h1><p>Seu comércio organizado em um único lugar, mesmo sem internet.</p></div><button className="primary" onClick={() => selectView('checkout')}><ShoppingCart size={17}/> Abrir frente de caixa</button></div>
             {user.role==='Administrador'&&<FirstAccess userId={user.id} databaseReady={Number.isInteger(overviewCounts.products)&&!error}
               productsCount={overviewCounts.products||0} cashOpen={Boolean(session)} startSignal={setupRequest}
               onNavigate={selectView} onStartTour={()=>setTourRequest(old=>old+1)}/>}

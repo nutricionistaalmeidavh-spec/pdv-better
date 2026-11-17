@@ -74,12 +74,12 @@ export function Cashier({
     if(canReceive)onOpenPayment(method,focus);
   };
 
-  return <section className="cashier-mode" aria-label="Frente de caixa PDV SUPER">
+  return <section className="cashier-mode" aria-label="Frente de caixa PDV Plus">
     <header className="cashier-heading">
       <div className="cashier-heading-title">
         <span className="cashier-bolt"><ShoppingCart size={24}/></span>
         <div><span className="cashier-kicker">FRENTE DE CAIXA</span>
-          <h1>PDV SUPER</h1>
+          <h1>PDV Plus</h1>
           <p>Leitura, conferência e recebimento em uma única tela.</p>
         </div>
       </div>
