@@ -42,6 +42,16 @@ jobs:
         run: npm run test:flows:e01-e12
       - name: Testar etiqueta Code128 via HID simulado e kit multisku no Electron real
         run: node scripts/qa-batch-scanner-e2e.mjs
+      - name: Importar Excel XLSX real, validar prévia, cancelar e salvar no SQLite
+        run: node scripts/qa-xlsx-import-e2e.mjs
+      - name: Evidências da importação Excel
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDV-Plus-QA-Importacao-Excel
+          path: qa-artifacts/excel-import/
+          if-no-files-found: warn
+          retention-days: 14
   user-journeys:
     name: QA jornadas individuais J01–J07 — ponta a ponta
     runs-on: windows-2022
