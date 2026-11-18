@@ -35,7 +35,7 @@ test('formata reais e quantidades de KG, protege CSV e escapa HTML', () => {
   assert.equal(report.rows[0].saleStockCents,999);
   assert.equal(report.rows[0].costStockCents,375);
   const csv=catalogCsv(report);
-  assert.match(csv,/'\x27=SOMA\(1;1\)"/);
+  assert.ok(csv.includes(`"\'=SOMA(1;1)"`));
   assert.match(csv,/9,99/);
   const html=catalogHtml(report);
   assert.match(html,/&lt;teste&gt; &amp; &quot;Pão&quot;/);
