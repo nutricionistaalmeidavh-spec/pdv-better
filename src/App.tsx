@@ -79,7 +79,11 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [form,setForm] = useState<Row>({});
   const [saving,setSaving] = useState(false);
   const [photoBusy,setPhotoBusy] = useState(false);
-  const [importingCsv,setImportingCsv] = useState(false);
+  const [importingCatalog,setImportingCatalog] = useState(false);
+  const [catalogImportError,setCatalogImportError] = useState('');
+  const [catalogImportPreview,setCatalogImportPreview] = useState<{
+    fileName:string;csv:string;count:number;rows:Row[];
+  }|null>(null);
   const [exportingCatalog,setExportingCatalog] = useState<'pdf'|'xlsx'|'csv'|null>(null);
   const [stockAlertsSummary,setStockAlertsSummary]=useState<{
     outOfStock:number;lowStock:number;expired:number;expiring:number;
@@ -374,22 +378,38 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     }catch(err){setError('Falha ao exportar produtos. '+friendlyError(err));}
     finally{setExportingCatalog(null);}
   }
-  async function importProductsCsv(event:React.ChangeEvent<HTMLInputElement>){
+  async function prepareCatalogImport(event:React.ChangeEvent<HTMLInputElement>){
     const file=event.target.files?.[0];event.target.value='';
-    if(!bridge||!file||importingCsv)return;
-    setImportingCsv(true);setError('');setNotice('');
+    if(!bridge||!file||importingCatalog)return;
+    setImportingCatalog(true);setCatalogImportError('');setError('');setNotice('');
     try{
-      if(file.size>120000)throw new Error('CSV excede o limite de 120 KB. Divida em arquivos menores.');
-      const csv=await file.text();
+      const isXlsx=/\.xlsx$/i.test(file.name);
+      if(!isXlsx&&!/\.csv$/i.test(file.name))
+        throw new Error('Selecione um arquivo Excel (.xlsx) ou CSV (.csv).');
+      let csv:string;
+      if(isXlsx){
+        if(!file.size||file.size>2*1024*1024)
+          throw new Error('Planilha Excel inválida ou maior que 2 MB.');
+        csv=await bridge.catalogXlsxConvert(new Uint8Array(await file.arrayBuffer()));
+      }else{
+        if(file.size>120000)throw new Error('CSV excede 120 KB. Divida em arquivos menores.');
+        csv=await file.text();
+      }
       const preview=await bridge.catalogCsvPreview({csv});
-      if(!window.confirm('Importar '+preview.count+' produtos no SQLite?\n'+
-        preview.rows.slice(0,5).map((r:Row)=>r.code+' · '+r.name).join('\n')+
-        '\nTodos os produtos serão gravados juntos; erros cancelam toda a importação.'))return;
-      const result=await bridge.catalogCsvImport({csv});
+      setCatalogImportPreview({csv,fileName:file.name,count:preview.count,rows:preview.rows});
+    }catch(err){setError('Falha ao preparar importação. '+friendlyError(err));}
+    finally{setImportingCatalog(false);}
+  }
+  async function confirmCatalogImport(){
+    if(!bridge||!catalogImportPreview||importingCatalog)return;
+    setImportingCatalog(true);setCatalogImportError('');
+    try{
+      const result=await bridge.catalogCsvImport({csv:catalogImportPreview.csv});
       await reload('products');
-      setNotice(result.imported+' produtos importados de forma transacional.');
-    }catch(err){setError('Falha na importação CSV. '+friendlyError(err));}
-    finally{setImportingCsv(false);}
+      setCatalogImportPreview(null);
+      setNotice(result.imported+' produtos importados com sucesso. Estoque inicial registrado no SQLite.');
+    }catch(err){setCatalogImportError(friendlyError(err));}
+    finally{setImportingCatalog(false);}
   }
   async function archiveRecord(row:Row) {
     if (!bridge || !window.confirm('Desativar ' + row.name + '? O cadastro ficará oculto, sem exclusão permanente.')) return;
@@ -621,9 +641,10 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
                 </button>)}
               </div>}
               {view==='products'&&allowed(user.role,'importCatalogCsv')&&<label className="secondary catalog-import-control">
-                <Database size={16} aria-hidden="true"/> Importar produtos CSV
-                <input type="file" accept=".csv,text/csv" aria-label="Importar produtos CSV"
-                  disabled={importingCsv} onChange={ev=>void importProductsCsv(ev)}/>
+                <Database size={16} aria-hidden="true"/> {importingCatalog?'Lendo planilha…':'Importar Excel / CSV'}
+                <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,text/csv"
+                  aria-label="Selecionar planilha de produtos Excel ou CSV"
+                  disabled={importingCatalog} onChange={ev=>void prepareCatalogImport(ev)}/>
               </label>}
               {allowed(user.role,"save",[view])&&<button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button>}</div>
             <div className={"panel data-panel"+(view==='products'?" data-panel-products":"")}>
@@ -639,6 +660,35 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         </>}
       </section>
     </main>
+    {catalogImportPreview&&<div className="modal-backdrop" role="presentation">
+      <section className="dialog catalog-import-preview" role="dialog" aria-modal="true" aria-labelledby="catalog-import-title">
+        <header className="dialog-head">
+          <div><div className="eyebrow">CONFERÊNCIA ANTES DE SALVAR</div><h2 id="catalog-import-title">Pré-visualização da planilha</h2></div>
+          <button type="button" className="icon-btn" aria-label="Fechar prévia" disabled={importingCatalog}
+            onClick={()=>setCatalogImportPreview(null)}><X size={20}/></button>
+        </header>
+        <div className="catalog-import-preview-content">
+          <p><strong>{catalogImportPreview.fileName}</strong></p>
+          <p><strong>{catalogImportPreview.count} produtos válidos</strong> · Exibindo os primeiros {catalogImportPreview.rows.length}. Nenhum produto foi gravado ainda.</p>
+          <div className="catalog-import-table table-wrap"><table>
+            <thead><tr><th>Produto</th><th>Código</th><th>Unidade</th><th>Preço de venda</th><th>Preço de custo</th><th>Estoque</th></tr></thead>
+            <tbody>{catalogImportPreview.rows.map((row,i)=><tr key={i}>
+              <td>{row.name}</td><td>{row.code}</td><td>{row.unit}</td>
+              <td>{money(row.sale_price_cents||0)}</td><td>{money(row.cost_price_cents||0)}</td>
+              <td>{(Number(row.stock_milli||0)/1000).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td>
+            </tr>)}</tbody>
+          </table></div>
+          <p className="catalog-import-note">Ao confirmar, todos os produtos serão cadastrados de uma só vez. Se houver algum erro, nenhuma linha será gravada.</p>
+          {catalogImportError&&<p role="alert" className="catalog-import-error">{catalogImportError}</p>}
+        </div>
+        <footer className="dialog-footer">
+          <button className="secondary" type="button" disabled={importingCatalog} onClick={()=>setCatalogImportPreview(null)}>Cancelar</button>
+          <button className="primary" type="button" disabled={importingCatalog} onClick={()=>void confirmCatalogImport()}>
+            {importingCatalog?'Importando…':'Confirmar importação de '+catalogImportPreview.count+' produtos'} <Check size={16}/>
+          </button>
+        </footer>
+      </section>
+    </div>}
     {labelTarget&&<LabelPrintDialog product={labelTarget as {id:string;name:string;code?:string;sale_price_cents:number}} onClose={()=>setLabelTarget(null)}/>}
     {passwordTarget&&<div className="modal-backdrop" role="presentation"><section className="dialog" role="dialog" aria-label="Definir senha do operador" aria-modal="true">
       <header className="dialog-head"><h2>Definir senha: {passwordTarget.name}</h2><button className="icon-btn" onClick={()=>setPasswordTarget(null)} aria-label="Fechar"><X size={18}/></button></header>
