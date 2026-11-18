@@ -4,6 +4,7 @@ import {normalizeLabelSettings,renderLabelDocument} from '../shared/label-layout
 
 type Product={id:string;name:string;code?:string;sale_price_cents:number};
 type PrinterInfo={name:string;displayName:string;isDefault?:boolean};
+type Preview={size:{widthMm:number;heightMm:number;marginMm:number};html:string}|{error:string}|null;
 const friendlyError=(e:unknown)=>String((e as Error)?.message||e||'Falha na impressão').replace(/^Error invoking remote method.*?: Error: /,'');
 export function LabelPrintDialog({product,onClose}:{product:Product;onClose:()=>void}){
   const [settings,setSettings]=useState<Record<string,unknown>|null>(null);
@@ -18,7 +19,7 @@ export function LabelPrintDialog({product,onClose}:{product:Product;onClose:()=>
       .catch(e=>{if(alive)setError(friendlyError(e));});
     return ()=>{alive=false;};
   },[product.id]);
-  const preview=useMemo(()=>{
+  const preview:Preview=useMemo(()=>{
     if(!settings)return null;
     try{
       const size=normalizeLabelSettings(settings);
