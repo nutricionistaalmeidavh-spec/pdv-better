@@ -10,7 +10,7 @@ test('exporta todo o catálogo ativo, mesmo com mais de 500 produtos, sem imagen
     for(let i=0;i<510;i++)store.save('products',{
       name:'Produto '+i,code:'SKU-'+i,unit:'UN',sale_price_cents:'10,00',
       cost_price_cents:'6,00',stock_milli:'2',category_id:category.id,
-      image_data:i===0?'data:image/png;base64,AAAA':''
+      image_data:i===0?'data:image/jpeg;base64,/9j/2Q==':''
     });
     const products=store.list('products','',{slim:true});
     assert.equal(products.length,510);
