@@ -1,4 +1,5 @@
 // Catálogo gerencial offline: fonte única de dados para CSV, XLSX e PDF.
+import {lineTotalCents} from './domain.mjs';
 // Trabalha com consulta resumida sem fotos e sem aplicar limite de paginação da interface.
 const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 const quantity=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3});
@@ -22,9 +23,8 @@ const stock=value=>{
   return n;
 };
 function stockValue(price,quantityMilli){
-  const result=Math.round(price*quantityMilli/1000);
-  if(!Number.isSafeInteger(result))throw new Error('Total de estoque fora do limite seguro.');
-  return result;
+  // Mesma regra canônica de arredondamento do caixa; estoque zero não cria valor.
+  return quantityMilli===0?0:lineTotalCents(price,quantityMilli);
 }
 const formatPrice=value=>money.format(value/100);
 const formatQuantity=(value,unit)=>unit==='UN'?quantity.format(value/1000):
