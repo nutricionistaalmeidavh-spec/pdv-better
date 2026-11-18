@@ -87,21 +87,21 @@ export async function xlsxToCatalogCsv(bytes){
   if(head.row.cellCount>30)throw new Error('Excel XLSX tem colunas demais.');
   for(let index=1;index<=head.row.cellCount;index++){
     const col=normalizedHeader(cellText(head.row.getCell(index),head.rowNumber+':'+index));
-    if(!col){if(data.some(item=>item.row.getCell(index).value!==null))throw new Error('Excel: cabeçalho vazio na coluna '+index+'.');continue;}
+    if(!col){if(data.some(item=>item.row.getCell(index).value!=null))throw new Error('Excel: cabeçalho vazio na coluna '+index+'.');continue;}
     const canonical=headerAliases.get(col);
     if(!canonical)throw new Error('Excel: coluna não reconhecida: '+col+'. Use Nome, Código, Unidade, Preço e Estoque.');
-    if(columns.includes(canonical))throw new Error('Excel: coluna duplicada: '+canonical+'.');
-    columns.push(canonical);
+    if(columns.some(column=>column.key===canonical))throw new Error('Excel: coluna duplicada: '+canonical+'.');
+    columns.push({key:canonical,index});
   }
   for(const required of ['nome','codigo','unidade','preco','estoque'])
-    if(!columns.includes(required))throw new Error('Excel: coluna obrigatória ausente: '+required+'.');
+    if(!columns.some(column=>column.key===required))throw new Error('Excel: coluna obrigatória ausente: '+required+'.');
   if(data.length-1>MAX_PRODUCTS)
     throw new Error('Excel XLSX excede 300 produtos por arquivo. Divida a planilha.');
-  const lines=[columns.map(quote).join(';')];
+  const lines=[columns.map(column=>quote(column.key)).join(';')];
   for(const {row,rowNumber} of data.slice(1)){
     // Lê somente colunas declaradas: ignora o estilo e não executa macros ou fórmulas.
-    const cells=columns.map((column,index)=>{
-      const cell=row.getCell(index+1),ref=cell.address||('linha '+rowNumber);
+    const cells=columns.map(({key:column,index})=>{
+      const cell=row.getCell(index),ref=cell.address||('linha '+rowNumber);
       if(column==='codigo')return codeText(cell,ref);
       if(['preco','custo','estoque'].includes(column))return decimalText(cell,column,ref);
       const value=cellText(cell,ref);
