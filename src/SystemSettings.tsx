@@ -5,7 +5,7 @@ const errText=(e:any)=>String(e?.message||e||'Operação indisponível').replace
 export function SystemSettings(){
   const api=window.pdv;
   const [lan,setLan]=useState<Any>({});
-  const [device,setDevice]=useState<Any>({printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001,scaleTransport:'tcp',scaleBrand:'generic-streaming',scaleLabelMode:'DEFAULT_PRICE',scaleSerialPort:'',scaleBaudRate:9600,scaleRequestCommand:'ENQ'});
+  const [device,setDevice]=useState<Any>({printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001,scaleTransport:'tcp',scaleBrand:'generic-streaming',scaleLabelMode:'DEFAULT_PRICE',scaleSerialPort:'',scaleBaudRate:9600,scaleRequestCommand:'ENQ',labelProfile:'58x30',labelWidthMm:58,labelHeightMm:30,labelMarginMm:3});
   const [scalePorts,setScalePorts]=useState<Array<{path:string;manufacturer:string}>>([]);
   const [printers,setPrinters]=useState<Any[]>([]);
   const [printJobs,setPrintJobs]=useState<Any[]>([]);
@@ -99,6 +99,22 @@ export function SystemSettings(){
       <div className="panel settings-block"><h2><Printer size={19}/> Impressão</h2>
         <p>Impressoras USB/Windows usam o serviço de impressão do sistema. Rede ESC/POS envia comandos TCP na rede privada.</p>
         <div className="settings-info"><strong>Impressoras instaladas:</strong> {printers.length?printers.map(p=>p.displayName).join(', '):'Nenhuma detectada'}</div>
+        <div className="settings-info"><strong>Etiquetas de produtos</strong><p>O PDV usa estas medidas no desenho e na página enviada à impressora. Confira o tamanho do rolo e do papel selecionado no driver do Windows.</p></div>
+        <label className="settings-label">Tamanho da etiqueta
+          <select aria-label="Tamanho da etiqueta" value={device.labelProfile||'58x30'} onChange={e=>setDevice((p:Any)=>({...p,labelProfile:e.target.value}))}>
+            <option value="58x30">58 × 30 mm — impressora térmica / PT260 (perfil inicial)</option>
+            <option value="40x30">40 × 30 mm</option>
+            <option value="50x30">50 × 30 mm</option>
+            <option value="60x40">60 × 40 mm</option>
+            <option value="custom">Personalizado</option>
+          </select>
+        </label>
+        {device.labelProfile==='custom'&&<div className="settings-info">
+          <label className="settings-label">Largura do papel (mm)<input aria-label="Largura da etiqueta em mm" type="number" min="25" max="100" step="0.5" value={device.labelWidthMm??58} onChange={e=>setDevice((p:Any)=>({...p,labelWidthMm:e.target.value}))}/></label>
+          <label className="settings-label">Altura da etiqueta (mm)<input aria-label="Altura da etiqueta em mm" type="number" min="15" max="100" step="0.5" value={device.labelHeightMm??30} onChange={e=>setDevice((p:Any)=>({...p,labelHeightMm:e.target.value}))}/></label>
+        </div>}
+        <label className="settings-label">Margem interna (mm)<input aria-label="Margem interna da etiqueta em mm" type="number" min="0" max="6" step="0.5" value={device.labelMarginMm??3} onChange={e=>setDevice((p:Any)=>({...p,labelMarginMm:e.target.value}))}/></label>
+        <p className="settings-tip">Para conferir o resultado, abra Produtos e clique no ícone de etiqueta: a pré-visualização aparece antes da impressão. Selecione no Windows o mesmo papel e orientação, sem ajuste automático de escala.</p>
         <label className="settings-label">Endereço IPv4 da impressora ESC/POS<input value={device.printerHost||''} placeholder="192.168.1.100" onChange={e=>setDevice((p:Any)=>({...p,printerHost:e.target.value}))}/></label>
         <label className="settings-label">Porta TCP<input type="number" min="1" max="65535" value={device.printerPort||9100} onChange={e=>setDevice((p:Any)=>({...p,printerPort:Number(e.target.value)}))}/></label>
         <p className="settings-tip">Abertura de gaveta: somente ao tocar no botão. Requer gaveta ligada à impressora ESC/POS de rede.</p>
