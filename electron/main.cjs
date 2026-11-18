@@ -249,7 +249,7 @@ async function start() {
   });
   const deviceFile=path.join(folder,'device-config.json');
   const readDevice=()=>{
-    const defaults={printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001,scaleTransport:'tcp',scaleBrand:'generic-streaming',scaleLabelMode:'DEFAULT_PRICE',scaleSerialPort:'',scaleBaudRate:9600,scaleRequestCommand:'ENQ',labelProfile:'58x30',labelWidthMm:58,labelHeightMm:30,labelMarginMm:3};
+    const defaults={printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001,scaleTransport:'tcp',scaleBrand:'generic-streaming',scaleLabelMode:'DEFAULT_PRICE',scaleSerialPort:'',scaleBaudRate:9600,scaleRequestCommand:'ENQ',labelProfile:'50x30',labelWidthMm:50,labelHeightMm:30,labelMarginMm:3};
     try{return {...defaults,...JSON.parse(fs.readFileSync(deviceFile,'utf8'))};}
     catch{return defaults;}
   };
