@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   archive: (kind, id) => ipcRenderer.invoke(apiChannels.archive, kind, id),
   catalogCsvPreview: input => ipcRenderer.invoke(apiChannels.catalogCsvPreview,input),
   catalogCsvImport: input => ipcRenderer.invoke(apiChannels.catalogCsvImport,input),
+  catalogXlsxConvert: bytes => ipcRenderer.invoke(apiChannels.catalogXlsxConvert,bytes),
   catalogExport: format => ipcRenderer.invoke(apiChannels.catalogExport,format),
   overview: () => ipcRenderer.invoke(apiChannels.overview),
   storeProfileGet: () => ipcRenderer.invoke(apiChannels.storeProfileGet),
