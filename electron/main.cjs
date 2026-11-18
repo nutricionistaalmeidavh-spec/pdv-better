@@ -13,7 +13,8 @@ async function start() {
   const { safeStorage } = require('electron');
   const { createRuntime } = await import('./runtime.mjs');
   const { applyPendingRestore,verifyDatabase,scheduleRestore } = await import('./backup.mjs');
-  const { renderPrintDocument } = await import('./printing.mjs');
+  const { renderPrintDocument,labelPageOptions } = await import('./printing.mjs');
+  const {normalizeLabelSettings} = await import('../shared/label-layout.mjs');
   const {openPrintQueue} = await import('./print-queue.mjs');
   const {createUpdateManager} = await import('./auto-update.mjs');
   const {allowed} = await import('../shared/access.mjs');
@@ -248,7 +249,7 @@ async function start() {
   });
   const deviceFile=path.join(folder,'device-config.json');
   const readDevice=()=>{
-    const defaults={printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001,scaleTransport:'tcp',scaleBrand:'generic-streaming',scaleLabelMode:'DEFAULT_PRICE',scaleSerialPort:'',scaleBaudRate:9600,scaleRequestCommand:'ENQ'};
+    const defaults={printerHost:'',printerPort:9100,scaleHost:'',scalePort:4001,scaleTransport:'tcp',scaleBrand:'generic-streaming',scaleLabelMode:'DEFAULT_PRICE',scaleSerialPort:'',scaleBaudRate:9600,scaleRequestCommand:'ENQ',labelProfile:'50x30',labelWidthMm:50,labelHeightMm:30,labelMarginMm:3};
     try{return {...defaults,...JSON.parse(fs.readFileSync(deviceFile,'utf8'))};}
     catch{return defaults;}
   };
@@ -262,9 +263,13 @@ async function start() {
     runtime.authorize('deviceSet');
     const printer=deviceTarget(String(input?.printerHost||'').trim(),input?.printerPort||9100);
     const scale=deviceTarget(String(input?.scaleHost||'').trim(),input?.scalePort||4001);
-    const config=normalizeScaleConfig({...readDevice(),...input,
+    const merged={...readDevice(),...input};
+    const label=normalizeLabelSettings(merged);
+    const config={...normalizeScaleConfig({...merged,
       printerHost:printer?.host||'',printerPort:printer?.port||9100,
-      scaleHost:scale?.host||'',scalePort:scale?.port||4001});
+      scaleHost:scale?.host||'',scalePort:scale?.port||4001}),
+      labelProfile:label.labelProfile,labelWidthMm:label.widthMm,
+      labelHeightMm:label.heightMm,labelMarginMm:label.marginMm};
     fs.writeFileSync(deviceFile,JSON.stringify(config),{mode:0o600});
     return config;
   });
@@ -325,13 +330,14 @@ async function start() {
     if(!record)throw new Error('Registro não encontrado para impressão.');
     if(kind==='receipt'&&record.is_training)throw new Error('Simulação de treinamento não pode gerar comprovante de venda.');
     let document;
+    const labelSettings=kind==='label'?normalizeLabelSettings(readDevice()):null;
     if(kind==='batch-label'){
       const batch=(await domain('listBatches',record.id)).find(b=>b.id===input.batchId);
       if(!batch)throw new Error('Lote da etiqueta não encontrado.');
       if(!record.code)throw new Error('Produto sem SKU; cadastre o código antes de imprimir lote.');
       const payload=createBatchLabel(record.code,batch.code);
       document=renderPhysicalBatchLabel({payload,product:record,batch});
-    }else document=renderPrintDocument(kind==='receipt'?{kind,sale:record}:{kind,product:record});
+    }else document=renderPrintDocument(kind==='receipt'?{kind,sale:record}:{kind,product:record,labelSettings});
     const requested=String(input.printer||'');
     if(requested) {
       const names=(await window.webContents.getPrintersAsync()).map(p=>p.name);
@@ -341,7 +347,8 @@ async function start() {
     try{
       await printWindow.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(document));
       return await new Promise((resolve,reject)=>printWindow.webContents.print({
-        silent:!!requested,deviceName:requested,printBackground:false,usePrinterDefaultPageSize:true
+        silent:!!requested,deviceName:requested,printBackground:false,
+        ...(kind==='label'?labelPageOptions(labelSettings):{usePrinterDefaultPageSize:true})
       },(ok,reason)=>ok?resolve({printed:true}):reject(new Error('Impressão não concluída: '+reason))));
     }finally{if(!printWindow.isDestroyed())printWindow.destroy();}
   }
