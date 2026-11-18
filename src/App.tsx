@@ -24,6 +24,7 @@ import { SystemSettings } from './SystemSettings';
 import {allowed} from '../shared/access.mjs';
 import {GuidedTour} from './GuidedTour';
 import {FirstAccess} from './FirstAccess';
+import {LabelPrintDialog} from './LabelPrintDialog';
 
 type Row = Record<string, any>;
 type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number;batchId?:string;batchCode?:string};
@@ -111,6 +112,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [readingScale,setReadingScale] = useState(false);
   const [manualWeight,setManualWeight] = useState<Record<string,string>>({});
   const [passwordTarget,setPasswordTarget] = useState<Row|null>(null);
+  const [labelTarget,setLabelTarget] = useState<Row|null>(null);
   const [operatorPassword,setOperatorPassword] = useState('');
   const [repeatPassword,setRepeatPassword] = useState('');
   const searchInput = useRef<HTMLInputElement>(null);
@@ -610,7 +612,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             <div className={"panel data-panel"+(view==='products'?" data-panel-products":"")}>
               <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{entityPage.total} cadastros</span></div>
               <div className="table-wrap"><table><thead><tr>{view==='products'&&<th className="photo-column">Foto</th>}{listFields.map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
-              <tbody>{pageRows.map(row => <tr key={row.id}>{view==='products'&&<td className="photo-column">{row.image_data?<img className="product-thumbnail" alt={'Foto de '+row.name} src={row.image_data}/>:<span className="product-thumbnail product-thumbnail-empty" aria-label="Produto sem foto"><Package size={19}/></span>}</td>}{listFields.map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col">{view==='operators'&&<button className="secondary" type="button" onClick={()=>{setPasswordTarget(row);setOperatorPassword('');setRepeatPassword('');}}>Definir senha</button>}{view==='products'&&<button title="Imprimir etiqueta" className="icon-btn" onClick={()=>void bridge?.devicePrint({kind:'label',productId:row.id}).catch(err=>setError(friendlyError(err)))}><Tags size={16}/></button>}{allowed(user.role,"save",[view])&&<button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button>}{allowed(user.role,"archive",[view])&&<button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button>}</td></tr>)}</tbody></table>
+              <tbody>{pageRows.map(row => <tr key={row.id}>{view==='products'&&<td className="photo-column">{row.image_data?<img className="product-thumbnail" alt={'Foto de '+row.name} src={row.image_data}/>:<span className="product-thumbnail product-thumbnail-empty" aria-label="Produto sem foto"><Package size={19}/></span>}</td>}{listFields.map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col">{view==='operators'&&<button className="secondary" type="button" onClick={()=>{setPasswordTarget(row);setOperatorPassword('');setRepeatPassword('');}}>Definir senha</button>}{view==='products'&&<button title="Imprimir etiqueta" className="icon-btn" onClick={()=>setLabelTarget(row)}><Tags size={16}/></button>}{allowed(user.role,"save",[view])&&<button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button>}{allowed(user.role,"archive",[view])&&<button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button>}</td></tr>)}</tbody></table>
                 {!filteredRows.length && <div className="empty-state"><Package size={26}/><strong>{search ? 'Nenhum resultado para a pesquisa' : 'Ainda não há cadastros'}</strong><p>{search ? 'Experimente outro termo.' : 'Use o botão Adicionar para começar.'}</p></div>}
               </div>
               {entityPage.total > pageSize && <div className="pagination"><span>Página {page+1} de {pageCount} · {entityPage.total} registros</span><div><button className="secondary" disabled={page===0} onClick={() => setPage(p => Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={page>=pageCount-1} onClick={() => setPage(p => Math.min(pageCount-1,p+1))}>Próxima</button></div></div>}
@@ -620,6 +622,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         </>}
       </section>
     </main>
+    {labelTarget&&<LabelPrintDialog product={labelTarget as {id:string;name:string;code?:string;sale_price_cents:number}} onClose={()=>setLabelTarget(null)}/>}
     {passwordTarget&&<div className="modal-backdrop" role="presentation"><section className="dialog" role="dialog" aria-label="Definir senha do operador" aria-modal="true">
       <header className="dialog-head"><h2>Definir senha: {passwordTarget.name}</h2><button className="icon-btn" onClick={()=>setPasswordTarget(null)} aria-label="Fechar"><X size={18}/></button></header>
       <form className="dialog-form" onSubmit={setAccess}><div className="form-grid">
