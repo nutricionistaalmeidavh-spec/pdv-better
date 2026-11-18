@@ -389,11 +389,3 @@ select option { color: #f5f6f7; background: #202224; }
 .finance-p2-detail h3{font-size:14px;margin:0}
 .finance-p2-detail p{font-size:11px;line-height:1.5;overflow-wrap:anywhere}
 @media(max-width:1100px){.finance-kanban{grid-auto-columns:minmax(210px,55%)}}
-
-/* Pré-visualização física de etiquetas, reutiliza o mesmo HTML enviado à impressora. */
-.label-print-dialog{width:min(680px,96vw);max-height:90vh;overflow-y:auto}
-.label-preview-wrap{display:flex;flex-direction:column;gap:12px;padding:12px 18px}
-.label-preview-wrap>p{margin:0}
-.label-preview-paper{display:flex;justify-content:center;align-items:center;padding:18px;overflow:auto;min-height:165px;background:#e6e8ec;border-radius:12px}
-.label-preview-paper iframe{flex:none;box-shadow:0 3px 12px rgba(0,0,0,.22);max-width:none}
-.label-print-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;padding:12px 18px 18px}
