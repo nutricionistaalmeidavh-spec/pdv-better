@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Tags, Users, Truck, UserRoundCog, Building2,
   Search, Plus, Pencil, Archive, X, Check, AlertTriangle, Database, RotateCcw,
   ChevronRight, Minus, Settings, ShieldCheck, ArrowRight, Trash2, Keyboard,
-  Wallet, ClipboardList, BarChart3, Boxes, ReceiptText, PackageCheck, GraduationCap
+  Wallet, ClipboardList, BarChart3, Boxes, ReceiptText, PackageCheck, GraduationCap, FileDown
 } from 'lucide-react';
 import { entities, entityOrder } from '../shared/contract.mjs';
 import { addToCart, cartTotalCents, lineTotalCents, money, parseFixed } from '../shared/domain.mjs';
@@ -80,6 +80,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [saving,setSaving] = useState(false);
   const [photoBusy,setPhotoBusy] = useState(false);
   const [importingCsv,setImportingCsv] = useState(false);
+  const [exportingCatalog,setExportingCatalog] = useState<'pdf'|'xlsx'|'csv'|null>(null);
   const [stockAlertsSummary,setStockAlertsSummary]=useState<{
     outOfStock:number;lowStock:number;expired:number;expiring:number;
     examples:Array<{id:string;product_name:string;code:string;days_until_expiry:number;remaining_milli:number}>
@@ -364,6 +365,15 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     } catch (err) { setError('Não foi possível salvar. ' + friendlyError(err)); }
     finally { setSaving(false); }
   }
+  async function exportProducts(format:'pdf'|'xlsx'|'csv'){
+    if(!bridge||exportingCatalog)return;
+    setExportingCatalog(format);setError('');setNotice('');
+    try{
+      const result=await bridge.catalogExport(format);
+      if(!result.cancelled)setNotice('Catálogo completo exportado: '+result.count+' produtos em '+format.toUpperCase()+'.');
+    }catch(err){setError('Falha ao exportar produtos. '+friendlyError(err));}
+    finally{setExportingCatalog(null);}
+  }
   async function importProductsCsv(event:React.ChangeEvent<HTMLInputElement>){
     const file=event.target.files?.[0];event.target.value='';
     if(!bridge||!file||importingCsv)return;
@@ -603,7 +613,14 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
           {['cash','sales','inventory','purchases','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
           {view==='settings' && <SystemSettings/>}
           {activeSchema && <>
-            <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div>{view==='products'&&allowed(user.role,'importCatalogCsv')&&<label className="secondary catalog-import-control">
+            <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div>{view==='products'&&allowed(user.role,'catalogExport')&&<div className="catalog-export-actions">
+                {(['pdf','xlsx','csv'] as const).map(format=><button type="button" className="secondary" key={format}
+                  disabled={Boolean(exportingCatalog)} onClick={()=>void exportProducts(format)}
+                  title={'Exportar todos os produtos cadastrados em '+format.toUpperCase()}>
+                  <FileDown size={16} aria-hidden="true"/> {exportingCatalog===format?'Exportando…':'Exportar '+format.toUpperCase()}
+                </button>)}
+              </div>}
+              {view==='products'&&allowed(user.role,'importCatalogCsv')&&<label className="secondary catalog-import-control">
                 <Database size={16} aria-hidden="true"/> Importar produtos CSV
                 <input type="file" accept=".csv,text/csv" aria-label="Importar produtos CSV"
                   disabled={importingCsv} onChange={ev=>void importProductsCsv(ev)}/>
