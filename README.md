@@ -76,6 +76,22 @@ Não adicione regras de preços, quantidades, cadastros ou canais IPC duplicadas
 - O sistema permanece não fiscal, offline-first e sem dependências pagas; armazenamento SQLite, chaves e appId originais foram preservados para migração sem perda.
 - Executar `npm test`, `npm run build` e a auditoria visual real por screenshots do Electron/Windows; imagens promocionais não substituem esses prints. Ver `DESIGN.md`.
 
+## Importação de planilhas Excel (.xlsx) e CSV
+
+Em **Cadastros → Produtos → Importar Excel / CSV**, selecione uma planilha **.xlsx** ou arquivo **.csv**.
+O PDV mostra a quantidade de produtos e os primeiros dez itens com nome, código, unidade, preços e estoque.
+Confira as informações e escolha **Confirmar importação** ou **Cancelar**. Nenhum cadastro é criado na prévia.
+Todos os itens são gravados juntos no SQLite, com registro de estoque inicial; erros e códigos duplicados cancelam a operação inteira.
+
+Cabeçalhos obrigatórios na primeira linha da primeira aba visível: **Nome, Código, Unidade, Preço, Estoque**.
+Opcionais: **Custo, Marca, Produtor, Variação, Grupo de variação** e **Categoria** (ID de uma categoria ativa).
+O formato de preço é em **reais**, como `9,49` ou número `9.49` do Excel.
+Use `UN` para unidades e `KG` para peso; estoque em quantidades, por exemplo `3` ou `1,250`.
+Formate códigos de barras com zeros à esquerda como **Texto** no Excel (ou use formato numérico com preenchimento de zeros).
+Limites atuais: **300 produtos por importação**, Excel até **2 MB** e CSV até **120 KB**.
+Planilhas .xls antigas devem ser salvas como .xlsx. Células com fórmulas não são importadas.
+Tudo opera **offline**, usando a dependência open source ExcelJS já incluída; nenhum serviço pago é necessário.
+
 ## Atualizações automáticas — v0.6.0+
 
 O aplicativo Windows verifica novas releases oficiais no início e a cada seis horas, baixa NSIS em segundo plano e permite que gerente/administrador instale após fechamento dos caixas. A base SQLite é preservada e recebe backup validado antes da instalação no servidor. A versão 0.5.0 e anteriores precisam instalar a 0.6.0 manualmente uma única vez. Ver docs/11-atualizacao-automatica.md.
