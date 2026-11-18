@@ -44,5 +44,7 @@ test('publicação automática escuta o nome do workflow de QA revisado',()=>{
   const publish=source('.github/workflows/publish-pdv-plus-updates.yml');
   assert.match(qa,/name: QA PDV Plus — Windows Desktop/);
   assert.match(publish,/workflows: \["QA PDV Plus — Windows Desktop"\]/);
-  assert.match(source('package.json'),/"version": "0\.6\.1"/);
+  const pkg=JSON.parse(source('package.json'));
+  assert.match(pkg.version,/^\d+\.\d+\.\d+$/,'versão deve seguir SemVer');
+  assert.match(pkg.build.win.artifactName,/\$\{version\}/,'nome do instalador deve acompanhar a versão atual');
 });
