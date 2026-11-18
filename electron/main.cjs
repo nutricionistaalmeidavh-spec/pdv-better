@@ -7,6 +7,7 @@ async function start() {
   const { openCatalog } = await import('./db.mjs');
   const { apiChannels } = await import('../shared/contract.mjs');
   const { reportRows, reportCsv, reportHtml } = await import('../shared/report.mjs');
+  const {buildCatalogExport,catalogCsv,catalogHtml,catalogSpreadsheetRows} = await import('../shared/catalog-export.mjs');
   const { renderItemReportWorker } = await import('./report-worker-client.mjs');
   const { createBatchLabel } = await import('../shared/batch-label.mjs');
   const { renderPhysicalBatchLabel } = require('./physical-label.cjs');
@@ -60,6 +61,74 @@ async function start() {
   ipcMain.handle(apiChannels.archive, (_evt, kind, id) => domain('archive',kind, id));
   ipcMain.handle(apiChannels.catalogCsvPreview,(_evt,input)=>domain('previewCatalogCsv',input));
   ipcMain.handle(apiChannels.catalogCsvImport,(_evt,input)=>domain('importCatalogCsv',input));
+
+  ipcMain.handle(apiChannels.catalogExport,async(_event,format)=>{
+    runtime.authorize('catalogExport');
+    if(!['pdf','csv','xlsx'].includes(format))throw new Error('Formato de exportação de produtos inválido.');
+    const selected=await dialog.showSaveDialog(window,{
+      title:'Exportar catálogo completo de produtos',
+      defaultPath:'PDV-Plus-Produtos.'+format,
+      filters:[{name:format.toUpperCase(),extensions:[format]}]
+    });
+    if(selected.canceled||!selected.filePath)return {cancelled:true};
+    // Não usar a página de 75 itens nem transferir fotos: a consulta slim traz TODOS os ativos.
+    const [products,categories,profile]=await Promise.all([
+      domain('list','products','',{slim:true}),
+      domain('list','categories'),
+      domain('getStoreProfile')
+    ]);
+    const report=buildCatalogExport(products,categories,profile,new Date());
+    if(format==='csv'){
+      fs.writeFileSync(selected.filePath,catalogCsv(report),'utf8');
+    }else if(format==='xlsx'){
+      const ExcelJS=require('exceljs');
+      const book=new ExcelJS.Workbook();
+      const sheet=book.addWorksheet('Produtos');
+      const {columns,rows,totals}=catalogSpreadsheetRows(report);
+      sheet.columns=columns.map((col,index)=>({
+        header:col.label,key:col.key,width:[42,23,25,12,15,20,20,27,27][index]
+      }));
+      sheet.views=[{state:'frozen',ySplit:1}];
+      sheet.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};
+      sheet.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF243E63'}};
+      for(const row of rows)sheet.addRow(row);
+      for(const index of [6,7,8,9])sheet.getColumn(index).numFmt='#,##0.00';
+      sheet.getColumn(5).numFmt='#,##0.000';
+      sheet.autoFilter={from:'A1',to:'I'+Math.max(1,rows.length+1)};
+      const footer=sheet.addRow({name:'TOTAL ('+report.count+' produtos)',
+        saleStockValue:totals.saleStockValue,costStockValue:totals.costStockValue});
+      footer.font={bold:true};
+      const summary=book.addWorksheet('Resumo');
+      summary.columns=[{header:'Informação',key:'label',width:35},{header:'Valor',key:'value',width:45}];
+      summary.addRow({label:'Estabelecimento',value:report.storeName});
+      summary.addRow({label:'Emitido em',value:report.issuedAt});
+      summary.addRow({label:'Produtos ativos',value:report.count});
+      summary.addRow({label:'Valor de venda do estoque (R$)',value:totals.saleStockValue});
+      summary.addRow({label:'Valor de custo do estoque (R$)',value:totals.costStockValue});
+      summary.getColumn(2).numFmt='#,##0.00';
+      await book.xlsx.writeFile(selected.filePath);
+    }else{
+      // Arquivo HTML temporário evita o limite de tamanho de URLs data: em catálogos grandes.
+      const tempFolder=fs.mkdtempSync(path.join(app.getPath('temp'),'pdv-plus-catalog-'));
+      const htmlFile=path.join(tempFolder,'catalogo.html');
+      const printWindow=new BrowserWindow({show:false,webPreferences:{
+        nodeIntegration:false,contextIsolation:true,sandbox:true
+      }});
+      try{
+        fs.writeFileSync(htmlFile,catalogHtml(report),{encoding:'utf8',mode:0o600});
+        await printWindow.loadFile(htmlFile);
+        const pdf=await printWindow.webContents.printToPDF({
+          pageSize:'A4',landscape:true,printBackground:true
+        });
+        fs.writeFileSync(selected.filePath,pdf);
+      }finally{
+        if(!printWindow.isDestroyed())printWindow.destroy();
+        fs.rmSync(tempFolder,{recursive:true,force:true});
+      }
+    }
+    return {cancelled:false,format,count:report.count};
+  });
+
   ipcMain.handle(apiChannels.overview, () => domain('overview'));
   ipcMain.handle(apiChannels.storeProfileGet, () => domain('getStoreProfile'));
   ipcMain.handle(apiChannels.storeProfileSet, (_evt,input) => domain('saveStoreProfile',input));

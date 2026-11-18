@@ -7,6 +7,7 @@ interface PdvBridge {
   archive(kind: string, id: string): Promise<{id:string; archived:boolean}>;
   catalogCsvPreview(input:{csv:string}):Promise<{count:number;rows:any[]}>;
   catalogCsvImport(input:{csv:string}):Promise<{imported:number}>;
+  catalogExport(format:'pdf'|'csv'|'xlsx'):Promise<{cancelled:boolean;format?:string;count?:number}>;
   overview(): Promise<Record<string, any>>;
   storeProfileGet():Promise<{name:string;document:string;address:string;updated_at:string|null}>;
   storeProfileSet(input:{name:string;document:string;address:string}):Promise<{name:string;document:string;address:string;updated_at:string}>;

@@ -1400,3 +1400,7 @@ select option {color:var(--super-text);background:white}
 .label-preview-paper{display:flex;justify-content:center;align-items:center;padding:18px;overflow:auto;min-height:165px;background:#e6e8ec;border-radius:12px}
 .label-preview-paper iframe{flex:none;box-shadow:0 3px 12px rgba(0,0,0,.22);max-width:none}
 .label-print-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;padding:12px 18px 18px}
+
+/* Exportação do catálogo completo: botões responsivos no cabeçalho de produtos. */
+.catalog-export-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.catalog-export-actions .secondary{white-space:nowrap}
