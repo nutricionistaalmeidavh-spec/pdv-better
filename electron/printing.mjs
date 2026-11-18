@@ -1,6 +1,11 @@
 import { money } from '../shared/domain.mjs';
+import { normalizeLabelSettings,renderLabelDocument } from '../shared/label-layout.mjs';
 const esc=v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-export function renderPrintDocument({kind,sale,product}){
+export function labelPageOptions(settings){
+  const {widthMm,heightMm}=normalizeLabelSettings(settings);
+  return {usePrinterDefaultPageSize:false,pageSize:{width:Math.round(widthMm*1000),height:Math.round(heightMm*1000)},margins:{marginType:'none'}};
+}
+export function renderPrintDocument({kind,sale,product,labelSettings}){
   if(kind==='receipt'){
     if(!sale||!Array.isArray(sale.items))throw new Error('Venda ausente para impressão.');
     const rows=sale.items.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+esc((x.quantity_milli/1000).toLocaleString('pt-BR',{maximumFractionDigits:3}))+' '+esc(x.unit)+'</td><td>'+esc(money(x.line_total_cents))+'</td></tr>').join('');
@@ -9,7 +14,7 @@ export function renderPrintDocument({kind,sale,product}){
   }
   if(kind==='label'){
     if(!product)throw new Error('Produto ausente para etiqueta.');
-    return page('<div class="label"><strong>'+esc(product.name)+'</strong><p>'+esc(product.code||'Sem código')+'</p><h2>'+esc(money(product.sale_price_cents))+'</h2></div>',60);
+    return renderLabelDocument(product,labelSettings);
   }
   throw new Error('Tipo de impressão não autorizado.');
 }
