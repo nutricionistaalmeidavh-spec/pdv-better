@@ -5,7 +5,7 @@ import { normalizeLabelSettings } from '../shared/label-layout.mjs';
 
 const product={name:'Café moído especial 500g',code:'7891234567890',sale_price_cents:2590};
 
-test('PT260: nome e valor permanecem numa única página física de 58x30 mm',()=>{
+test('bobina 58 mm: nome e valor permanecem numa única página física de 58x30 mm',()=>{
   const settings=normalizeLabelSettings({labelProfile:'58x30'});
   const html=renderPrintDocument({kind:'label',product,labelSettings:settings});
   assert.match(html,/@page\s*\{\s*size:\s*58mm 30mm;\s*margin:\s*0/);
@@ -32,15 +32,15 @@ test('etiqueta comprida não quebra página e escapa HTML do cadastro',()=>{
 });
 
 test('perfis e configuração manual usam somente medidas válidas',()=>{
-  assert.deepEqual(normalizeLabelSettings({labelProfile:'58x30'}),{
-    labelProfile:'58x30',widthMm:58,heightMm:30,marginMm:3
+  assert.deepEqual(normalizeLabelSettings({labelProfile:'50x30'}),{
+    labelProfile:'50x30',widthMm:50,heightMm:30,marginMm:3
   });
   assert.deepEqual(normalizeLabelSettings({labelProfile:'custom',labelWidthMm:45,labelHeightMm:28,labelMarginMm:2}),{
     labelProfile:'custom',widthMm:45,heightMm:28,marginMm:2
   });
   assert.throws(()=>normalizeLabelSettings({labelProfile:'custom',labelWidthMm:500,labelHeightMm:20,labelMarginMm:2}),/Largura/);
   assert.throws(()=>normalizeLabelSettings({labelProfile:'custom',labelWidthMm:40,labelHeightMm:20,labelMarginMm:12}),/Margem/);
-  assert.deepEqual(normalizeLabelSettings({labelProfile:'perfil-inexistente'}),normalizeLabelSettings({labelProfile:'58x30'}));
+  assert.deepEqual(normalizeLabelSettings({labelProfile:'perfil-inexistente'}),normalizeLabelSettings({labelProfile:'50x30'}));
 });
 
 test('comprovante mantém layout antigo e não recebe tamanho de etiqueta',()=>{
