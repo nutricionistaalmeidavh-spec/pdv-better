@@ -25,7 +25,8 @@
     "test:flows:e01-e12": "node scripts/qa-e01-e12.mjs",
     "test:journeys": "node scripts/qa-jornadas-individuais.mjs",
     "test:journeys:infra": "node scripts/qa-jornadas-infra.mjs",
-    "test:label:virtual": "electron scripts/qa-label-electron.cjs"
+    "test:label:virtual": "electron scripts/qa-label-electron.cjs",
+    "test:catalog:pdf": "electron scripts/qa-catalog-export.cjs"
   },
   "dependencies": {
     "react": "^19.1.1",
