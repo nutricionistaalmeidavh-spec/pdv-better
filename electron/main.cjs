@@ -61,6 +61,11 @@ async function start() {
   ipcMain.handle(apiChannels.archive, (_evt, kind, id) => domain('archive',kind, id));
   ipcMain.handle(apiChannels.catalogCsvPreview,(_evt,input)=>domain('previewCatalogCsv',input));
   ipcMain.handle(apiChannels.catalogCsvImport,(_evt,input)=>domain('importCatalogCsv',input));
+  ipcMain.handle(apiChannels.catalogXlsxConvert,async(_evt,bytes)=>{
+    runtime.authorize('previewCatalogCsv');
+    const {xlsxToCatalogCsv}=await import('./catalog-xlsx.mjs');
+    return xlsxToCatalogCsv(bytes);
+  });
 
   ipcMain.handle(apiChannels.catalogExport,async(_event,format)=>{
     runtime.authorize('catalogExport');
