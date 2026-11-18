@@ -8,7 +8,7 @@ export const LABEL_PROFILES=Object.freeze({
   '50x30':Object.freeze({widthMm:50,heightMm:30}),
   '60x40':Object.freeze({widthMm:60,heightMm:40})
 });
-export const DEFAULT_LABEL_PROFILE='58x30';
+export const DEFAULT_LABEL_PROFILE='50x30';
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({
   '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 }[char]));
