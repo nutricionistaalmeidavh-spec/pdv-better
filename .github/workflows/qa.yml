@@ -187,6 +187,18 @@ jobs:
         run: npm run test:label:virtual
       - name: Conferir uma página, nome + preço juntos, orientação e medidas físicas
         run: python scripts/validate-label-pdfs.py
+      - name: Renderizar catálogo de 510 produtos em PDF real e XLSX
+        run: npm run test:catalog:pdf
+      - name: Validar PDF multipágina, primeiro e último produto, texto sem cortes
+        run: python scripts/validate-catalog-pdf.py
+      - name: Guardar PDF e XLSX gerados do catálogo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDV-Plus-QA-Catalogo-Produtos
+          path: qa-artifacts/catalog-export/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Guardar PDFs e evidências dos seis cenários
         if: always()
         uses: actions/upload-artifact@v4
