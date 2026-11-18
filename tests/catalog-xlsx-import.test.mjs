@@ -82,7 +82,8 @@ test('XLSX-04: mais de 300 linhas, código duplicado ou produto já cadastrado n
     assert.throws(()=>f.store.importCatalogCsv({csv:duplicateCsv}),/duplicad/i);
     assert.equal(f.store.list('products').length,before);
     const existing=await workbookBytes(headers,[['Nova','SKU-NEW','UN',2,2],['Antiga','QA-PARITY-001','UN',2,2]]);
-    assert.throws(()=>f.store.importCatalogCsv({csv:await xlsxToCatalogCsv(existing)}),/cadastrad|duplicad/i);
+    const existingCsv=await xlsxToCatalogCsv(existing);
+    assert.throws(()=>f.store.importCatalogCsv({csv:existingCsv}),/cadastrad|duplicad/i);
     assert.equal(f.store.list('products').length,before);
   }finally{f.cleanup();}
 });
