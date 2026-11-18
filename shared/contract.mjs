@@ -82,7 +82,7 @@ export const reportFields = Object.freeze([
 ]);
 export const apiChannels = Object.freeze({
   list: 'pdv:catalog:list', save: 'pdv:catalog:save', archive: 'pdv:catalog:archive',
-  catalogCsvPreview:'pdv:catalog:csv-preview', catalogCsvImport:'pdv:catalog:csv-import', catalogExport:'pdv:catalog:export',
+  catalogCsvPreview:'pdv:catalog:csv-preview', catalogCsvImport:'pdv:catalog:csv-import', catalogXlsxConvert:'pdv:catalog:xlsx-convert', catalogExport:'pdv:catalog:export',
   overview: 'pdv:overview', storeProfileGet:'pdv:store-profile:get', storeProfileSet:'pdv:store-profile:set',
   sessionCurrent: 'pdv:session:current', sessionOpen: 'pdv:session:open', sessionClose: 'pdv:session:close', cashMove: 'pdv:cash:move',
   checkout: 'pdv:checkout:commit', quoteSale: 'pdv:checkout:quote', salesList: 'pdv:sales:list', saleGet: 'pdv:sales:get', salesCancel: 'pdv:sales:cancel',
