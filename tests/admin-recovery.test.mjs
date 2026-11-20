@@ -55,7 +55,7 @@ test('recuperação recusa modo remoto, confirmação errada, senha fraca e oper
      ['local',{...input(f.admin.user.id),repeatPassword:'diferente'}],
      ['local',input(other.id)]
    ]){
-     await assert.rejects(()=>recoverLocalAdministrator({store:f.store,folder:f.folder,mode,input:data}),/local|confirm|senha|administrador/i);
+     await assert.rejects(()=>recoverLocalAdministrator({store:f.store,folder:f.folder,mode,input:data}),/local|computador|confirm|senha|administrador/i);
    }
    assert.equal(readdirSync(f.folder).filter(x=>x.startsWith('PDV-Plus-Antes-Recuperacao-')).length,0);
    assert.equal(f.store.authLogin({operatorId:f.admin.user.id,password:'SenhaAntiga2026!'},'terminal-original').user.role,'Administrador');
