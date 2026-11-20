@@ -14,6 +14,7 @@ async function start() {
   const { safeStorage } = require('electron');
   const { createRuntime } = await import('./runtime.mjs');
   const { applyPendingRestore,verifyDatabase,scheduleRestore } = await import('./backup.mjs');
+  const {recoverLocalAdministrator} = await import('./recovery.mjs');
   const { renderPrintDocument,labelPageOptions } = await import('./printing.mjs');
   const {normalizeLabelSettings} = await import('../shared/label-layout.mjs');
   const {openPrintQueue} = await import('./print-queue.mjs');
@@ -55,6 +56,10 @@ async function start() {
   ipcMain.handle(apiChannels.authLogin,(_evt,input)=>runtime.login(input));
   ipcMain.handle(apiChannels.authLogout,()=>runtime.logout());
   ipcMain.handle(apiChannels.authSetPassword,(_evt,input)=>domain('setPassword',input));
+  ipcMain.handle(apiChannels.authRecoverLocal,(event,input)=>{
+    if(event.sender!==window.webContents)throw new Error('Origem não autorizada para recuperação.');
+    return recoverLocalAdministrator({store,folder,mode:runtime.status().mode,input});
+  });
   ipcMain.handle(apiChannels.sessionsList,()=>domain('listOpenSessions'));
   ipcMain.handle(apiChannels.list, (_evt, kind, search, options) => domain('list',kind, search, options));
   ipcMain.handle(apiChannels.save, (_evt, kind, record) => domain('save',kind, record));
