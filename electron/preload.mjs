@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   authLogin: input => ipcRenderer.invoke(apiChannels.authLogin,input),
   authLogout: () => ipcRenderer.invoke(apiChannels.authLogout),
   authSetPassword: input => ipcRenderer.invoke(apiChannels.authSetPassword,input),
+  authRecoverLocal: input => ipcRenderer.invoke(apiChannels.authRecoverLocal,input),
   sessionsList: () => ipcRenderer.invoke(apiChannels.sessionsList),
   reportExport: format => ipcRenderer.invoke(apiChannels.reportExport,format),
   lanStatus: () => ipcRenderer.invoke(apiChannels.lanStatus),
