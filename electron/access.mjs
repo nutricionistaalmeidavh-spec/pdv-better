@@ -86,6 +86,13 @@ export function createAccess(db){
    if(!allowed(user.role,method,args))throw new Error('Permissão insuficiente para esta operação.');
    return user;
  }
+ function recoverAdminLocal(input){
+   const id=String(input?.operatorId||'');
+   const user=db.prepare("SELECT id,role FROM operators WHERE id=? AND active=1").get(id);
+   if(!user||user.role!=='Administrador')throw new Error('Administrador ativo não encontrado.');
+   setHash(id,input?.password);
+   return {operatorId:id,passwordUpdated:true};
+ }
  function setPassword(input){
    const id=String(input?.operatorId||'');
    const user=db.prepare('SELECT id,role FROM operators WHERE id=? AND active=1').get(id);
@@ -122,5 +129,5 @@ export function createAccess(db){
    const count=db.prepare("SELECT COUNT(*) AS n FROM operators WHERE role='Administrador' AND active=1").get().n;
    if(count<=1 && (method==='archive'||args[1]?.role!=='Administrador'))throw new Error('Não é permitido remover o último administrador.');
  };
- return {status,bootstrap,login,logout,current,authorize,setPassword,ensureLastAdmin,verifyManagerApproval};
+ return {status,bootstrap,login,logout,current,authorize,setPassword,recoverAdminLocal,ensureLastAdmin,verifyManagerApproval};
 }
