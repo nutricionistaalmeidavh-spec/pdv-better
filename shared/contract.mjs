@@ -97,7 +97,7 @@ export const apiChannels = Object.freeze({
   deviceGet: 'pdv:device:get', deviceSet: 'pdv:device:set', devicePrinters: 'pdv:device:printers',
   devicePrint: 'pdv:device:print', printQueueList: 'pdv:device:print-jobs', printQueueRetry: 'pdv:device:print-retry', printQueuePurge: 'pdv:device:print-purge', drawerOpen: 'pdv:drawer:open', scaleRead: 'pdv:scale:read', scaleProfile: 'pdv:scale:profile', scalePorts: 'pdv:scale:ports', scaleExport: 'pdv:scale:export',
   backupCreate: 'pdv:backup:create', backupRestore: 'pdv:backup:restore',
-  authStatus: 'pdv:auth:status', authBootstrap: 'pdv:auth:bootstrap', authLogin: 'pdv:auth:login', authLogout: 'pdv:auth:logout', authSetPassword: 'pdv:auth:set-password',
+  authStatus: 'pdv:auth:status', authBootstrap: 'pdv:auth:bootstrap', authLogin: 'pdv:auth:login', authLogout: 'pdv:auth:logout', authSetPassword: 'pdv:auth:set-password', authRecoverLocal: 'pdv:auth:recover-local',
   updateStatus: 'pdv:update:status', updateCheck: 'pdv:update:check', updateInstall: 'pdv:update:install', updateEvent: 'pdv:update:event',
   sessionsList: 'pdv:sessions:list'
 });
