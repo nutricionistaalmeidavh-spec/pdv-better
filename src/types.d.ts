@@ -55,6 +55,7 @@ interface PdvBridge {
   authLogin(input:{operatorId:string;password:string}): Promise<{id:string;name:string;role:string}>;
   authLogout(): Promise<any>;
   authSetPassword(input:{operatorId:string;password:string}): Promise<any>;
+  authRecoverLocal(input:{operatorId:string;password:string;repeatPassword:string;confirmation:string}):Promise<{recovered:boolean;operatorId:string;backupFile:string}>;
   sessionsList(): Promise<any[]>;
   lanStatus(): Promise<any>;
   lanHost(input: {port?:number}): Promise<any>;

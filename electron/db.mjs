@@ -273,6 +273,8 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   return { ...operations,secureCall,
     authStatus:access.status,authBootstrap:access.bootstrap,authLogin:access.login,
     authLogout:access.logout,authCurrent:access.current,
+    // Método local não registrado em operações seguras ou RPC LAN.
+    authRecoverLocal:access.recoverAdminLocal,
     backupTo: (destination) => backup(db,destination), close: () => db.close() };
   }catch(error){
     try{db?.close();}catch{}

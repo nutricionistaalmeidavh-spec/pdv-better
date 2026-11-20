@@ -101,6 +101,8 @@ jobs:
         run: npm run build
       - name: Smoke Electron real, sem mocks
         run: npm run test:desktop
+      - name: Recuperação local de administrador em Electron real (sem apagar cadastros)
+        run: node scripts/qa-admin-recovery.mjs
       - name: Gerar instalador NSIS
         run: npm run dist:win
       - name: Validar feed de atualização (latest.yml e SHA-512)
@@ -129,6 +131,8 @@ jobs:
           $env:PDV_TEST_USER_DATA = Join-Path $env:RUNNER_TEMP "PDV-Better-Installed-Data"
           npm run test:desktop
           if ($LASTEXITCODE -ne 0) { throw "Smoke do executável instalado falhou" }
+          node scripts/qa-admin-recovery.mjs
+          if ($LASTEXITCODE -ne 0) { throw "Recuperação no executável instalado falhou" }
       - name: Gerar SHA256 do instalador
         shell: pwsh
         run: |
