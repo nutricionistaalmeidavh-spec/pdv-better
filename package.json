@@ -1,6 +1,6 @@
 {
   "name": "pdv-better",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "private": true,
   "type": "module",
   "description": "PDV Plus — sistema de gestão comercial não fiscal, offline-first para Windows",
