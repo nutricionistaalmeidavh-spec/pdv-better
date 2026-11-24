@@ -10,6 +10,25 @@ export function transferColumns(kind){
 }
 const clean=v=>String(v).trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
 const aliases={sku:'code',codigo_de_barras:'code',codigo_de_barras_sku:'code',produto:'name',nome_do_produto:'name',nome_da_categoria:'name',razao_social_nome:'name',razao_social:'name',cpf:'document',cnpj:'document',cnpj_cpf:'document',documento:'document',email:'email',celular:'phone',saldo:'stock_milli',quantidade:'stock_milli',saldo_em_estoque:'stock_milli',preco_de_venda:'sale_price_cents',preco_de_venda_r:'sale_price_cents',preco_de_custo:'cost_price_cents',preco_de_custo_r:'cost_price_cents',familia_de_variantes:'variant_group',variante:'variant_label'};
+export function suggestTransferMapping(kind,headers){
+ const cols=transferColumns(kind),used=new Set();
+ return headers.map(h=>{
+  const key=clean(h),col=cols.find(c=>clean(c.label)===key||c.key===key||c.key===aliases[key]);
+  if(!col||used.has(col.key))return '';
+  used.add(col.key);return col.key;
+ });
+}
+export function remapTransferTable(kind,table,mapping){
+ if(mapping===undefined)return table;
+ const cols=transferColumns(kind);
+ if(!Array.isArray(mapping)||!Array.isArray(table)||!Array.isArray(table[0])||mapping.length!==table[0].length||mapping.length>30)throw new Error('Mapeamento de colunas inválido.');
+ const selected=mapping.map((key,i)=>({key,i})).filter(c=>c.key!=='');
+ if(!selected.length||new Set(selected.map(c=>c.key)).size!==selected.length||selected.some(c=>!cols.some(col=>col.key===c.key)))throw new Error('Selecione colunas válidas sem repetir campos.');
+ return [selected.map(c=>c.key),...table.slice(1).map((row,i)=>{
+  if(!Array.isArray(row)||row.length!==mapping.length)throw new Error('Linha '+(i+2)+': quantidade de colunas inválida.');
+  return selected.map(c=>row[c.i]);
+ })];
+}
 export function transferRecords(kind,table){
  const cols=transferColumns(kind);
  if(!Array.isArray(table)||table.length<2||table.length>MAX_TRANSFER_ROWS+1)throw new Error('Informe de 1 a 10.000 registros por arquivo.');
