@@ -63,8 +63,9 @@ test('não existe corte de 500 no renderer nem bloqueio fixo de 10 mil vendas no
   const exporter=source('shared/item-report-export.mjs');
   assert.doesNotMatch(ui,/\.slice\(0,\s*500\)/);
   assert.doesNotMatch(ui,/primeiros 500 itens|rows\.length>500/);
-  assert.match(ui,/reportItemVisibleCount/);
-  assert.match(ui,/Mostrar mais/);
+  assert.match(ui,/pageSize:250/);
+  assert.match(ui,/itemReport\.page\+1/);
+  assert.match(backend,/pageSize/);
   assert.doesNotMatch(backend,/sales\.length\s*>\s*10000/);
   assert.doesNotMatch(exporter,/report\.rows\.length\s*>\s*100000/);
 });
@@ -81,6 +82,9 @@ test('histórico com mais de 500 registros é integralmente consultável',()=>{
     const report=f.store.reportItems({productId:product.id});
     assert.equal(report.rows.length,512);
     assert.equal(report.summary.net_total_cents,51200);
+    const pages=[0,1,2].map(page=>f.store.reportItems({productId:product.id,page,pageSize:250}));
+    assert.deepEqual(pages.flatMap(p=>p.rows),report.rows);
+    assert.ok(pages.every(p=>p.total===512&&p.summary.net_total_cents===51200));
     assert.equal(f.store.report().sales_total_cents,51200);
   }finally{f.cleanup();}
 });
