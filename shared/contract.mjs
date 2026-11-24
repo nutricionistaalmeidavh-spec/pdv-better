@@ -16,7 +16,7 @@ export const entities = {
       { key: 'unit', label: 'Unidade', type: 'select', values: ['UN', 'KG'], required: true, default: 'UN' },
       { key: 'sale_price_cents', label: 'Preço de venda (R$)', type: 'money', required: true, default: 0 },
       { key: 'cost_price_cents', label: 'Preço de custo (R$)', type: 'money', default: 0 },
-      { key: 'stock_milli', label: 'Saldo em estoque', type: 'quantity', default: 0, readOnlyOnEdit: true },
+      { key: 'stock_milli', label: 'Saldo em estoque', type: 'quantity', default: 0 },
       { key: 'image_data', label: 'Foto do produto', type: 'image', default: '' }
     ]
   },
