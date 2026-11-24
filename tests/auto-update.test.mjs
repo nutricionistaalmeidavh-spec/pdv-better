@@ -3,27 +3,31 @@ import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {createUpdateManager} from '../electron/auto-update.mjs';
 
-const setup=({packaged=true,sessions=[],backupError=null}={})=>{
+const setup=({packaged=true,sessions=[],backupError=null,consent=true}={})=>{
   const updater=new EventEmitter();
-  updater.checks=0;updater.installs=0;
+  updater.checks=0;updater.installs=0;updater.downloads=0;
+  updater.downloadUpdate=async()=>{updater.downloads++;updater.emit('update-downloaded',{version:'0.7.0'});};
   updater.checkForUpdates=async()=>{updater.checks++;return {updateInfo:{version:'0.7.0'}};};
   updater.quitAndInstall=()=>{updater.installs++;};
   const notices=[];
   const jobs=[];
   const callbacks={};
+  const prompts=[],errors=[];
   let backups=0;
   const manager=createUpdateManager({
     app:{isPackaged:packaged,getVersion:()=> '0.6.0'},
     platform:'win32',
     updater,
     notify:s=>notices.push(s),
+    confirmUpdate:async s=>{prompts.push(s);return consent;},
+    reportError:async e=>errors.push(e),
     listOpenSessions:async()=>sessions,
     backup:async()=>{backups++;if(backupError)throw backupError;},
     schedule:(fn,ms)=>{jobs.push({fn,ms});return jobs.length;},
     repeat:(fn,ms)=>{jobs.push({fn,ms});return jobs.length;},
     clear:()=>{},
   });
-  return {updater,notices,jobs,manager,getBackups:()=>backups};
+  return {updater,notices,jobs,manager,prompts,errors,getBackups:()=>backups};
 };
 test('não habilita atualizações em desenvolvimento nem tenta baixar',async()=>{
   const {manager,updater}=setup({packaged:false});
@@ -34,9 +38,9 @@ test('não habilita atualizações em desenvolvimento nem tenta baixar',async()=
 test('apenas consulta no startup e agenda verificações periódicas, sem instalar',async()=>{
   const {manager,updater,jobs}=setup();
   manager.start();
-  assert.equal(updater.autoDownload,true);
+  assert.equal(updater.autoDownload,false);
   assert.equal(updater.autoInstallOnAppQuit,false);
-  assert.equal(jobs[0].ms,15000);
+  assert.equal(jobs[0].ms,1000);
   assert.equal(jobs[1].ms,6*60*60*1000);
   await jobs[0].fn();
   assert.equal(updater.checks,1);
@@ -90,4 +94,51 @@ test('disponível somente Windows e artefato NSIS',async()=>{
   const manager=createUpdateManager({app:{isPackaged:true,getVersion:()=> '0.6.0'},platform:'linux',updater});
   assert.equal(manager.status().enabled,false);
   assert.equal(manager.status().phase,'disabled');
+});
+
+test('startup pede autorização antes do download e instala reiniciando após backup',async()=>{
+  const {manager,updater,prompts,getBackups}=setup();
+  updater.checkForUpdates=async()=>{updater.emit('update-available',{version:'0.7.0'});};
+  updater.quitAndInstall=(silent,runAfter)=>{assert.equal(silent,false);assert.equal(runAfter,true);updater.installs++;};
+  await manager.check();
+  assert.equal(prompts.length,1);
+  assert.equal(prompts[0].version,'0.7.0');
+  assert.equal(updater.downloads,1);
+  assert.equal(getBackups(),1);
+  assert.equal(updater.installs,1);
+});
+test('recusar atualização mantém a versão e não baixa nem instala',async()=>{
+  const {manager,updater,prompts,getBackups}=setup({consent:false});
+  updater.checkForUpdates=async()=>{updater.emit('update-available',{version:'0.7.0'});};
+  await manager.check();
+  assert.equal(prompts.length,1);
+  assert.equal(updater.downloads,0);
+  assert.equal(updater.installs,0);
+  assert.equal(getBackups(),0);
+  assert.equal(manager.status().phase,'available');
+});
+test('caixa aberto impede reinício e informa motivo após download autorizado',async()=>{
+  const {manager,updater,errors}=setup({sessions:[{id:'cx-1'}]});
+  updater.checkForUpdates=async()=>{updater.emit('update-available',{version:'0.7.0'});};
+  await manager.check();
+  assert.equal(updater.downloads,1);
+  assert.equal(updater.installs,0);
+  assert.match(errors[0],/feche|caixa/i);
+  assert.equal(manager.status().phase,'downloaded');
+});
+test('verificação periódica apenas detecta, sem interromper a operação com modal',async()=>{
+  const {manager,updater,prompts}=setup();
+  updater.checkForUpdates=async()=>{updater.emit('update-available',{version:'0.7.0'});};
+  await manager.check({offer:false});
+  assert.equal(prompts.length,0);
+  assert.equal(updater.downloads,0);
+});
+test('download falho não instala e mantém erro para nova tentativa',async()=>{
+  const {manager,updater,errors}=setup();
+  updater.checkForUpdates=async()=>{updater.emit('update-available',{version:'0.7.0'});};
+  updater.downloadUpdate=async()=>{throw new Error('rede interrompida');};
+  await manager.check();
+  assert.equal(updater.installs,0);
+  assert.equal(manager.status().phase,'error');
+  assert.match(errors[0],/rede interrompida/);
 });
