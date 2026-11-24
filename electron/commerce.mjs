@@ -567,8 +567,19 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
        !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
       throw new Error('Paginação financeira inválida.');
     const total=row('SELECT COUNT(*) AS n FROM financial_entries').n;
-    const rows=all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?',pageSize,page*pageSize)
-      .map(financeWithBalance);
+    const entries=all('SELECT * FROM financial_entries ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?',pageSize,page*pageSize);
+    const groups=new Map();
+    if(entries.length){
+      const ids=entries.map(e=>e.id),marks=ids.map(()=>'?').join(',');
+      for(const item of all('SELECT * FROM finance_settlements WHERE entry_id IN ('+marks+') ORDER BY entry_id,created_at,id',...ids)){
+        const items=groups.get(item.entry_id)||[];items.push(item);groups.set(item.entry_id,items);
+      }
+    }
+    const rows=entries.map(entry=>{
+      const settlements=groups.get(entry.id)||[],paid=checkedSum(settlements.map(x=>x.amount_cents));
+      if(paid>entry.amount_cents)throw new Error('Inconsistência nas baixas financeiras.');
+      return {...entry,paid_cents:paid,remaining_cents:entry.amount_cents-paid,settlements};
+    });
     return {rows,total,page,pageSize};
   }
   function reportDailySales({today=localBusinessDate(),days=7}={}){
@@ -606,8 +617,9 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     }
     const stock=row('SELECT COUNT(*) AS product_count,'+
       ' COALESCE(SUM(CASE WHEN stock_milli<=0 THEN 1 ELSE 0 END),0) AS low_stock_count,'+
-      ' COALESCE(SUM(CAST((stock_milli*cost_price_cents+500)/1000 AS INTEGER)),0) AS inventory_value_cents'+
+      ' COALESCE(SUM((stock_milli/1000)*cost_price_cents+((stock_milli%1000)*cost_price_cents+500)/1000),0) AS inventory_value_cents'+
       ' FROM products WHERE active=1');
+    if(!Number.isSafeInteger(stock.inventory_value_cents))throw new Error('Valor do estoque excede limite seguro.');
     return {...totals,...amounts,...stock,
       daily_sales:reportDailySales(),
       cancelled_count:row("SELECT COUNT(*) AS n FROM sales WHERE status='cancelled' AND is_training=0").n
