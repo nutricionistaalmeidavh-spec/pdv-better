@@ -99,7 +99,7 @@ test('disponível somente Windows e artefato NSIS',async()=>{
 test('startup pede autorização antes do download e instala reiniciando após backup',async()=>{
   const {manager,updater,prompts,getBackups}=setup();
   updater.checkForUpdates=async()=>{updater.emit('update-available',{version:'0.7.0'});};
-  updater.quitAndInstall=(silent,runAfter)=>{assert.equal(silent,false);assert.equal(runAfter,true);updater.installs++;};
+  updater.quitAndInstall=(silent,runAfter)=>{assert.equal(silent,true);assert.equal(runAfter,true);updater.installs++;};
   await manager.check();
   assert.equal(prompts.length,1);
   assert.equal(prompts[0].version,'0.7.0');
