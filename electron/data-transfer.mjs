@@ -12,6 +12,15 @@ const fixed=(n,places)=>{
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export function createDataTransfer(db,save){
  db.exec('CREATE TABLE IF NOT EXISTS data_transfer_audit (id TEXT PRIMARY KEY, kind TEXT NOT NULL, created_at TEXT NOT NULL, operator_id TEXT, created_count INTEGER NOT NULL, updated_count INTEGER NOT NULL, reason TEXT)');
+ db.exec('CREATE INDEX IF NOT EXISTS idx_data_transfer_audit_kind_time ON data_transfer_audit(kind,created_at DESC,id DESC)');
+ function dataTransferHistory(input){
+  const {kind,page=0,pageSize=25}=input||{};
+  transferColumns(kind);
+  if(!Number.isSafeInteger(page)||page<0||page>10000000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100)throw new Error('Paginação de importações inválida.');
+  const total=db.prepare('SELECT COUNT(*) AS n FROM data_transfer_audit WHERE kind=?').get(kind).n;
+  const rows=db.prepare('SELECT a.*,o.name AS operator_name FROM data_transfer_audit a LEFT JOIN operators o ON o.id=a.operator_id WHERE a.kind=? ORDER BY a.created_at DESC,a.id DESC LIMIT ? OFFSET ?').all(kind,pageSize,page*pageSize);
+  return {total,page,pageSize,rows};
+ }
  function rowsFor(kind){
   const entity=kind==='inventory'?'products':kind;
   const cols=transferColumns(kind).map(c=>c.key).filter(k=>k!=='category_id');
@@ -113,5 +122,5 @@ export function createDataTransfer(db,save){
    return {imported:p.created+p.updated,created:p.created,updated:p.updated,unchanged:p.unchanged};
   }catch(error){try{db.exec('ROLLBACK');}catch{}throw error;}
  }
- return {previewDataTransfer,importDataTransfer,exportDataTransfer};
+ return {previewDataTransfer,importDataTransfer,exportDataTransfer,dataTransferHistory};
 }
