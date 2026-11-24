@@ -69,7 +69,9 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   const indexStatements=[
     'CREATE INDEX IF NOT EXISTS idx_products_active_category_name ON products(category_id,name COLLATE NOCASE,id) WHERE active=1',
     'CREATE INDEX IF NOT EXISTS idx_sales_session_recent ON sales(session_id,created_at DESC,id DESC)',
-    'CREATE INDEX IF NOT EXISTS idx_stock_movements_recent ON stock_movements(created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_stock_movements_recent ON stock_movements(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_stock_movements_product_time ON stock_movements(product_id,created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_cash_movements_session_time ON cash_movements(session_id,created_at)',
     'CREATE INDEX IF NOT EXISTS idx_finance_entries_recent ON financial_entries(created_at DESC,id DESC)',
     'CREATE INDEX IF NOT EXISTS idx_finance_settlements_entry_time ON finance_settlements(entry_id,created_at,id)',
     'CREATE INDEX IF NOT EXISTS idx_finance_settlements_recent ON finance_settlements(created_at,entry_id)',
@@ -285,7 +287,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   }
   const transfers=createDataTransfer(db,save);
   const operations={list,save,archive,overview,...transfers,...storeProfile,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
-  const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
+  const sessionAware=new Set(['getCurrentSessionPage','getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
   const noArgs=new Set(['getCurrentSession','listOpenSessions','report','overview','getStoreProfile']);
   function secureCall(method,args=[],ctx={}){
     if(typeof method!=='string'||typeof operations[method]!=='function') {
