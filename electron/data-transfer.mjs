@@ -40,7 +40,9 @@ export function createDataTransfer(db,save){
   const add=(type,value,r)=>{if(!value)return;const k=type+':'+value;const list=index.get(k)||[];list.push(r);index.set(k,list);};
   for(const r of candidates){add('id',r.id,r);add('name',key(r.name),r);if(entity==='products')add('code',r.code,r);else if(entity!=='categories')add('doc',doc(r.document),r);}
   const lookup=(type,value)=>index.get(type+':'+value)||[];
-  const load=db.prepare('SELECT * FROM "'+entity+'" WHERE id=?');
+  // Fotos não participam de planilhas; não carregar blobs em prévias com milhares de produtos.
+  const projection=entity==='products'?['id','active','created_at','updated_at',...entities.products.fields.filter(f=>f.key!=='image_data').map(f=>f.key)].join(','):'*';
+  const load=db.prepare('SELECT '+projection+' FROM "'+entity+'" WHERE id=?');
   const categories=kind==='products'?db.prepare('SELECT id,name FROM categories WHERE active=1').all():[];
   const seen=new Set(),result=[];
   for(let i=0;i<entries.length;i++){
@@ -84,7 +86,7 @@ export function createDataTransfer(db,save){
     const normalized=normalizeRecord(entity,values);
     if(entity==='products'&&normalized.unit==='UN'&&normalized.stock_milli%1000)throw new Error('Produto UN exige quantidade inteira.');
     if(!old&&['customers','suppliers'].includes(entity)&&!doc(raw.document)&&lookup('name',key(raw.name)).length>0)throw new Error('Nome já cadastrado sem identificação única. Exporte e use o ID ou informe CPF/CNPJ.');
-    const changed=!old||entities[entity].fields.some(f=>(old[f.key]??'')!==(normalized[f.key]??''));
+    const changed=!old||entities[entity].fields.some(f=>f.type!=='image'&&(old[f.key]??'')!==(normalized[f.key]??''));
     result.push({old,values:normalized,action:old?(changed?'updated':'unchanged'):'created'});
    }catch(err){throw new Error('Linha '+(i+2)+': '+err.message);}
   }
@@ -102,6 +104,7 @@ export function createDataTransfer(db,save){
    for(const x of p.result){
     if(x.action==='unchanged')continue;
     const values={...x.values,id:x.old?.id};
+    if(p.entity==='products'&&x.old)values.image_data=db.prepare('SELECT image_data FROM products WHERE id=?').get(x.old.id)?.image_data||'';
     if(p.kind==='inventory')values.stockEdit={expectedMilli:x.old.stock_milli,reason:p.reason};
     save(p.entity,values,{...context,bulkTransaction:true});
    }
