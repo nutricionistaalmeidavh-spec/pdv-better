@@ -25,6 +25,7 @@ import {allowed} from '../shared/access.mjs';
 import {GuidedTour} from './GuidedTour';
 import {FirstAccess} from './FirstAccess';
 import {LabelPrintDialog} from './LabelPrintDialog';
+import {DataTransfer} from './DataTransfer';
 
 type Row = Record<string, any>;
 type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number;batchId?:string;batchCode?:string};
@@ -640,6 +641,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             onResumeHeld={resumeSale} onRemoveHeld={removeHeldSale}
             canUndo={undoAvailable} onUndo={undoLastCartChange}
           />}
+          {['products','categories','customers','suppliers','inventory'].includes(view)&&allowed(user.role,'previewDataTransfer')&&<DataTransfer key={view} kind={view} onChanged={async()=>{await reloadAll();if(view!=='inventory')await reload(view);}}/>}
           {['cash','sales','inventory','purchases','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
           {view==='settings' && <SystemSettings/>}
           {activeSchema && <>
