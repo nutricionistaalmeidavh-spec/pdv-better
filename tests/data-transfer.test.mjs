@@ -101,3 +101,20 @@ test('XLSX utiliza células numéricas para preço/quantidade e texto para ident
  assert.equal(sheet.getCell('C2').value,1.25);
  assert.equal(sheet.getCell('C2').numFmt,'0.000');
 });
+
+test('worker exporta snapshot SQLite em CSV e XLSX sem materializar catálogo no renderer',async()=>{
+ const {createNexusParityFixture}=await import('./fixtures/nexus-parity.mjs');
+ const {runTransferWorker}=await import('../electron/data-transfer-worker-client.mjs');
+ const {readFile}=await import('node:fs/promises');
+ const f=createNexusParityFixture();
+ try{
+  for(const format of ['csv','xlsx']){
+   const filename=f.database+'.'+format;
+   const count=await runTransferWorker({operation:'export',format,kind:'products',databaseFile:f.database,filename});
+   assert.equal(count,2);
+   const table=await readTransferFile(format,new Uint8Array(await readFile(filename)));
+   assert.equal(table.length,3);
+   assert.ok(table.some(row=>row.includes('QA-PARITY-001')));
+  }
+ }finally{f.cleanup();}
+});
