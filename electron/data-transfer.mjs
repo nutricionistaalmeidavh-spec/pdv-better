@@ -5,6 +5,10 @@ import {entities} from '../shared/contract.mjs';
 const key=v=>String(v??'').trim().toLocaleLowerCase('pt-BR');
 const doc=v=>String(v??'').replace(/\D/g,'');
 const uuid=/^[0-9a-f-]{36}$/i;
+const fixed=(n,places)=>{
+ const value=BigInt(n),scale=10n**BigInt(places);
+ return String(value/scale)+'.'+String(value%scale).padStart(places,'0');
+};
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export function createDataTransfer(db,save){
  db.exec('CREATE TABLE IF NOT EXISTS data_transfer_audit (id TEXT PRIMARY KEY, kind TEXT NOT NULL, created_at TEXT NOT NULL, operator_id TEXT, created_count INTEGER NOT NULL, updated_count INTEGER NOT NULL, reason TEXT)');
@@ -20,8 +24,8 @@ export function createDataTransfer(db,save){
   const data=rowsFor(kind);
   return {count:data.length,table:[cols.map(c=>c.label),...data.map(r=>cols.map(({key:k})=>{
    if(k==='category_id')return names.get(r[k])??'';
-   if(k==='stock_milli')return (r[k]/1000).toFixed(3);
-   if(k.endsWith('_cents'))return (r[k]/100).toFixed(2);
+   if(k==='stock_milli')return fixed(r[k],3);
+   if(k.endsWith('_cents'))return fixed(r[k],2);
    return String(r[k]??'');
   }))]};
  }
@@ -65,6 +69,7 @@ export function createDataTransfer(db,save){
      continue;
     }
     const values={...(old||{}),...raw};delete values.id;
+    if(entity==='products'&&old&&raw.unit&&raw.unit.toUpperCase()!==old.unit&&(old.stock_milli||db.prepare('SELECT 1 FROM stock_movements WHERE product_id=? LIMIT 1').get(old.id)||db.prepare('SELECT 1 FROM sale_items WHERE product_id=? LIMIT 1').get(old.id)||db.prepare('SELECT 1 FROM commercial_purchase_lines WHERE product_id=? LIMIT 1').get(old.id)||db.prepare('SELECT 1 FROM product_batches WHERE product_id=? LIMIT 1').get(old.id)))throw new Error('Unidade com estoque ou histórico não pode ser alterada.');
     if(entity==='products'){
      values.code=code||old?.code||'';values.unit=String(values.unit).toUpperCase();
      if(Object.hasOwn(raw,'category_id')){
@@ -75,6 +80,7 @@ export function createDataTransfer(db,save){
      }
      if(old){if(Object.hasOwn(raw,'stock_milli')&&raw.stock_milli!==''&&parseFixed(raw.stock_milli,3,'Estoque')!==old.stock_milli)throw new Error('Use a planilha de Estoque para alterar o saldo de produto existente.');values.stock_milli=old.stock_milli;}
     }
+    if(entity==='products'){for(const field of ['sale_price_cents','cost_price_cents'])if(typeof values[field]==='string')values[field]=values[field].replace(/^R\$\s*/,'').trim();}
     const normalized=normalizeRecord(entity,values);
     if(entity==='products'&&normalized.unit==='UN'&&normalized.stock_milli%1000)throw new Error('Produto UN exige quantidade inteira.');
     if(!old&&['customers','suppliers'].includes(entity)&&!doc(raw.document)&&lookup('name',key(raw.name)).length>0)throw new Error('Nome já cadastrado sem identificação única. Exporte e use o ID ou informe CPF/CNPJ.');
@@ -86,7 +92,7 @@ export function createDataTransfer(db,save){
   const count=a=>result.filter(x=>x.action===a).length;
   return {kind,entity,reason,result,token,count:result.length,created:count('created'),updated:count('updated'),unchanged:count('unchanged')};
  }
- function publicPreview(p){return {token:p.token,count:p.count,created:p.created,updated:p.updated,unchanged:p.unchanged,rows:p.result.slice(0,10).map(x=>({name:x.values.name,code:x.values.code||x.values.document||'',action:x.action,before:x.old?.stock_milli,after:x.values.stock_milli}))};}
+ function publicPreview(p){return {token:p.token,count:p.count,created:p.created,updated:p.updated,unchanged:p.unchanged,rows:p.result.slice(0,10).map(x=>({name:x.values.name,code:x.values.code||x.values.document||'',action:x.action,before:x.old?.stock_milli,after:x.values.stock_milli,priceBefore:x.old?.sale_price_cents,priceAfter:x.values.sale_price_cents,costBefore:x.old?.cost_price_cents,costAfter:x.values.cost_price_cents}))};}
  function previewDataTransfer(input){return publicPreview(plan(input));}
  function importDataTransfer(input,context={}){
   db.exec('BEGIN IMMEDIATE');
