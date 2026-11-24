@@ -1,9 +1,10 @@
 // Executa somente em VM Windows descartável. Dois instaladores NSIS reais,
 // electron-updater real, diálogo nativo e HTTP local (sem publicação de versões de QA).
 import assert from 'node:assert/strict';
-import {spawn,spawnSync} from 'node:child_process';
+import {spawn,spawnSync,execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import {createServer} from 'node:http';
-import {createReadStream,existsSync,mkdirSync,readdirSync,readFileSync,statSync,writeFileSync} from 'node:fs';
+import {appendFileSync,createReadStream,existsSync,mkdirSync,readdirSync,readFileSync,statSync,writeFileSync} from 'node:fs';
 import {join,resolve,basename} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {setTimeout as sleep} from 'node:timers/promises';
@@ -21,8 +22,11 @@ const out=resolve('qa-artifacts','updater-real');
 mkdirSync(out,{recursive:true});
 const evidence={targetVersion,baseline:basename(baseline),steps:[],requests:[]};
 const record=(step,details={})=>{evidence.steps.push({step,...details});writeFileSync(join(out,'result.json'),JSON.stringify(evidence,null,2));console.log(step,details);};
+const psArgs=script=>['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from("$ErrorActionPreference='Stop';[Console]::OutputEncoding=[Text.Encoding]::UTF8;"+script,'utf16le').toString('base64')];
+const execAsync=promisify(execFile);
+async function psAsync(script){const {stdout}=await execAsync('powershell.exe',psArgs(script),{encoding:'utf8',timeout:30000,windowsHide:true});return stdout.trim();}
 function ps(script){
- const r=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"$ErrorActionPreference='Stop';"+script],{encoding:'utf8',timeout:30000});
+ const r=spawnSync('powershell.exe',psArgs(script),{encoding:'utf8',timeout:30000});
  if(r.status!==0)throw Error((r.stderr||r.error?.message||'PowerShell falhou').trim());
  return r.stdout.trim();
 }
@@ -67,6 +71,7 @@ const server=createServer((req,res)=>{
  const name=new URL(req.url,'http://127.0.0.1').pathname;
  const file=files.get(name);
  evidence.requests.push({method:req.method,path:name,range:req.headers.range||null});
+ console.log('HTTP update:',req.method,name,req.headers.range||'');
  if(!file){res.writeHead(404).end();return;}
  const size=statSync(file).size,match=/^bytes=(\d+)-(\d*)$/.exec(req.headers.range||'');
  let start=0,end=size-1;
@@ -87,29 +92,48 @@ assert.ok(existsSync(config),'Configuração real de update ausente');
 writeFileSync(config,'provider: generic\nurl: '+url+'\nuseMultipleRangeRequest: false\nupdaterCacheDirName: pdv-updater-real-'+randomUUID()+'\n');
 const childEnv={...process.env};
 delete childEnv.PDV_TEST_SMOKE;delete childEnv.PDV_TEST_USER_DATA;delete childEnv.PDV_DEV_URL;
-const launch=()=>{const p=spawn(exe,[],{env:childEnv,stdio:'ignore',windowsHide:false});p.on('error',e=>console.error(e));return p;};
-async function clickDialog(label,timeout=90000){
+const launch=()=>{
+ const p=spawn(exe,['--enable-logging=stderr','--no-proxy-server'],{env:childEnv,stdio:['ignore','pipe','pipe'],windowsHide:false});
+ for(const stream of [p.stdout,p.stderr])stream.on('data',data=>appendFileSync(join(out,'electron.log'),data));
+ p.on('error',e=>console.error('Falha ao iniciar:',e));
+ p.on('exit',(code,signal)=>console.log('Electron saiu:',p.pid,code,signal));
+ return p;
+};
+async function clickDialog(label,processId,timeout=120000){
  const cmd=String.raw`Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
 $root=[System.Windows.Automation.AutomationElement]::RootElement
 $tree=[System.Windows.Automation.TreeScope]::Descendants
 $children=[System.Windows.Automation.TreeScope]::Children
-$name=[System.Windows.Automation.AutomationElement]::NameProperty
-$win=New-Object System.Windows.Automation.PropertyCondition($name,'Atualização do PDV Plus')
-$button=New-Object System.Windows.Automation.PropertyCondition($name,${quote(label)})
-foreach($top in $root.FindAll($children,[System.Windows.Automation.Condition]::TrueCondition)){
+$pidProperty=[System.Windows.Automation.AutomationElement]::ProcessIdProperty
+$processCondition=[System.Windows.Automation.PropertyCondition]::new($pidProperty,[int]${processId})
+$wanted=${quote(label)}
+$buttonType=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Button)
+foreach($top in $root.FindAll($children,$processCondition)){
  try {
-  $dialog=if($top.Current.Name -eq 'Atualização do PDV Plus'){$top}else{$top.FindFirst($tree,$win)}
-  if($null -eq $dialog){continue}
-  $control=$dialog.FindFirst($tree,$button)
-  if($null -ne $control){$control.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke();'CLICKED';exit 0}
- }catch{}
+  'WINDOW '+$top.Current.Name+' | '+$top.Current.ClassName
+  foreach($control in $top.FindAll($tree,$buttonType)){
+   try{
+    $name=$control.Current.Name
+    'BUTTON '+$name
+    if(($name -replace '&','').Trim() -eq $wanted){
+     $control.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+     'CLICKED';exit 0
+    }
+   }catch{'UIA button: '+$_.Exception.Message}
+  }
+ }catch{'UIA window: '+$_.Exception.Message}
 }
 'NOT_FOUND'`;
  const deadline=Date.now()+timeout;
+ let last='';
  while(Date.now()<deadline){
-  if(ps(cmd).includes('CLICKED'))return;
+  last=await psAsync(cmd);
+  if(last.includes('CLICKED'))return;
   await sleep(750);
  }
+ console.error('UIA:',last);
+ console.error('Consultas:',JSON.stringify(evidence.requests));
+ if(existsSync(join(out,'electron.log')))console.error(readFileSync(join(out,'electron.log'),'utf8').slice(-12000));
  throw Error('Diálogo nativo não apresentou botão: '+label);
 }
 const mainPid=()=>{
@@ -127,7 +151,7 @@ function closeProcess(pid){
 let first,second;
 try{
  first=launch();
- await clickDialog('Agora não');
+ await clickDialog('Agora não',first.pid);
  await sleep(1500);
  assert.equal(version(),oldVersion);
  assert.ok(evidence.requests.some(r=>r.path==='/latest.yml'),'Feed não consultado');
@@ -136,9 +160,9 @@ try{
  record('Recusa mantém binário e dados, sem download');
  const pid1=await until(mainPid,20000,'Janela inicial não encontrada');
  closeProcess(pid1);
- await until(()=>!mainPid(),30000,'Primeira janela não fechou');
+ await until(()=>first.exitCode!==null&&!mainPid(),30000,'Primeira janela não fechou');
  second=launch();
- await clickDialog('Baixar e instalar');
+ await clickDialog('Baixar e instalar',second.pid);
  record('Consentimento no diálogo nativo');
  const originalPid=second.pid;
  await until(()=>{
