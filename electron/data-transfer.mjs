@@ -30,7 +30,13 @@ export function createDataTransfer(db,save){
   const entity=kind==='inventory'?'products':kind;
   const reason=String(input?.reason??'').trim();
   if(kind==='inventory'&&(!reason||reason.length>150))throw new Error('Informe o motivo do ajuste de estoque (até 150 caracteres).');
-  const candidates=db.prepare('SELECT * FROM "'+entity+'"').all();
+  const identityColumns=entity==='products'?'id,name,code,active':entity==='categories'?'id,name,active':'id,name,document,active';
+  const candidates=db.prepare('SELECT '+identityColumns+' FROM "'+entity+'"').all();
+  const index=new Map();
+  const add=(type,value,r)=>{if(!value)return;const k=type+':'+value;const list=index.get(k)||[];list.push(r);index.set(k,list);};
+  for(const r of candidates){add('id',r.id,r);add('name',key(r.name),r);if(entity==='products')add('code',r.code,r);else if(entity!=='categories')add('doc',doc(r.document),r);}
+  const lookup=(type,value)=>index.get(type+':'+value)||[];
+  const load=db.prepare('SELECT * FROM "'+entity+'" WHERE id=?');
   const categories=kind==='products'?db.prepare('SELECT id,name FROM categories WHERE active=1').all():[];
   const seen=new Set(),result=[];
   for(let i=0;i<entries.length;i++){
@@ -38,13 +44,12 @@ export function createDataTransfer(db,save){
    try{
     if(raw.id&&!uuid.test(raw.id))throw new Error('ID inválido.');
     const code=String(raw.code??'').trim().toUpperCase();
-    if((kind==='products'||kind==='inventory')&&!code)throw new Error('Código obrigatório.');
-    const matches=candidates.filter(r=>(raw.id&&r.id===raw.id)||
-      (entity==='products'&&code&&r.code===code)||
-      (entity==='categories'&&key(r.name)===key(raw.name))||
-      (['customers','suppliers'].includes(entity)&&doc(raw.document)&&doc(r.document)===doc(raw.document)));
+    if((kind==='products'||kind==='inventory')&&!code&&!raw.id)throw new Error('Código ou ID obrigatório.');
+    const hits=[...lookup('id',raw.id),...(entity==='products'?lookup('code',code):entity==='categories'?lookup('name',key(raw.name)):lookup('doc',doc(raw.document)))];
+    const matches=[...new Map(hits.map(r=>[r.id,r])).values()];
     if(matches.length>1)throw new Error('Cadastro ambíguo ou duplicado no banco.');
-    const old=matches[0];
+    const old=matches.length?load.get(matches[0].id):null;
+    if(entity==='products'&&!code&&!old)throw new Error('Código obrigatório para novo produto.');
     if(old&&!old.active)throw new Error('Cadastro desativado; reative manualmente.');
     const identity=old?.id|| (entity==='products'?code:entity==='categories'?key(raw.name):doc(raw.document)||key(raw.name)+'|'+key(raw.phone)+'|'+key(raw.email));
     if(seen.has(identity))throw new Error('Registro duplicado no arquivo.');
@@ -61,7 +66,7 @@ export function createDataTransfer(db,save){
     }
     const values={...(old||{}),...raw};delete values.id;
     if(entity==='products'){
-     values.code=code;values.unit=String(values.unit).toUpperCase();
+     values.code=code||old?.code||'';values.unit=String(values.unit).toUpperCase();
      if(Object.hasOwn(raw,'category_id')){
       const name=raw.category_id;
       const hits=categories.filter(c=>c.id===name||key(c.name)===key(name));
@@ -72,7 +77,7 @@ export function createDataTransfer(db,save){
     }
     const normalized=normalizeRecord(entity,values);
     if(entity==='products'&&normalized.unit==='UN'&&normalized.stock_milli%1000)throw new Error('Produto UN exige quantidade inteira.');
-    if(!old&&['customers','suppliers'].includes(entity)&&!doc(raw.document)&&candidates.some(r=>key(r.name)===key(raw.name)))throw new Error('Nome já cadastrado sem identificação única. Exporte e use o ID ou informe CPF/CNPJ.');
+    if(!old&&['customers','suppliers'].includes(entity)&&!doc(raw.document)&&lookup('name',key(raw.name)).length>0)throw new Error('Nome já cadastrado sem identificação única. Exporte e use o ID ou informe CPF/CNPJ.');
     const changed=!old||entities[entity].fields.some(f=>(old[f.key]??'')!==(normalized[f.key]??''));
     result.push({old,values:normalized,action:old?(changed?'updated':'unchanged'):'created'});
    }catch(err){throw new Error('Linha '+(i+2)+': '+err.message);}
