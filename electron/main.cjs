@@ -72,6 +72,41 @@ async function start() {
     return xlsxToCatalogCsv(bytes);
   });
 
+  // Arquivos são lidos e gravados na máquina do usuário; banco remoto nunca recebe caminhos locais.
+  const {readTransferFile,makeTransferXlsx}=await import('./data-transfer-file.mjs');
+  const {transferColumns,writeCsv}=await import('../shared/data-transfer.mjs');
+  function ensureTransferLocal(method){
+    runtime.authorize(method);
+    if(runtime.isRemote())throw new Error('Importação e exportação em lote: execute no computador servidor do PDV.');
+  }
+  ipcMain.handle(apiChannels.dataTransferPreview,async(_evt,input)=>{
+    ensureTransferLocal('previewDataTransfer');
+    const {kind,format,bytes,reason}=input||{};
+    transferColumns(kind);
+    const table=await readTransferFile(format,bytes);
+    const preview=await domain('previewDataTransfer',{kind,table,reason});
+    return preview;
+  });
+  ipcMain.handle(apiChannels.dataTransferImport,async(_evt,input)=>{
+    ensureTransferLocal('importDataTransfer');
+    const {kind,format,bytes,reason,token}=input||{};
+    transferColumns(kind);
+    const table=await readTransferFile(format,bytes);
+    return domain('importDataTransfer',{kind,table,reason,token});
+  });
+  ipcMain.handle(apiChannels.dataTransferExport,async(_evt,input)=>{
+    ensureTransferLocal('exportDataTransfer');
+    const {kind,format,template}=input||{};
+    const cols=transferColumns(kind);
+    if(!['csv','xlsx'].includes(format))throw new Error('Use XLSX ou CSV.');
+    const selected=await dialog.showSaveDialog(window,{title:template?'Salvar modelo de importação':'Exportar cadastros',defaultPath:'PDV-Plus-'+kind+(template?'-modelo':'')+'.'+format,filters:[{name:format.toUpperCase(),extensions:[format]}]});
+    if(selected.canceled||!selected.filePath)return {cancelled:true};
+    const report=template?{count:0,table:[cols.map(c=>c.label)]}:await domain('exportDataTransfer',kind);
+    const data=format==='csv'?writeCsv(report.table):await makeTransferXlsx(kind,report.table);
+    fs.writeFileSync(selected.filePath,data);
+    return {cancelled:false,count:report.count};
+  });
+
   ipcMain.handle(apiChannels.catalogExport,async(_event,format)=>{
     runtime.authorize('catalogExport');
     if(!['pdf','csv','xlsx'].includes(format))throw new Error('Formato de exportação de produtos inválido.');
