@@ -8,6 +8,20 @@ export function localDateKey(value){
   return date.getFullYear()+'-'+pad(date.getMonth()+1)+'-'+pad(date.getDate());
 }
 
+// Intervalo semiaberto no fuso do servidor; datas civis nunca são instantes UTC.
+export function localDateRange(from,to){
+  const boundary=(value,next)=>{
+    if(!value)return null;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(value))throw new Error('Data inválida.');
+    const [y,m,d]=value.split('-').map(Number);
+    const date=new Date(0);date.setFullYear(y,m-1,d);date.setHours(0,0,0,0);
+    if(localDateKey(date)!==value)throw new Error('Data inválida.');
+    if(next)date.setDate(date.getDate()+1);
+    return date.toISOString();
+  };
+  if(from&&to&&from>to)throw new Error('Período inválido.');
+  return {start:boundary(from,false),end:boundary(to,true)};
+}
 export function localDateTimeLabel(value){
   if(!value)return '—';
   const date=value instanceof Date?value:new Date(value);
