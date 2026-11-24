@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import { Plus,Check,AlertTriangle,ShoppingCart,Package,Wallet,ClipboardList,RotateCcw,Receipt,ArrowDownToLine,ArrowUpFromLine } from 'lucide-react';
-import { money,parseFixed } from '../shared/domain.mjs';
+import { money,parseFixed,lineTotalCents,roundRatio,checkedSum } from '../shared/domain.mjs';
 import { reportRows } from '../shared/report.mjs';
 import {reportDailySales,reportPaymentBreakdown} from '../shared/report-analytics.mjs';
 import { paymentPreview } from '../shared/payment-preview.mjs';
@@ -93,7 +93,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
   cart:any[];products:R[];customers:R[];role:string;onClose:()=>void;onDone:(sale:R)=>void;onCustomerSaved:()=>Promise<void>;
   initialMethod?:'cash'|'pix'|'card';initialFocus?:'customer'|'discount';
 }){
-  const subtotal=cart.reduce((sum,row)=>sum+Math.round(row.priceCents*row.quantityMilli/1000),0);
+  const subtotal=checkedSum(cart.map(row=>lineTotalCents(row.priceCents,row.quantityMilli)));
   const [discount,setDiscount]=useState('0,00');
   const [customerId,setCustomerId]=useState('');
   const [newCustomerName,setNewCustomerName]=useState('');
@@ -167,7 +167,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
         let balance=line.net_cents;
         for(let i=0;i<quantities.length;i++){
           const qty=quantities[i];
-          const cents=i===quantities.length-1?balance:Math.round(line.net_cents*qty.quantityMilli/lineQty);
+          const cents=i===quantities.length-1?balance:roundRatio(BigInt(line.net_cents)*BigInt(qty.quantityMilli),BigInt(lineQty));
           balance-=cents;
           if(cents<=0)throw new Error('A divisão gera uma parcela sem valor. Ajuste as quantidades.');
           splitAssignments.push({productId:line.product_id,method:qty.method,quantityMilli:qty.quantityMilli,amountCents:cents});
@@ -410,7 +410,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         view==='purchases'&&manager?api.purchaseList({page:purchasePage,pageSize:40}):Promise.resolve(null),
         view==='inventory'&&manager?api.list('categories'):Promise.resolve([]),
         view==='inventory'&&manager
-          ?api.list('products','',{page:inventoryPage,pageSize:50,includeImages:true}):Promise.resolve(null)
+          ?api.list('products','',{page:inventoryPage,pageSize:50,includeImages:false}):Promise.resolve(null)
       ]);
       setSession(s);
       setSales(sl?.rows||[]);setSalesTotal(sl?.total||0);
@@ -653,7 +653,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         </div>
         <div className="commerce-table"><table><thead><tr><th>Produto</th><th>Quantidade</th><th>Custo</th><th>Total</th><th>Ação</th></tr></thead><tbody>
           {purchaseLines.map(x=><tr key={x.productId}><td>{products.find(p=>p.id===x.productId)?.name}</td><td>{x.quantityMilli/1000}</td>
-            <td>{money(x.unitCostCents)}</td><td>{money(Math.round(x.quantityMilli*x.unitCostCents/1000))}</td>
+            <td>{money(x.unitCostCents)}</td><td>{money(lineTotalCents(x.unitCostCents,x.quantityMilli))}</td>
             <td><button type="button" className="secondary" onClick={()=>setPurchaseLines(lines=>lines.filter(i=>i.productId!==x.productId))}>Remover</button></td></tr>)}
         </tbody></table>{purchaseLines.length===0&&<div className="commerce-empty-state">Adicione produtos para montar o pedido de compra.</div>}</div>
         <button type="button" className="primary" disabled={busy||!purchaseSupplier||purchaseLines.length===0}
