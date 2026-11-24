@@ -5,7 +5,7 @@ export const MAX_TRANSFER_BYTES=10*1024*1024;
 const labels={id:'ID',name:'Nome',code:'Código',brand:'Marca',producer:'Produtor',variant_group:'Grupo de variação',variant_label:'Variação',category_id:'Categoria',unit:'Unidade',sale_price_cents:'Preço',cost_price_cents:'Custo',stock_milli:'Estoque',document:'CPF / CNPJ',phone:'Telefone',email:'E-mail'};
 export function transferColumns(kind){
  if(!transferKinds.includes(kind))throw new Error('Cadastro não suportado para planilhas.');
- const keys=kind==='inventory'?['code','stock_milli']:['id',...entities[kind].fields.filter(f=>f.type!=='image').map(f=>f.key)];
+ const keys=kind==='inventory'?['id','code','stock_milli']:['id',...entities[kind].fields.filter(f=>f.type!=='image').map(f=>f.key)];
  return keys.map(key=>({key,label:labels[key]}));
 }
 const clean=v=>String(v).trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
