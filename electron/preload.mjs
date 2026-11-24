@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   overview: () => ipcRenderer.invoke(apiChannels.overview),
   storeProfileGet: () => ipcRenderer.invoke(apiChannels.storeProfileGet),
   storeProfileSet: input => ipcRenderer.invoke(apiChannels.storeProfileSet,input),
+  sessionPage: options=>ipcRenderer.invoke(apiChannels.sessionPage,options),
   sessionCurrent: () => ipcRenderer.invoke(apiChannels.sessionCurrent),
   sessionOpen: (input) => ipcRenderer.invoke(apiChannels.sessionOpen, input),
   sessionClose: (input) => ipcRenderer.invoke(apiChannels.sessionClose, input),
