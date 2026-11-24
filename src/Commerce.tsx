@@ -306,7 +306,7 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
     </section>
   </div>;
 }
-export function CommerceView({view,onDataChanged,role}:{view:string;onDataChanged:()=>Promise<void>;role:string}){
+export function CommerceView({view,onDataChanged,role,refreshRevision=0}:{view:string;onDataChanged:()=>Promise<void>;role:string;refreshRevision?:number}){
   const api=window.pdv;
   const [session,setSession]=useState<R|null>(null);
   const [otherSessions,setOtherSessions]=useState<R[]>([]);
@@ -425,7 +425,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
       setManagerSelection(current=>current||managers[0]?.id||'');
     }catch(err){setError(errorMessage(err));}
   }
-  useEffect(()=>{setSuccess('');void load();},[view,salesPage,inventoryPage,movementPage,financePage,purchasePage]);
+  useEffect(()=>{setSuccess('');void load();},[view,salesPage,inventoryPage,movementPage,financePage,purchasePage,refreshRevision]);
   async function action(fn:()=>Promise<any>,message:string,updateProducts=false) {
     if(busy)return;
     setBusy(true);setError('');setSuccess('');
