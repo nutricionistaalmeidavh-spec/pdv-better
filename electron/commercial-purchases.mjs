@@ -24,8 +24,15 @@ export function createCommercialPurchases(db){
      !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
     throw new Error('Paginação de compras inválida.');
   const total=get('SELECT COUNT(*) AS n FROM commercial_purchases').n;
-  const rows=all('SELECT id FROM commercial_purchases ORDER BY created_at DESC,rowid DESC LIMIT ? OFFSET ?',
-    pageSize,page*pageSize).map(x=>details(x.id));
+  const purchases=all('SELECT p.*,s.name AS supplier_name FROM commercial_purchases p JOIN suppliers s ON s.id=p.supplier_id ORDER BY p.created_at DESC,p.rowid DESC LIMIT ? OFFSET ?',pageSize,page*pageSize);
+  const grouped=new Map();
+  if(purchases.length){
+   const ids=purchases.map(p=>p.id),marks=ids.map(()=>'?').join(',');
+   for(const line of all('SELECT * FROM commercial_purchase_lines WHERE purchase_id IN ('+marks+') ORDER BY purchase_id,rowid',...ids)){
+    const rows=grouped.get(line.purchase_id)||[];rows.push(line);grouped.set(line.purchase_id,rows);
+   }
+  }
+  const rows=purchases.map(p=>({...p,lines:grouped.get(p.id)||[]}));
   return {rows,total,page,pageSize};
  }
  function createPurchase(input,ctx={}){
