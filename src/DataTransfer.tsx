@@ -1,10 +1,11 @@
 import React,{useRef,useState} from 'react';
-import {Database,FileDown,FileSpreadsheet,X} from 'lucide-react';
+import {Database,FileDown,FileSpreadsheet,History,X} from 'lucide-react';
 
 import {money} from '../shared/domain.mjs';
+import {transferColumns} from '../shared/data-transfer.mjs';
 type Format='csv'|'xlsx';
 type Preview=Awaited<ReturnType<PdvBridge['dataTransferPreview']>>;
-type Input={kind:string;format:Format;bytes:Uint8Array;reason?:string};
+type Input={kind:string;format:Format;bytes:Uint8Array;reason?:string;mapping?:string[]};
 const labels:Record<string,string>={products:'Produtos',inventory:'Estoque',categories:'Categorias',customers:'Clientes',suppliers:'Fornecedores'};
 const actions:Record<string,string>={created:'Novo',updated:'Atualizar',unchanged:'Sem alteração'};
 export function DataTransfer({kind,onChanged}:{kind:string;onChanged:()=>Promise<void>}){
@@ -15,6 +16,8 @@ export function DataTransfer({kind,onChanged}:{kind:string;onChanged:()=>Promise
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
+ const [mappingStep,setMappingStep]=useState<{input:Input;name:string;headers:string[];mapping:string[];count:number}|null>(null);
+ const [history,setHistory]=useState<{total:number;page:number;pageSize:number;rows:any[]}|null>(null);
  const [pending,setPending]=useState<{input:Input;preview:Preview;name:string}|null>(null);
  const picker=useRef<HTMLInputElement>(null);
  const fail=(e:unknown)=>setError(String((e as Error)?.message||e).replace(/^Error invoking remote method.*?: Error: /,''));
@@ -36,9 +39,24 @@ export function DataTransfer({kind,onChanged}:{kind:string;onChanged:()=>Promise
    if(ext!=='xlsx'&&ext!=='csv')throw new Error('Selecione XLSX ou CSV UTF-8.');
    if(kind==='inventory'&&!reason.trim())throw new Error('Informe o motivo do ajuste antes de importar.');
    const input:Input={kind,format:ext,bytes:new Uint8Array(await file.arrayBuffer()),reason};
-   const preview=await bridge.dataTransferPreview(input);
-   setOpen(false);setPending({input,preview,name:file.name});
+   const inspected=await bridge.dataTransferInspect(input);
+   setOpen(false);setMappingStep({input,name:file.name,...inspected});
   }catch(e){fail(e);}finally{setBusy(false);}
+ }
+ async function reviewMapping(){
+  if(!bridge||!mappingStep||busy)return;
+  setBusy(true);setError('');
+  try{
+   const input={...mappingStep.input,mapping:mappingStep.mapping};
+   const preview=await bridge.dataTransferPreview(input);
+   setPending({input,preview,name:mappingStep.name});setMappingStep(null);
+  }catch(e){fail(e);}finally{setBusy(false);}
+ }
+ async function showHistory(page=0){
+  if(!bridge||busy)return;
+  setBusy(true);setError('');
+  try{setHistory(await bridge.dataTransferHistory({kind,page,pageSize:25}));setOpen(false);}
+  catch(e){fail(e);}finally{setBusy(false);}
  }
  async function confirm(){
   if(!bridge||!pending||busy)return;
@@ -59,6 +77,7 @@ export function DataTransfer({kind,onChanged}:{kind:string;onChanged:()=>Promise
     <label>Formato <select aria-label="Formato da planilha" value={format} disabled={busy} onChange={e=>setFormat(e.target.value as Format)}><option value="xlsx">Excel XLSX</option><option value="csv">CSV UTF-8</option></select></label>
     <button type="button" className="secondary" disabled={busy} onClick={()=>void exportFile(true)}><FileDown size={16}/> Baixar modelo</button>
     <button type="button" className="secondary" disabled={busy} onClick={()=>void exportFile(false)}><FileDown size={16}/> Exportar cadastros</button>
+    <button type="button" className="secondary" disabled={busy} onClick={()=>void showHistory()}><History size={16}/> Histórico</button>
     {kind==='inventory'&&<label>Motivo <input value={reason} maxLength={150} disabled={busy} placeholder="Ex.: inventário, recebimento, devolução" onChange={e=>setReason(e.target.value)}/></label>}
     <input ref={picker} type="file" accept=".xlsx,.csv" hidden onChange={e=>void choose(e)}/>
     <button type="button" className="primary" disabled={busy||(kind==='inventory'&&!reason.trim())} onClick={()=>picker.current?.click()}><Database size={16}/> {busy?'Processando…':'Importar planilha'}</button>
@@ -67,7 +86,20 @@ export function DataTransfer({kind,onChanged}:{kind:string;onChanged:()=>Promise
    {error&&<p role="alert">{error}</p>}
    </div></section></div>}
   {notice&&<p role="status">{notice}</p>}
-  {error&&!pending&&!open&&<p role="alert">{error}</p>}
+  {error&&!pending&&!open&&!mappingStep&&!history&&<p role="alert">{error}</p>}
+  {mappingStep&&<div className="modal-backdrop" role="presentation"><section className="dialog catalog-import-preview" role="dialog" aria-modal="true" aria-labelledby="mapping-title" onKeyDown={e=>{if(e.key==='Escape'&&!busy)setMappingStep(null);}}>
+   <header className="dialog-head"><h2 id="mapping-title">Mapear colunas — {labels[kind]}</h2><button autoFocus type="button" className="icon-btn" aria-label="Cancelar mapeamento" disabled={busy} onClick={()=>setMappingStep(null)}><X size={20}/></button></header>
+   <div className="catalog-import-preview-content"><p>{mappingStep.name} · {mappingStep.count} registros. Associe cada coluna ao campo do PDV; campos sem associação serão ignorados.</p>
+    <div className="table-wrap"><table><thead><tr><th>Coluna da planilha</th><th>Campo do PDV</th></tr></thead><tbody>{mappingStep.headers.map((header,i)=><tr key={i}><td>{header||'Coluna '+(i+1)}</td><td><select aria-label={'Campo da coluna '+(i+1)} value={mappingStep.mapping[i]} disabled={busy} onChange={e=>{const value=e.target.value;setMappingStep(previous=>previous?{...previous,mapping:previous.mapping.map((key,j)=>j===i?value:key)}:null);}}><option value="">Ignorar</option>{transferColumns(kind).map(c=><option key={c.key} value={c.key}>{c.label}</option>)}</select></td></tr>)}</tbody></table></div>
+    {error&&<p role="alert">{error}</p>}
+    <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}><button className="secondary" type="button" disabled={busy} onClick={()=>setMappingStep(null)}>Cancelar</button><button className="primary" type="button" disabled={busy} onClick={()=>void reviewMapping()}>{busy?'Validando…':'Conferir registros'}</button></div>
+   </div></section></div>}
+  {history&&<div className="modal-backdrop" role="presentation"><section className="dialog catalog-import-preview" role="dialog" aria-modal="true" aria-labelledby="transfer-history-title" onKeyDown={e=>{if(e.key==='Escape'&&!busy)setHistory(null);}}>
+   <header className="dialog-head"><h2 id="transfer-history-title">Histórico — {labels[kind]}</h2><button autoFocus type="button" className="icon-btn" aria-label="Fechar histórico de planilhas" disabled={busy} onClick={()=>setHistory(null)}><X size={20}/></button></header>
+   <div className="catalog-import-preview-content"><div className="table-wrap"><table><thead><tr><th>Data</th><th>Operador</th><th>Novos</th><th>Atualizados</th><th>Motivo</th></tr></thead><tbody>{history.rows.map(row=><tr key={row.id}><td>{new Date(row.created_at).toLocaleString('pt-BR')}</td><td>{row.operator_name||row.operator_id||'—'}</td><td>{row.created_count}</td><td>{row.updated_count}</td><td>{row.reason||'—'}</td></tr>)}</tbody></table></div>
+    {!history.total&&<p>Nenhuma importação registrada.</p>}{error&&<p role="alert">{error}</p>}
+    <div className="pagination"><span>{history.total} importações</span><div><button className="secondary" type="button" disabled={busy||history.page===0} onClick={()=>void showHistory(history.page-1)}>Anterior</button><button className="secondary" type="button" disabled={busy||(history.page+1)*history.pageSize>=history.total} onClick={()=>void showHistory(history.page+1)}>Próxima</button></div></div>
+   </div></section></div>}
   {pending&&<div className="modal-backdrop" role="presentation"><section className="dialog catalog-import-preview" role="dialog" aria-modal="true" aria-labelledby="transfer-title">
    <header className="dialog-head"><div><div className="eyebrow">CONFERÊNCIA ANTES DE SALVAR</div><h2 id="transfer-title">Prévia — {labels[kind]}</h2></div><button type="button" className="icon-btn" aria-label="Fechar prévia de planilha" disabled={busy} onClick={()=>setPending(null)}><X size={20}/></button></header>
    <div className="catalog-import-preview-content">
