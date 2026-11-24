@@ -381,7 +381,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
   const [reportVariant,setReportVariant]=useState('');
   const [reportTraining,setReportTraining]=useState<'exclude'|'only'|'include'>('exclude');
   const [itemReport,setItemReport]=useState<R|null>(null);
-  const [reportItemVisibleCount,setReportItemVisibleCount]=useState(250);
+  const [reportQuery,setReportQuery]=useState<R|null>(null);
   const [financeType,setFinanceType]=useState('payable');
   const [financeCategory,setFinanceCategory]=useState('');
   const [description,setDescription]=useState('');
@@ -410,7 +410,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         view==='purchases'&&manager?api.purchaseList({page:purchasePage,pageSize:40}):Promise.resolve(null),
         view==='inventory'&&manager?api.list('categories'):Promise.resolve([]),
         view==='inventory'&&manager
-          ?api.list('products','',{page:inventoryPage,pageSize:50,includeImages:false}):Promise.resolve(null)
+          ?api.list('products','',{page:inventoryPage,pageSize:50,includeImages:true}):Promise.resolve(null)
       ]);
       setSession(s);
       setSales(sl?.rows||[]);setSalesTotal(sl?.total||0);
@@ -722,10 +722,10 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         <div className="report-grid">{reportRows(summary).map(row=><div className="stat" key={row.key}><span className="report-label">{row.label}</span><strong className="report-number">{row.type==='money'?money(row.raw):row.value}</strong><span className="stat-bottom">Acumulado local</span></div>)}</div>
       </details>
       <div className="panel commerce-section"><h2>Relatório detalhado por item vendido</h2>
-        <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(async()=>{setReportItemVisibleCount(250);setItemReport(await api!.reportItems({
+        <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(async()=>{const filters={
           from:reportFrom||undefined,to:reportTo||undefined,productId:reportProduct||undefined,
           brand:reportBrand||undefined,producer:reportProducer||undefined,variantGroup:reportVariant||undefined,training:reportTraining
-        }));},'Detalhamento consultado.');}}>
+        };setItemReport(await api!.reportItems({...filters,page:0,pageSize:250}));setReportQuery(filters);},'Detalhamento consultado.');}}>
           <label>Início<input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label>
           <label>Fim<input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label>
           <label>Produto<select value={reportProduct} onChange={e=>setReportProduct(e.target.value)}><option value="">Todos os produtos</option>{products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
@@ -741,20 +741,17 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
         </form>
         <div className="report-actions" aria-label="Exportação detalhada">{(['csv','xlsx','pdf'] as const).map(format=>
           <button type="button" className="secondary" key={format} disabled={busy} onClick={()=>void exportItemReport(format)}>Exportar itens {format.toUpperCase()}</button>)}</div>
-        {itemReport&&<><p>Itens encontrados: {itemReport.rows?.length||0} · Total líquido: {money(itemReport.summary?.net_total_cents||0)}</p>
+        {itemReport&&<><p>Itens encontrados: {itemReport.total??itemReport.rows?.length??0} · Total líquido: {money(itemReport.summary?.net_total_cents||0)}</p>
           <div className="commerce-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Quantidade</th><th>Bruto</th><th>Desconto</th><th>Líquido</th><th>Pagamento</th></tr></thead><tbody>
-            {(itemReport.rows||[]).slice(0,reportItemVisibleCount).map((row:R,i:number)=><tr key={row.sale_id+'-'+row.product_id+'-'+i}>
+            {(itemReport.rows||[]).map((row:R,i:number)=><tr key={row.sale_id+'-'+row.product_id+'-'+i}>
               <td>{pretty(row.created_at)}</td><td>{row.product_name}</td><td>{row.quantity_milli/1000}</td><td>{money(row.gross_cents)}</td><td>{money(row.discount_cents)}</td><td>{money(row.net_cents)}</td>
               <td>{row.payment_method==='mixed_unallocated'?'Misto: não atribuído por item':row.payment_method==='mixed_allocated'?'Misto: atribuído por item':methodLabel(row.payment_method)}</td>
             </tr>)}
           </tbody></table>
-            {itemReport.rows?.length>reportItemVisibleCount&&
-              <div className="super-report-more" aria-live="polite">
-                <span>Exibindo {reportItemVisibleCount.toLocaleString('pt-BR')} de {itemReport.rows.length.toLocaleString('pt-BR')} registros. Nenhum dado é descartado.</span>
-                <button type="button" className="secondary"
-                  onClick={()=>setReportItemVisibleCount(count=>count+250)}>Mostrar mais 250</button>
-                <button type="button" className="secondary"
-                  onClick={()=>setReportItemVisibleCount(itemReport.rows.length)}>Exibir todos</button>
+            {itemReport.total>250&&<div className="pagination">
+                <span>Página {itemReport.page+1} de {Math.ceil(itemReport.total/250)} · {itemReport.total} itens</span>
+                <div><button type="button" className="secondary" disabled={busy||itemReport.page===0} onClick={()=>void action(async()=>{setItemReport(await api!.reportItems({...reportQuery,page:itemReport.page-1,pageSize:250}));},'Página consultada.')}>Anterior</button>
+                <button type="button" className="secondary" disabled={busy||(itemReport.page+1)*250>=itemReport.total} onClick={()=>void action(async()=>{setItemReport(await api!.reportItems({...reportQuery,page:itemReport.page+1,pageSize:250}));},'Página consultada.')}>Próxima</button></div>
               </div>}
           </div>
         </>}
