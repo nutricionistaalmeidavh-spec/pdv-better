@@ -43,10 +43,7 @@ export async function readTransferFile(format,bytes){
  });
  return table;
 }
-export async function makeTransferXlsx(kind,table){
- const book=new ExcelJS.Workbook();const sheet=book.addWorksheet(kind);
- const cols=transferColumns(kind);
- for(const [index,cells] of table.entries()){
+function addTransferRow(sheet,cols,cells,index){
   const row=sheet.addRow(cells.map((v,i)=>{
    const text=String(v??'');const key=cols[i]?.key;
    if(index===0||!(key==='stock_milli'||key?.endsWith('_cents')))return text;
@@ -55,7 +52,26 @@ export async function makeTransferXlsx(kind,table){
    return text&&Number.isFinite(numeric)&&text.replace(/[^0-9]/g,'').replace(/^0+/,'').length<=15?numeric:text;
   }));
   row.eachCell((c,i)=>{const key=cols[i-1]?.key;c.numFmt=typeof c.value==='number'?(key==='stock_milli'?'0.000':'0.00'):'@';});
+  if(index===0)row.font={bold:true};
+  return row;
+}
+export async function writeTransferXlsx(kind,rows,filename){
+ const cols=transferColumns(kind);
+ const book=new ExcelJS.stream.xlsx.WorkbookWriter({filename,useStyles:true,useSharedStrings:false});
+ const sheet=book.addWorksheet(kind,{views:[{state:'frozen',ySplit:1}]});
+ sheet.columns=cols.map(()=>({width:24}));
+ let index=0;
+ for(const cells of rows){
+  if(index>=1048576)throw new Error('O formato XLSX suporta até 1.048.575 registros por aba. Exporte em CSV para volumes maiores.');
+  addTransferRow(sheet,cols,cells,index++).commit();
  }
+ sheet.commit();await book.commit();
+ return index-1;
+}
+export async function makeTransferXlsx(kind,table){
+ const book=new ExcelJS.Workbook();const sheet=book.addWorksheet(kind);
+ const cols=transferColumns(kind);
+ for(const [index,cells] of table.entries())addTransferRow(sheet,cols,cells,index);
  sheet.views=[{state:'frozen',ySplit:1}];
  sheet.getRow(1).font={bold:true};
  sheet.columns.forEach(c=>{c.width=24;});
