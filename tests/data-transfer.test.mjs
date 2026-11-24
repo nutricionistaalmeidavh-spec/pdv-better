@@ -1,4 +1,5 @@
 import test from 'node:test';
+import ExcelJS from 'exceljs';
 import assert from 'node:assert/strict';
 import {openCatalog} from '../electron/db.mjs';
 import {parseCsv, writeCsv, transferColumns} from '../shared/data-transfer.mjs';
@@ -12,6 +13,9 @@ test('CSV aceita vírgula, ponto e vírgula, aspas e BOM; XLSX preserva zeros e 
   const cells=[cols.map(c=>c.label),cols.map(c=>c.key==='name'?'Ana':c.key==='document'?'00123':'')];
   const bytes=await makeTransferXlsx('customers',cells);
   assert.deepEqual(await readTransferFile('xlsx',bytes),cells);
+  const formulaBook=new ExcelJS.Workbook();const formulaSheet=formulaBook.addWorksheet('Dados');
+  formulaSheet.addRow(['Nome']);formulaSheet.addRow([{formula:'1+1',result:2}]);
+  await assert.rejects(readTransferFile('xlsx',new Uint8Array(await formulaBook.xlsx.writeBuffer())),/fórmulas/i);
   assert.ok(writeCsv([['=1+1']]).includes("'=1+1"));
 });
 test('prévia não grava; confirmação cria e atualiza clientes pelo documento, sem sobrescrever campos ausentes',()=>{
@@ -53,4 +57,22 @@ test('permissões de intercâmbio não incluem operadores ou caixa',()=>{
   assert.equal(allowed('Gerente','importDataTransfer'),true);
   const db=openCatalog(':memory:');
   try{assert.throws(()=>db.previewDataTransfer({kind:'operators',table:[['Nome'],['X']]}),/não suportad/i);}finally{db.close();}
+});
+
+test('importa mais de 500 produtos, preserva saldo, exporta cadastro reimportável e cria fornecedores e categorias',()=>{
+ const db=openCatalog(':memory:');
+ const commit=input=>db.importDataTransfer({...input,token:db.previewDataTransfer(input).token});
+ try{
+  commit({kind:'categories',table:[['Nome'],['Bebidas']]});
+  commit({kind:'suppliers',table:[['Nome','CNPJ'],['Fornecedor QA','00123456789012']]});
+  const table=[['Nome','Código','Unidade','Preço','Estoque','Categoria'],...Array.from({length:601},(_,i)=>['Item '+i,'SKU'+i,'UN','9,49','2','Bebidas'])];
+  assert.equal(commit({kind:'products',table}).created,601);
+  const exported=db.exportDataTransfer('products');
+  assert.equal(exported.count,601);
+  assert.equal(db.previewDataTransfer({kind:'products',table:exported.table}).unchanged,601);
+  assert.equal(db.list('products').length,601);
+  assert.equal(db.list('suppliers').length,1);
+  assert.equal(db.list('products')[0].sale_price_cents,949);
+  assert.equal(db.list('products')[0].stock_milli,2000);
+ }finally{db.close();}
 });
