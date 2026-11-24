@@ -15,6 +15,7 @@ interface PdvBridge {
   overview(): Promise<Record<string, any>>;
   storeProfileGet():Promise<{name:string;document:string;address:string;updated_at:string|null}>;
   storeProfileSet(input:{name:string;document:string;address:string}):Promise<{name:string;document:string;address:string;updated_at:string}>;
+  sessionPage(options:{summaryOnly?:boolean;page?:number;pageSize?:number}):Promise<any>;
   sessionCurrent(): Promise<any>;
   sessionOpen(input: any): Promise<any>;
   sessionClose(input: any): Promise<any>;
