@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('pdv', Object.freeze({
   catalogCsvImport: input => ipcRenderer.invoke(apiChannels.catalogCsvImport,input),
   catalogXlsxConvert: bytes => ipcRenderer.invoke(apiChannels.catalogXlsxConvert,bytes),
   catalogExport: format => ipcRenderer.invoke(apiChannels.catalogExport,format),
+  dataTransferInspect: input=>ipcRenderer.invoke(apiChannels.dataTransferInspect,input),
+  dataTransferHistory: input=>ipcRenderer.invoke(apiChannels.dataTransferHistory,input),
   dataTransferPreview: input=>ipcRenderer.invoke(apiChannels.dataTransferPreview,input),
   dataTransferImport: input=>ipcRenderer.invoke(apiChannels.dataTransferImport,input),
   dataTransferExport: input=>ipcRenderer.invoke(apiChannels.dataTransferExport,input),
