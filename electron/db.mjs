@@ -17,6 +17,7 @@ import {createCommercialPurchases} from './commercial-purchases.mjs';
 import {parseCatalogCsv} from '../shared/catalog-import.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
 import {createStoreProfile} from './store-profile.mjs';
+import {createDataTransfer} from './data-transfer.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
 export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}) {
   const timeout=Number.isSafeInteger(busyTimeoutMs)&&busyTimeoutMs>=0&&busyTimeoutMs<=30000?busyTimeoutMs:5000;
@@ -143,7 +144,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     const columns = schema.fields.map(f => f.key);
     let started=false;
     try {
-      if(kind==='products'){db.exec('BEGIN IMMEDIATE');started=true;}
+      if(kind==='products'&&!context.bulkTransaction){db.exec('BEGIN IMMEDIATE');started=true;}
       const existing = db.prepare('SELECT * FROM "' + kind + '" WHERE id = ?').get(id);
       let movement=null;
       if(kind==='products' && input.stockEdit!==undefined){
@@ -267,7 +268,8 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
       outOfStock:summary.out_of_stock||0,lowStock:summary.low_stock||0,expired,expiring,examples
     }};
   }
-  const operations={list,save,archive,overview,...storeProfile,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
+  const transfers=createDataTransfer(db,save);
+  const operations={list,save,archive,overview,...transfers,...storeProfile,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
   const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
   const noArgs=new Set(['getCurrentSession','listOpenSessions','report','overview','getStoreProfile']);
   function secureCall(method,args=[],ctx={}){
@@ -290,6 +292,10 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     if(method==='listStockMovements'&&user.role==='Caixa')throw new Error('Permissão insuficiente.');
     const approvedBy=method==='closeSession'?access.verifyManagerApproval(args[0]?.managerApproval,ctx.terminalId).id:null;
     const context={terminalId:ctx.terminalId,operatorId:user.id,role:user.role,approvedBy};
+    if(method==='importDataTransfer'){
+      if(args.length!==1)throw new Error('Argumentos inválidos para importação.');
+      return transfers.importDataTransfer(args[0],context);
+    }
     if(method==='save'){
       if(args.length!==2)throw new Error('Argumentos inválidos para cadastro.');
       return save(args[0],args[1],context);
