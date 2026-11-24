@@ -291,6 +291,16 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     return {...session,expected_cash_cents:cashExpected(session),
       movements:all('SELECT * FROM cash_movements WHERE session_id=? ORDER BY created_at DESC,rowid DESC',session.id)};
   }
+  function getCurrentSessionPage(options,ctx){
+    const session=openRow(ctx);
+    if(!session)return null;
+    if(options?.summaryOnly===true)return {...session,expected_cash_cents:cashExpected(session)};
+    const {page=0,pageSize=75}=options||{};
+    if(!Number.isSafeInteger(page)||page<0||page>10000000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)throw new Error('Paginação de caixa inválida.');
+    const total=row('SELECT COUNT(*) AS n FROM cash_movements WHERE session_id=?',session.id).n;
+    return {...session,expected_cash_cents:cashExpected(session),movementTotal:total,page,pageSize,
+      movements:all('SELECT * FROM cash_movements WHERE session_id=? ORDER BY created_at DESC,rowid DESC LIMIT ? OFFSET ?',session.id,pageSize,page*pageSize)};
+  }
   function openSession(input,ctx){
     return atomic(db,()=>{
       if(openRow(ctx))throw new Error('Já existe um caixa aberto neste terminal. Feche o turno anterior.');
@@ -500,14 +510,14 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     const clause=restricted?' WHERE product_id=?':'';
     const params=restricted?[assertLabel(productId,'Produto',64)]:[];
     if(options===null||options===undefined)
-      return all('SELECT * FROM stock_movements'+clause+' ORDER BY created_at DESC,id DESC',...params);
+      return all('SELECT * FROM stock_movements'+clause+' ORDER BY created_at DESC,rowid DESC',...params);
     const {page=0,pageSize=75}=options;
     if(!Number.isSafeInteger(page)||page<0||page>10000000||
        !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
       throw new Error('Paginação de estoque inválida.');
     const total=row('SELECT COUNT(*) AS n FROM stock_movements'+clause,...params).n;
     const rows=all('SELECT * FROM stock_movements'+clause+
-      ' ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?',...params,pageSize,page*pageSize);
+      ' ORDER BY created_at DESC,rowid DESC LIMIT ? OFFSET ?',...params,pageSize,page*pageSize);
     return {rows,total,page,pageSize};
   }
   function financeWithBalance(entry){
@@ -713,7 +723,7 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
       randomUUID(),productId,quantityMilli,'opening','Saldo inicial do cadastro',now());
   }
   return {
-    openSession,getCurrentSession,closeSession,moveCash,checkout,getSale,cancelSale,listSales,listOpenSessions,
+    openSession,getCurrentSession,getCurrentSessionPage,closeSession,moveCash,checkout,getSale,cancelSale,listSales,listOpenSessions,
     moveStock,listStockMovements,receiveBatch,listBatches,setPromotion,listPromotions,
     setBundlePromotion,listBundlePromotions,archiveBundlePromotion,quoteSale,reportItems,compareReportPeriods,
     createFinance,settleFinance,listFinance,report,reportDailySales,recordInitialStock
