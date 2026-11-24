@@ -9,7 +9,7 @@ interface PdvBridge {
   catalogCsvImport(input:{csv:string}):Promise<{imported:number}>;
   catalogXlsxConvert(bytes:Uint8Array):Promise<string>;
   catalogExport(format:'pdf'|'csv'|'xlsx'):Promise<{cancelled:boolean;format?:string;count?:number}>;
-  dataTransferPreview(input:{kind:string;format:string;bytes:Uint8Array;reason?:string}):Promise<{token:string;count:number;created:number;updated:number;unchanged:number;rows:{name:string;code:string;action:string;before?:number;after?:number}[]}>;
+  dataTransferPreview(input:{kind:string;format:string;bytes:Uint8Array;reason?:string}):Promise<{token:string;count:number;created:number;updated:number;unchanged:number;rows:{name:string;code:string;action:string;before?:number;after?:number;priceBefore?:number;priceAfter?:number;costBefore?:number;costAfter?:number}[]}>;
   dataTransferImport(input:{kind:string;format:string;bytes:Uint8Array;reason?:string;token:string}):Promise<{imported:number;created:number;updated:number;unchanged:number}>;
   dataTransferExport(input:{kind:string;format:'csv'|'xlsx';template?:boolean}):Promise<{cancelled:boolean;count?:number}>;
   overview(): Promise<Record<string, any>>;
