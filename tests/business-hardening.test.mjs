@@ -72,3 +72,16 @@ test('relatório paginado preserva total e rateio; comparação não perde venda
   assert.equal(compare.current.items_count,2);
  }finally{store.close();}
 });
+
+test('índices de categoria, caixa e baixas existem e consulta por categoria não ordena tabela inteira',async()=>{
+ const {createNexusParityFixture}=await import('./fixtures/nexus-parity.mjs');
+ const f=createNexusParityFixture();
+ const db=new DatabaseSync(f.database,{readOnly:true});
+ try{
+  const indexes=db.prepare("SELECT name FROM sqlite_master WHERE type='index'").all().map(r=>r.name);
+  for(const name of ['idx_products_active_category_name','idx_cash_movements_session_time','idx_finance_settlements_entry_time','idx_sale_items_product_sale'])assert.ok(indexes.includes(name),name);
+  const query=db.prepare('EXPLAIN QUERY PLAN SELECT id,name FROM products WHERE active=1 AND category_id=? ORDER BY name COLLATE NOCASE,id LIMIT 50').all('qa');
+  assert.ok(query.some(r=>/idx_products_active_category_name/.test(r.detail)));
+  assert.ok(!query.some(r=>/TEMP B-TREE/i.test(r.detail)));
+ }finally{db.close();f.cleanup();}
+});
