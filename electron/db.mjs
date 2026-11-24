@@ -73,6 +73,10 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     'CREATE INDEX IF NOT EXISTS idx_finance_entries_recent ON financial_entries(created_at DESC,id DESC)',
     'CREATE INDEX IF NOT EXISTS idx_finance_settlements_entry_time ON finance_settlements(entry_id,created_at,id)',
     'CREATE INDEX IF NOT EXISTS idx_finance_settlements_recent ON finance_settlements(created_at,entry_id)',
+    'CREATE INDEX IF NOT EXISTS idx_purchase_lines_product ON commercial_purchase_lines(product_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_payments_sale ON sale_payments(sale_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_item_payments_sale ON sale_item_payments(sale_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_batch_allocations_sale ON sale_batch_allocations(sale_id)',
     'CREATE INDEX IF NOT EXISTS idx_sale_items_product_sale ON sale_items(product_id,sale_id)',
     'CREATE INDEX IF NOT EXISTS idx_sales_recent ON sales(created_at DESC,id DESC)',
     'CREATE INDEX IF NOT EXISTS idx_cash_sessions_terminal_id ON cash_sessions(terminal_id,id)',
@@ -296,9 +300,8 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     if(noArgs.has(method)&&args.length)throw new Error('Argumentos de sessão não permitidos.');
     access.ensureLastAdmin(method,args);
     if(method==='getSale'&&user.role==='Caixa'){
-      const sale=commerce.getSale(args[0]);
-      const own=commerce.listSales({terminalId:ctx.terminalId,role:'Caixa'});
-      if(!own.some(x=>x.id===sale.id))throw new Error('Permissão insuficiente: venda de outro terminal.');
+      const own=db.prepare('SELECT 1 FROM sales s JOIN cash_sessions c ON c.id=s.session_id WHERE s.id=? AND c.terminal_id=?').get(args[0],ctx.terminalId);
+      if(!own)throw new Error('Permissão insuficiente: venda de outro terminal.');
     }
     if(method==='listStockMovements'&&user.role==='Caixa')throw new Error('Permissão insuficiente.');
     const approvedBy=method==='closeSession'?access.verifyManagerApproval(args[0]?.managerApproval,ctx.terminalId).id:null;
