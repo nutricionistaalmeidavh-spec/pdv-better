@@ -308,6 +308,10 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     if(method==='listStockMovements'&&user.role==='Caixa')throw new Error('Permissão insuficiente.');
     const approvedBy=method==='closeSession'?access.verifyManagerApproval(args[0]?.managerApproval,ctx.terminalId).id:null;
     const context={terminalId:ctx.terminalId,operatorId:user.id,role:user.role,approvedBy};
+    if(method==='getCurrentSessionPage'){
+      if(args.length!==1||!args[0]||typeof args[0]!=='object'||Array.isArray(args[0]))throw new Error('Argumentos inválidos para consulta de caixa.');
+      return commerce.getCurrentSessionPage(args[0],context);
+    }
     if(method==='importDataTransfer'){
       if(args.length!==1)throw new Error('Argumentos inválidos para importação.');
       return transfers.importDataTransfer(args[0],context);
