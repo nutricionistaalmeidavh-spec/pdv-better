@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import {MAX_TRANSFER_BYTES,MAX_TRANSFER_ROWS,parseCsv} from '../shared/data-transfer.mjs';
+import {MAX_TRANSFER_BYTES,MAX_TRANSFER_ROWS,parseCsv,transferColumns} from '../shared/data-transfer.mjs';
 // Limita o tamanho descompactado antes de entregar o ZIP ao ExcelJS; não aceita ZIP64.
 function checkZip(bytes){
  const end=bytes.lastIndexOf(Buffer.from([0x50,0x4b,0x05,0x06]));
@@ -45,7 +45,17 @@ export async function readTransferFile(format,bytes){
 }
 export async function makeTransferXlsx(kind,table){
  const book=new ExcelJS.Workbook();const sheet=book.addWorksheet(kind);
- for(const cells of table){const row=sheet.addRow(cells.map(v=>String(v??'')));row.eachCell(c=>{c.numFmt='@';});}
+ const cols=transferColumns(kind);
+ for(const [index,cells] of table.entries()){
+  const row=sheet.addRow(cells.map((v,i)=>{
+   const text=String(v??'');const key=cols[i]?.key;
+   if(index===0||!(key==='stock_milli'||key?.endsWith('_cents')))return text;
+   const numeric=Number(text.replace(',','.'));
+   // Excel guarda 15 dígitos significativos; acima disso preserve o texto exato.
+   return text&&Number.isFinite(numeric)&&text.replace(/[^0-9]/g,'').replace(/^0+/,'').length<=15?numeric:text;
+  }));
+  row.eachCell((c,i)=>{const key=cols[i-1]?.key;c.numFmt=typeof c.value==='number'?(key==='stock_milli'?'0.000':'0.00'):'@';});
+ }
  sheet.views=[{state:'frozen',ySplit:1}];
  sheet.getRow(1).font={bold:true};
  sheet.columns.forEach(c=>{c.width=24;});
