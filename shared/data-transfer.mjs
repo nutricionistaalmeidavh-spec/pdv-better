@@ -16,7 +16,8 @@ export function transferRecords(kind,table){
  if(!Array.isArray(table[0])||table[0].length>30)throw new Error('Cabeçalho inválido.');
  const headers=table[0].map(h=>{const key=clean(h);const col=cols.find(c=>clean(c.label)===key||c.key===key||c.key===aliases[key]);if(!col)throw new Error('Coluna não reconhecida: '+h);return col.key;});
  if(new Set(headers).size!==headers.length)throw new Error('Coluna duplicada.');
- for(const k of kind==='inventory'?['code','stock_milli']:kind==='products'?['name','code','unit','sale_price_cents']:['name'])if(!headers.includes(k))throw new Error('Coluna obrigatória: '+labels[k]);
+ if(kind==='inventory'&&!headers.includes('code')&&!headers.includes('id'))throw new Error('Informe Código ou ID do produto.');
+ for(const k of kind==='inventory'?['stock_milli']:kind==='products'?['name','code','unit','sale_price_cents']:['name'])if(!headers.includes(k))throw new Error('Coluna obrigatória: '+labels[k]);
  return table.slice(1).map((row,i)=>{
   if(!Array.isArray(row)||row.length!==headers.length||row.some(x=>typeof x!=='string'||x.length>500))throw new Error('Linha '+(i+2)+': células ou quantidade de colunas inválidas.');
   return Object.fromEntries(headers.map((h,j)=>[h,row[j].trim()]));
