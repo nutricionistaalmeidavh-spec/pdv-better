@@ -1,3 +1,4 @@
+import {lineTotalCents,roundRatio} from './domain.mjs';
 // Núcleo local de etiquetas e balanças. Sem API, telemetria ou serviço pago.
 // Formatos EAN-13 e layouts de carga equivalentes aos usados no PDV Nexus.
 // Posições são configuradas por perfil; a marca sozinha não garante compatibilidade.
@@ -57,16 +58,16 @@ export function resolveScaleScan(barcode,products,profile='DEFAULT_PRICE'){
   let quantityMilli,labelTotalCents;
   if(decoded.mode==='weight'){
     quantityMilli=decoded.rawValue;
-    labelTotalCents=Math.round(price*quantityMilli/1000);
+    labelTotalCents=lineTotalCents(price,quantityMilli);
   }else{
     labelTotalCents=decoded.rawValue;
-    quantityMilli=Math.round(labelTotalCents*1000/price);
+    quantityMilli=roundRatio(BigInt(labelTotalCents)*1000n,BigInt(price));
     // O formato com preço não carrega o peso exato. Reconstituímos a
     // quantidade com precisão de 1 g, sem cobrar preço diferente da etiqueta.
     const matches=[];
     for(let diff=-5;diff<=5;diff++){
       const candidate=quantityMilli+diff;
-      if(candidate>0&&Math.round(candidate*price/1000)===labelTotalCents)
+      if(candidate>0&&lineTotalCents(price,candidate)===labelTotalCents)
         matches.push(candidate);
     }
     if(matches.length)quantityMilli=matches.reduce((best,n)=>Math.abs(n-quantityMilli)<Math.abs(best-quantityMilli)?n:best);
@@ -74,7 +75,7 @@ export function resolveScaleScan(barcode,products,profile='DEFAULT_PRICE'){
   }
   if(!Number.isSafeInteger(quantityMilli)||quantityMilli<=0)throw new Error('Peso ou quantidade da etiqueta inválido.');
   if(!Number.isSafeInteger(labelTotalCents)||labelTotalCents<=0)throw new Error('Preço total da etiqueta inválido.');
-  const totalCents=Math.round(price*quantityMilli/1000);
+  const totalCents=lineTotalCents(price,quantityMilli);
   if(totalCents!==labelTotalCents)throw new Error('Subtotal divergente da etiqueta; operação bloqueada.');
   return {product,quantityMilli,labelTotalCents,totalCents,barcode:decoded.barcode,profile};
 }
