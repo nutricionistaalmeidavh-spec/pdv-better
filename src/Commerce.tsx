@@ -399,7 +399,7 @@ export function CommerceView({view,onDataChanged,role,refreshRevision=0}:{view:s
       // paginadas no SQLite; selects recebem apenas colunas leves, sem fotos.
       const wantsProducts=['inventory','purchases','reports'].includes(view);
       const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules,who,sp,purchasesNow,cats,inventoryData]=await Promise.all([
-        view==='cash'?api.sessionPage({page:cashPage,pageSize:75}):view==='sales'?api.sessionPage({summaryOnly:true}):Promise.resolve(null),
+        view==='cash'?api.sessionPage({page:cashPage,pageSize:75}):['sales','finance'].includes(view)?api.sessionPage({summaryOnly:true}):Promise.resolve(null),
         view==='sales'?api.salesList({page:salesPage,pageSize:75}):Promise.resolve(null),
         wantsProducts?api.list('products','',{slim:true}):Promise.resolve([]),
         view==='inventory'&&manager?api.stockHistory(undefined,{page:movementPage,pageSize:75}):Promise.resolve(null),
