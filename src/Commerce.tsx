@@ -1,4 +1,4 @@
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useState,useRef} from 'react';
 import { Plus,Check,AlertTriangle,ShoppingCart,Package,Wallet,ClipboardList,RotateCcw,Receipt,ArrowDownToLine,ArrowUpFromLine } from 'lucide-react';
 import { money,parseFixed,lineTotalCents,roundRatio,checkedSum } from '../shared/domain.mjs';
 import { reportRows } from '../shared/report.mjs';
@@ -309,6 +309,8 @@ export function PaymentModal({cart,products,customers,role,onClose,onDone,onCust
 export function CommerceView({view,onDataChanged,role,refreshRevision=0}:{view:string;onDataChanged:()=>Promise<void>;role:string;refreshRevision?:number}){
   const api=window.pdv;
   const [session,setSession]=useState<R|null>(null);
+  const [cashPage,setCashPage]=useState(0);
+  const requestGeneration=useRef(0);
   const [otherSessions,setOtherSessions]=useState<R[]>([]);
   const [sales,setSales]=useState<R[]>([]);
   const [salesPage,setSalesPage]=useState(0);
@@ -389,13 +391,14 @@ export function CommerceView({view,onDataChanged,role,refreshRevision=0}:{view:s
   const [paymentMethod,setPaymentMethod]=useState('cash');
   async function load(){
     if(!api){setError('Abra pelo aplicativo Electron.');return;}
+    const generation=++requestGeneration.current;
     try{
       const manager=role!=='Caixa';
       // Cada tela consulta apenas as coleções que usa. Listas longas são
       // paginadas no SQLite; selects recebem apenas colunas leves, sem fotos.
       const wantsProducts=['inventory','purchases','reports'].includes(view);
       const [s,sl,pr,m,fin,r,other,lots,priceRules,groupRules,who,sp,purchasesNow,cats,inventoryData]=await Promise.all([
-        ['cash','sales','finance'].includes(view)?api.sessionCurrent():Promise.resolve(null),
+        view==='cash'?api.sessionPage({page:cashPage,pageSize:75}):view==='sales'?api.sessionPage({summaryOnly:true}):Promise.resolve(null),
         view==='sales'?api.salesList({page:salesPage,pageSize:75}):Promise.resolve(null),
         wantsProducts?api.list('products','',{slim:true}):Promise.resolve([]),
         view==='inventory'&&manager?api.stockHistory(undefined,{page:movementPage,pageSize:75}):Promise.resolve(null),
@@ -412,6 +415,7 @@ export function CommerceView({view,onDataChanged,role,refreshRevision=0}:{view:s
         view==='inventory'&&manager
           ?api.list('products','',{page:inventoryPage,pageSize:50,includeImages:true}):Promise.resolve(null)
       ]);
+      if(generation!==requestGeneration.current)return;
       setSession(s);
       setSales(sl?.rows||[]);setSalesTotal(sl?.total||0);
       setProducts(pr);setMovements(m?.rows||[]);setMovementTotal(m?.total||0);
@@ -423,9 +427,25 @@ export function CommerceView({view,onDataChanged,role,refreshRevision=0}:{view:s
       const managers=(who.operators||[]).filter((x:R)=>x.role==='Administrador'||x.role==='Gerente');
       setManagerOperators(managers);
       setManagerSelection(current=>current||managers[0]?.id||'');
-    }catch(err){setError(errorMessage(err));}
+    }catch(err){if(generation===requestGeneration.current)setError(errorMessage(err));}
   }
-  useEffect(()=>{setSuccess('');void load();},[view,salesPage,inventoryPage,movementPage,financePage,purchasePage,refreshRevision]);
+  const lastQuery=useRef<{view:string;revision:number;pages:number[]}|null>(null);
+  useEffect(()=>{
+    setSuccess('');
+    const pages=[cashPage,salesPage,inventoryPage,movementPage,financePage,purchasePage];
+    const previous=lastQuery.current;lastQuery.current={view,revision:refreshRevision,pages};
+    if(!api||!previous||previous.view!==view||previous.revision!==refreshRevision){void load();return;}
+    const generation=++requestGeneration.current;
+    const jobs:Promise<unknown>[]=[];
+    const apply=(fn:()=>void)=>{if(generation===requestGeneration.current)fn();};
+    if(view==='cash'&&pages[0]!==previous.pages[0])jobs.push(api.sessionPage({page:cashPage,pageSize:75}).then(s=>apply(()=>setSession(s))));
+    if(view==='sales'&&pages[1]!==previous.pages[1])jobs.push(api.salesList({page:salesPage,pageSize:75}).then(r=>apply(()=>{setSales(r.rows);setSalesTotal(r.total);})));
+    if(view==='inventory'&&pages[2]!==previous.pages[2])jobs.push(api.list('products','',{page:inventoryPage,pageSize:50,includeImages:true}).then(r=>apply(()=>{setInventoryRows(r.rows);setInventoryTotal(r.total);})));
+    if(view==='inventory'&&pages[3]!==previous.pages[3])jobs.push(api.stockHistory(undefined,{page:movementPage,pageSize:75}).then(r=>apply(()=>{setMovements(r.rows);setMovementTotal(r.total);})));
+    if(view==='finance'&&pages[4]!==previous.pages[4])jobs.push(api.financeList({page:financePage,pageSize:50}).then(r=>apply(()=>{setFinance(r.rows);setFinanceTotal(r.total);})));
+    if(view==='purchases'&&pages[5]!==previous.pages[5])jobs.push(api.purchaseList({page:purchasePage,pageSize:40}).then(r=>apply(()=>{setPurchases(r.rows);setPurchaseTotal(r.total);})));
+    void Promise.all(jobs).catch(err=>apply(()=>setError(errorMessage(err))));
+  },[view,cashPage,salesPage,inventoryPage,movementPage,financePage,purchasePage,refreshRevision]);
   async function action(fn:()=>Promise<any>,message:string,updateProducts=false) {
     if(busy)return;
     setBusy(true);setError('');setSuccess('');
@@ -514,7 +534,7 @@ export function CommerceView({view,onDataChanged,role,refreshRevision=0}:{view:s
         <button disabled={!session||busy} className="secondary" type="submit">Registrar movimentação</button></form>
         {!session&&<p className="commerce-warning">É necessário abrir o caixa antes de movimentar dinheiro.</p>}
       </div>
-      {session&&<div className="panel commerce-section commerce-wide"><h2>Histórico do turno</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Operação</th><th>Valor</th><th>Motivo</th></tr></thead><tbody>{session.movements?.map((m:R)=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{m.kind}</td><td>{money(m.delta_cents)}</td><td>{m.note}</td></tr>)}</tbody></table>{!session.movements?.length&&<p className="commerce-empty">Nenhuma movimentação neste turno.</p>}</div></div>}
+      {session&&<div className="panel commerce-section commerce-wide"><h2>Histórico do turno</h2><div className="commerce-table"><table><thead><tr><th>Data</th><th>Operação</th><th>Valor</th><th>Motivo</th></tr></thead><tbody>{session.movements?.map((m:R)=><tr key={m.id}><td>{pretty(m.created_at)}</td><td>{m.kind}</td><td>{money(m.delta_cents)}</td><td>{m.note}</td></tr>)}</tbody></table>{!session.movements?.length&&<p className="commerce-empty">Nenhuma movimentação neste turno.</p>}</div><QueryPager page={cashPage} total={session.movementTotal||0} pageSize={75} label="movimentos" onChange={setCashPage}/></div>}
     </div>}
     {view==='sales'&&<div className="panel commerce-section"><h2>Histórico de vendas</h2><p>O cancelamento só é permitido no mesmo turno aberto e atualiza os movimentos locais. Estornos de Pix/cartão devem ser realizados externamente.</p><div className="commerce-table"><table><thead><tr><th>Data</th><th>Venda</th><th>Cliente</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{sales.map(s=><tr key={s.id}><td>{pretty(s.created_at)}</td><td title={s.id}>{s.id.slice(0,8)}</td><td>{s.customer_id?.slice(0,8)||'Consumidor final'}</td><td>{money(s.total_cents)}</td><td>{s.is_training?'TREINAMENTO — '+statusText[s.status]:statusText[s.status]}</td><td><button className="secondary" type="button" disabled={busy} onClick={async()=>{try{setReceipt(await api!.saleGet(s.id));setError('');}catch(err){setError(errorMessage(err));}}}>Comprovante</button> {s.status==='completed'&&<button disabled={busy||session?.id!==s.session_id} className="secondary button-danger" onClick={()=>{
             if(window.confirm('Cancelar venda? Estoque e registros locais serão revertidos. Pix e cartão exigem reembolso externo manual.')) void action(()=>api!.salesCancel(s.id),'Venda cancelada e estoque restaurado.',true);
