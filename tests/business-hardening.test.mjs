@@ -39,3 +39,34 @@ test('cadastro paginado sem fotos e alteração de unidade com estoque são segu
   assert.ok(first.rows.every(x=>!Object.hasOwn(x,'image_data')));
  }finally{store.close();}
 });
+
+test('histórico do turno é paginado e resumo não transfere movimentos',()=>{
+ const store=openCatalog(':memory:');
+ try{
+  store.openSession({openingCashCents:100});
+  for(let i=0;i<82;i++)store.moveCash({kind:'reinforcement',amountCents:1,note:'QA '+i});
+  const summary=store.getCurrentSessionPage({summaryOnly:true});
+  assert.equal(summary.expected_cash_cents,182);assert.equal(Object.hasOwn(summary,'movements'),false);
+  const a=store.getCurrentSessionPage({page:0,pageSize:50}),b=store.getCurrentSessionPage({page:1,pageSize:50});
+  assert.equal(a.movementTotal,82);assert.equal(a.movements.length,50);assert.equal(b.movements.length,32);
+  assert.equal(new Set([...a.movements,...b.movements].map(x=>x.id)).size,82);
+ }finally{store.close();}
+});
+test('relatório paginado preserva total e rateio; comparação não perde vendas',()=>{
+ const store=openCatalog(':memory:');
+ try{
+  const a=store.save('products',{name:'A',code:'A',unit:'UN',sale_price_cents:1250,stock_milli:4000});
+  const b=store.save('products',{name:'B',code:'B',unit:'KG',sale_price_cents:900,stock_milli:4000});
+  store.openSession({openingCashCents:0});
+  const sale=store.checkout({key:'page-test',items:[{id:a.id,quantityMilli:1000},{id:b.id,quantityMilli:350}],discountCents:10,payments:[{method:'pix',amountCents:1555}]});
+  const all=store.reportItems();
+  const first=store.reportItems({page:0,pageSize:1}),second=store.reportItems({page:1,pageSize:1});
+  assert.equal(first.total,2);assert.equal(first.summary.net_total_cents,1555);
+  assert.deepEqual([...first.rows,...second.rows],all.rows);
+  assert.equal(store.reportItems({productId:a.id,page:0,pageSize:1}).rows[0].net_cents,all.rows.find(r=>r.product_id===a.id).net_cents);
+  const day=localDateKey(sale.created_at);
+  const compare=store.compareReportPeriods({from:day,to:day,comparisonFrom:day,comparisonTo:day});
+  assert.equal(compare.current.total_cents,1555);
+  assert.equal(compare.current.items_count,2);
+ }finally{store.close();}
+});
