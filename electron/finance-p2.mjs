@@ -67,8 +67,7 @@ export function createFinanceP2(db){
   const {start,end}=localDateRange(from,to);
   const range=(alias)=>({sql:(start?' AND '+alias+'.created_at>=?':'')+(end?' AND '+alias+'.created_at<?':''),params:[...(start?[start]:[]),...(end?[end]:[])]});
   const salesRange=range('s'),paidRange=range('fs');
-  const entries=many("SELECT * FROM financial_entries WHERE status='open'"+(from?' AND due_on>=?':'')+(to?' AND due_on<=?':'')+" ORDER BY due_on,id",...([...(from?[from]:[]),...(to?[to]:[])]));
-  const balanceRows=many("SELECT fs.entry_id,SUM(fs.amount_cents) AS amount_cents FROM finance_settlements fs JOIN financial_entries e ON e.id=fs.entry_id WHERE e.status='open' GROUP BY fs.entry_id");
+  const entries=many("SELECT e.*,COALESCE((SELECT SUM(fs.amount_cents) FROM finance_settlements fs WHERE fs.entry_id=e.id),0) AS paid_cents FROM financial_entries e WHERE status='open'"+(from?' AND due_on>=?':'')+(to?' AND due_on<=?':'')+" ORDER BY due_on,id",...([...(from?[from]:[]),...(to?[to]:[])]));
   const paid=many(`SELECT fs.entry_id,fs.amount_cents,fs.method,fs.created_at,
     e.type,e.description,COALESCE(e.category,CASE WHEN e.type='payable' THEN 'Despesas' ELSE 'Recebimentos' END) category
     FROM finance_settlements fs JOIN financial_entries e ON e.id=fs.entry_id WHERE e.status<>'cancelled' `+paidRange.sql,...paidRange.params);
@@ -88,13 +87,11 @@ export function createFinanceP2(db){
       amount_cents:entry.amount_cents,source:'financial_settlement'});
   }
   timeline.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
-  const realizedIn=timeline.filter(x=>x.kind==='entrada').reduce((sum,x)=>sum+x.amount_cents,0);
-  const realizedOut=timeline.filter(x=>x.kind==='saida').reduce((sum,x)=>sum+x.amount_cents,0);
-  const balances=new Map();
-  for(const x of balanceRows)balances.set(x.entry_id,x.amount_cents);
+  const realizedIn=checkedSum(timeline.filter(x=>x.kind==='entrada').map(x=>x.amount_cents));
+  const realizedOut=checkedSum(timeline.filter(x=>x.kind==='saida').map(x=>x.amount_cents));
   const forecasts=[];
   for(const e of entries){
-   const remaining=e.amount_cents-(balances.get(e.id)||0);
+   const remaining=e.amount_cents-e.paid_cents;
    if(!Number.isSafeInteger(remaining)||remaining<0)throw new Error('Saldo financeiro inconsistente.');
    if(e.status==='settled'||!remaining)continue;
    if((e.due_on&&within(e.due_on))||(!e.due_on&&!from&&!to))forecasts.push({
@@ -113,11 +110,11 @@ export function createFinanceP2(db){
    cost=checkedSum([cost,lineTotalCents(item.unit_cost_cents,item.quantity_milli)]);
    if(item.unit_cost_cents===0)missing++;
   }
-  const revenue=[...saleRevenue.values()].reduce((sum,n)=>sum+n,0);
+  const revenue=checkedSum(saleRevenue.values());
   const result={from,to,realized_in_cents:realizedIn,realized_out_cents:realizedOut,
    realized_net_cents:realizedIn-realizedOut,
-   forecast_in_cents:forecasts.filter(x=>x.kind==='entrada').reduce((sum,x)=>sum+x.amount_cents,0),
-   forecast_out_cents:forecasts.filter(x=>x.kind==='saida').reduce((sum,x)=>sum+x.amount_cents,0),
+   forecast_in_cents:checkedSum(forecasts.filter(x=>x.kind==='entrada').map(x=>x.amount_cents)),
+   forecast_out_cents:checkedSum(forecasts.filter(x=>x.kind==='saida').map(x=>x.amount_cents)),
    timeline,forecasts,margin:{
     revenue_cents:revenue,cost_cents:cost,gross_margin_cents:revenue-cost,
     missing_cost_lines:missing,sales_count:marginSaleIds.size
