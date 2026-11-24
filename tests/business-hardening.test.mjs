@@ -25,6 +25,8 @@ test('dia comercial inclui noite local e exclui meia-noite seguinte; financeiro 
   const f=createFinanceP2(db).financeOverview({from:'2026-11-24',to:'2026-11-24'});
   assert.equal(f.realized_in_cents,999);assert.equal(f.margin.revenue_cents,999);assert.equal(f.margin.cost_cents,400);
   assert.equal(f.timeline[0].date,'2026-11-24');
+  const paged=createFinanceP2(db).financeOverview({from:'2026-11-24',to:'2026-11-24',page:0,pageSize:1});
+  assert.equal(paged.total,1);assert.equal(paged.realized_in_cents,999);assert.equal(paged.margin.cost_cents,400);assert.equal(paged.timeline[0].date,'2026-11-24');
  }finally{db.close();if(old===undefined)delete process.env.TZ;else process.env.TZ=old;}
 });
 test('cadastro paginado sem fotos e alteração de unidade com estoque são seguros',()=>{
