@@ -153,6 +153,45 @@ jobs:
           if-no-files-found: error
 
 
+  updater-real:
+    name: Atualização real NSIS — consentimento, download, reinício e SQLite
+    needs: windows-tests
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependências gratuitas
+        shell: pwsh
+        run: ./scripts/ci-install.ps1
+      - uses: actions/download-artifact@v4
+        with:
+          name: PDV-Better-Win10-11-windows-2022
+          path: qa-update-feed
+      - name: Compilar versão anterior de laboratório com o mesmo atualizador
+        shell: pwsh
+        run: |
+          $target = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          "PDV_QA_TARGET=$target" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          npm pkg set version=0.0.1
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao preparar versão de laboratório" }
+          npm run dist:win
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar NSIS anterior" }
+      - name: Atualizar o aplicativo instalado por HTTP local e validar reinício
+        shell: pwsh
+        run: |
+          node scripts/qa-updater-real.mjs release/PDV-Plus-Setup-0.0.1.exe qa-update-feed $env:PDV_QA_TARGET
+          if ($LASTEXITCODE -ne 0) { throw "Atualização real falhou" }
+      - name: Evidências do teste de atualização
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDV-Plus-QA-Atualizacao-Real
+          path: qa-artifacts/updater-real/
+          if-no-files-found: warn
+
   visual-documentation:
     name: Cobertura visual completa + PDF (Windows 2022)
     runs-on: windows-2022
