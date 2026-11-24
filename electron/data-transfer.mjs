@@ -10,6 +10,20 @@ const fixed=(n,places)=>{
  return String(value/scale)+'.'+String(value%scale).padStart(places,'0');
 };
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+export function* iterateTransferRows(db,kind){
+ const cols=transferColumns(kind),entity=kind==='inventory'?'products':kind;
+ const names=kind==='products'?new Map(db.prepare('SELECT id,name FROM categories WHERE active=1').all().map(r=>[r.id,r.name])):null;
+ const fields=cols.map(c=>c.key);
+ yield cols.map(c=>c.label);
+ for(const record of db.prepare('SELECT '+fields.map(k=>'"'+k+'"').join(',')+' FROM "'+entity+'" WHERE active=1 ORDER BY name COLLATE NOCASE,id').iterate()){
+  yield cols.map(({key:k})=>{
+   if(k==='category_id')return names?.get(record[k])??'';
+   if(k==='stock_milli')return fixed(record[k],3);
+   if(k.endsWith('_cents'))return fixed(record[k],2);
+   return String(record[k]??'');
+  });
+ }
+}
 export function createDataTransfer(db,save){
  db.exec('CREATE TABLE IF NOT EXISTS data_transfer_audit (id TEXT PRIMARY KEY, kind TEXT NOT NULL, created_at TEXT NOT NULL, operator_id TEXT, created_count INTEGER NOT NULL, updated_count INTEGER NOT NULL, reason TEXT)');
  db.exec('CREATE INDEX IF NOT EXISTS idx_data_transfer_audit_kind_time ON data_transfer_audit(kind,created_at DESC,id DESC)');
@@ -21,22 +35,9 @@ export function createDataTransfer(db,save){
   const rows=db.prepare('SELECT a.*,o.name AS operator_name FROM data_transfer_audit a LEFT JOIN operators o ON o.id=a.operator_id WHERE a.kind=? ORDER BY a.created_at DESC,a.id DESC LIMIT ? OFFSET ?').all(kind,pageSize,page*pageSize);
   return {total,page,pageSize,rows};
  }
- function rowsFor(kind){
-  const entity=kind==='inventory'?'products':kind;
-  const cols=transferColumns(kind).map(c=>c.key).filter(k=>k!=='category_id');
-  const fields=entity==='products'?[...new Set([...cols,'id','name','code','unit','stock_milli','category_id'])]:cols;
-  return db.prepare('SELECT '+fields.map(k=>'"'+k+'"').join(',')+' FROM "'+entity+'" WHERE active=1 ORDER BY name COLLATE NOCASE,id').all();
- }
  function exportDataTransfer(kind){
-  const cols=transferColumns(kind);
-  const names=new Map(db.prepare('SELECT id,name FROM categories WHERE active=1').all().map(r=>[r.id,r.name]));
-  const data=rowsFor(kind);
-  return {count:data.length,table:[cols.map(c=>c.label),...data.map(r=>cols.map(({key:k})=>{
-   if(k==='category_id')return names.get(r[k])??'';
-   if(k==='stock_milli')return fixed(r[k],3);
-   if(k.endsWith('_cents'))return fixed(r[k],2);
-   return String(r[k]??'');
-  }))]};
+  const table=Array.from(iterateTransferRows(db,kind));
+  return {count:table.length-1,table};
  }
  function plan(input){
   const kind=input?.kind;const entries=transferRecords(kind,input?.table);
@@ -44,16 +45,22 @@ export function createDataTransfer(db,save){
   const reason=String(input?.reason??'').trim();
   if(kind==='inventory'&&(!reason||reason.length>150))throw new Error('Informe o motivo do ajuste de estoque (até 150 caracteres).');
   const identityColumns=entity==='products'?'id,name,code,active':entity==='categories'?'id,name,active':'id,name,document,active';
-  const candidates=db.prepare('SELECT '+identityColumns+' FROM "'+entity+'"').all();
+  const candidates=entity==='products'?[]:db.prepare('SELECT '+identityColumns+' FROM "'+entity+'"').all();
+  const productById=entity==='products'?db.prepare('SELECT id,active FROM products WHERE id=?'):null;
+  const productByCode=entity==='products'?db.prepare('SELECT id,active FROM products WHERE code=?'):null;
   const index=new Map();
   const add=(type,value,r)=>{if(!value)return;const k=type+':'+value;const list=index.get(k)||[];list.push(r);index.set(k,list);};
   for(const r of candidates){add('id',r.id,r);add('name',key(r.name),r);if(entity==='products')add('code',r.code,r);else if(entity!=='categories')add('doc',doc(r.document),r);}
-  const lookup=(type,value)=>index.get(type+':'+value)||[];
+  const lookup=(type,value)=>{
+   if(!value)return [];
+   if(entity==='products'){const row=(type==='id'?productById:type==='code'?productByCode:null)?.get(value);return row?[row]:[];}
+   return index.get(type+':'+value)||[];
+  };
   // Fotos não participam de planilhas; não carregar blobs em prévias com milhares de produtos.
   const projection=entity==='products'?['id','active','created_at','updated_at',...entities.products.fields.filter(f=>f.key!=='image_data').map(f=>f.key)].join(','):'*';
   const load=db.prepare('SELECT '+projection+' FROM "'+entity+'" WHERE id=?');
   const categories=kind==='products'?db.prepare('SELECT id,name FROM categories WHERE active=1').all():[];
-  const seen=new Set(),result=[];
+  const seen=new Set(),result=[],errors=[];let invalid=0;
   for(let i=0;i<entries.length;i++){
    const raw=entries[i];
    try{
@@ -97,8 +104,9 @@ export function createDataTransfer(db,save){
     if(!old&&['customers','suppliers'].includes(entity)&&!doc(raw.document)&&lookup('name',key(raw.name)).length>0)throw new Error('Nome já cadastrado sem identificação única. Exporte e use o ID ou informe CPF/CNPJ.');
     const changed=!old||entities[entity].fields.some(f=>f.type!=='image'&&(old[f.key]??'')!==(normalized[f.key]??''));
     result.push({old,values:normalized,action:old?(changed?'updated':'unchanged'):'created'});
-   }catch(err){throw new Error('Linha '+(i+2)+': '+err.message);}
+   }catch(err){invalid++;if(errors.length<20)errors.push('Linha '+(i+2)+': '+err.message);}
   }
+  if(invalid)throw new Error(invalid+' linha(s) inválida(s). '+errors.join(' | ')+(invalid>errors.length?' | E mais '+(invalid-errors.length)+' linha(s).':''));
   const token=hash({kind,reason,records:result.map(x=>({old:x.old&&[x.old.id,x.old.updated_at,x.old.stock_milli,x.old.name,x.old.code,x.old.document,x.old.phone,x.old.email,x.old.sale_price_cents,x.old.cost_price_cents,x.old.unit,x.old.category_id,x.old.brand,x.old.producer,x.old.variant_group,x.old.variant_label],values:x.values,action:x.action}))});
   const count=a=>result.filter(x=>x.action===a).length;
   return {kind,entity,reason,result,token,count:result.length,created:count('created'),updated:count('updated'),unchanged:count('unchanged')};
