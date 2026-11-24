@@ -95,3 +95,11 @@ Tudo opera **offline**, usando a dependência open source ExcelJS já incluída;
 ## Atualizações automáticas — v0.6.0+
 
 O aplicativo Windows verifica novas releases oficiais no início e a cada seis horas, baixa NSIS em segundo plano e permite que gerente/administrador instale após fechamento dos caixas. A base SQLite é preservada e recebe backup validado antes da instalação no servidor. A versão 0.5.0 e anteriores precisam instalar a 0.6.0 manualmente uma única vez. Ver docs/11-atualizacao-automatica.md.
+
+## Planilhas de cadastro e estoque (novo fluxo)
+
+Na seção **Planilhas de ...** das telas Produtos, Estoque, Clientes, Fornecedores e Categorias, escolha XLSX ou CSV UTF-8 para baixar modelo, exportar todos os registros ativos ou importar. O fluxo antigo de catálogo/PDF continua disponível. O novo fluxo aceita até 10.000 linhas e 10 MB por importação (exportação não usa a paginação da interface). CSV aceita separador vírgula ou ponto e vírgula. Códigos e documentos devem permanecer como texto.
+
+Importe categorias antes de produtos; a coluna Categoria aceita nome ou ID existente. Produto existente é identificado por ID/código, cliente/fornecedor por ID/CPF/CNPJ e categoria por ID/nome. Clientes sem documento e sem ID são novos; nomes já existentes sem identificação são bloqueados. Colunas ausentes são preservadas nas atualizações. A prévia não grava e a confirmação revalida o estado do banco dentro de uma transação. Não são importados operadores, senhas, vendas, financeiro, lotes ou fotos.
+
+Estoque utiliza saldo final absoluto, não incremento. Informe motivo; a diferença é registrada nos movimentos existentes, respeitando lotes e unidade. Cadastro de produtos permite estoque inicial, mas não altera saldo existente. O lote de importação registra data, operador, tipo e contagens em data_transfer_audit. As ações exigem Gerente ou Administrador e, em LAN, devem ser executadas no servidor. Tudo local com ExcelJS (MIT) e SQLite; sem custo ou serviço externo.

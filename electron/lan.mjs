@@ -4,7 +4,7 @@ import { assertDeviceAddress } from '../shared/peripherals.mjs';
 
 // Somente operações do domínio; nunca SQL, arquivos, backup, shell ou parâmetros arbitrários.
 export const ALLOWED_RPC=Object.freeze([
-  'list','save','archive','previewCatalogCsv','importCatalogCsv','overview','getStoreProfile','saveStoreProfile','getCurrentSession','openSession','closeSession',
+  'list','save','archive','previewDataTransfer','importDataTransfer','exportDataTransfer','dataTransferHistory','previewCatalogCsv','importCatalogCsv','overview','getStoreProfile','saveStoreProfile','getCurrentSession','getCurrentSessionPage','openSession','closeSession',
   'moveCash','checkout','quoteSale','listSales','getSale','cancelSale','moveStock',
   'listStockMovements','receiveBatch','listBatches','setPromotion','listPromotions','setBundlePromotion','listBundlePromotions','archiveBundlePromotion','reportItems','compareReportPeriods','createPurchase','receivePurchase','listPurchases','createFinance','listFinance','settleFinance','createFinanceSchedule','financeOverview','report','listOpenSessions',
   'authStatus','authBootstrap','authLogin','authLogout','setPassword'
@@ -47,6 +47,7 @@ export async function startLanServer({host='127.0.0.1',port=48791,token,store}={
       try{
         const cmd=JSON.parse(body);
         if(!cmd||!ALLOWED_RPC.includes(cmd.method)||!Array.isArray(cmd.args)||cmd.args.length>5)throw new Error('Operação LAN não permitida.');
+        if(['previewDataTransfer','importDataTransfer','exportDataTransfer'].includes(cmd.method))throw new Error('Planilhas em lote: execute no servidor PDV.');
         const terminalId=String(req.headers['x-pdv-terminal']||'');
         if(!/^[a-zA-Z0-9_-]{1,100}$/.test(terminalId))throw new Error('Terminal não identificado.');
         const sessionToken=String(req.headers['x-pdv-session']||'');

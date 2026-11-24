@@ -25,6 +25,7 @@ import {allowed} from '../shared/access.mjs';
 import {GuidedTour} from './GuidedTour';
 import {FirstAccess} from './FirstAccess';
 import {LabelPrintDialog} from './LabelPrintDialog';
+import {DataTransfer} from './DataTransfer';
 
 type Row = Record<string, any>;
 type CartItem = {id:string;name:string;code:string;unit:string;priceCents:number;quantityMilli:number;batchId?:string;batchCode?:string};
@@ -57,6 +58,7 @@ function friendlyError(error:any) {
 }
 export function App({user,onLogout}:{user:{id:string;name:string;role:string};onLogout:()=>Promise<void>}) {
   const [view,setView] = useState('dashboard');
+  const [transferRevision,setTransferRevision]=useState(0);
   const [tourRequest,setTourRequest] = useState(0);
   const [setupRequest,setSetupRequest] = useState(0);
   const [initialPaymentMethod,setInitialPaymentMethod] = useState<'cash'|'pix'|'card'>('cash');
@@ -151,9 +153,11 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     }
     try{
       // Uma consulta COUNT(*) por entidade: nunca transferir tabelas completas no login.
-      const counts=await bridge.overview();
-      setOverviewCounts(counts);
-      if(counts.stockAlerts){setStockAlertsSummary(counts.stockAlerts);setStockAlertsLoaded(true);}
+      if(view==='dashboard'){
+        const counts=await bridge.overview();
+        setOverviewCounts(counts);
+        if(counts.stockAlerts){setStockAlertsSummary(counts.stockAlerts);setStockAlertsLoaded(true);}
+      }
       if(view==='checkout'){
         const kinds=['products','categories','customers'].filter(kind=>allowed(user.role,'list',[kind]));
         const entries=await Promise.all(kinds.map(kind=>kind==='products'
@@ -185,9 +189,11 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       const current=await bridge.list(kind);
       setRecords(prev=>({...prev,[kind]:current}));
     }
-    const updated=await bridge.overview();
-    setOverviewCounts(updated);
-    if(updated.stockAlerts){setStockAlertsSummary(updated.stockAlerts);setStockAlertsLoaded(true);}
+    if(view==='dashboard'){
+      const updated=await bridge.overview();
+      setOverviewCounts(updated);
+      if(updated.stockAlerts){setStockAlertsSummary(updated.stockAlerts);setStockAlertsLoaded(true);}
+    }
   }
   useEffect(()=>{void reloadAll();},[view]);
   useEffect(()=>{
@@ -226,7 +232,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     catch{/* A ausência de armazenamento temporário não impede uma venda */ }
   },[cart]);
   useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
-  useEffect(() => { if((view==='checkout'||view==='dashboard') && bridge) void bridge.sessionCurrent().then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
+  useEffect(() => { if((view==='checkout'||view==='dashboard') && bridge) void bridge.sessionPage({summaryOnly:true}).then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
   useEffect(() => {
     if (view === 'checkout' && !paymentOpen && !receipt) searchInput.current?.focus();
   }, [view,paymentOpen,receipt]);
@@ -489,7 +495,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   }
   async function completeSale(sale:Row) {
     setPaymentOpen(false);setCart([]);setUndoCart(null);setReceipt(sale);
-    try {await reload('products');if(bridge)setSession(await bridge.sessionCurrent());}catch(err){setCartError(friendlyError(err));}
+    try {await reload('products');if(bridge)setSession(await bridge.sessionPage({summaryOnly:true}));}catch(err){setCartError(friendlyError(err));}
     setNotice(sale.is_training?'Simulação de treinamento '+sale.id.slice(0,8)+' registrada: sem faturamento, caixa ou baixa de estoque.':
       'Venda '+sale.id.slice(0,8)+' concluída, total '+money(sale.total_cents)+'. Troco: '+money(sale.change_cents)+'. Comprovante não fiscal.');
   }
@@ -640,7 +646,8 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
             onResumeHeld={resumeSale} onRemoveHeld={removeHeldSale}
             canUndo={undoAvailable} onUndo={undoLastCartChange}
           />}
-          {['cash','sales','inventory','purchases','finance','reports'].includes(view) && <CommerceView view={view} onDataChanged={reloadAll} role={user.role}/>}
+          {view==='inventory'&&allowed(user.role,'previewDataTransfer')&&<div className="report-actions"><DataTransfer kind={view} onChanged={async()=>{setTransferRevision(n=>n+1);await reloadAll();}}/></div>}
+          {['cash','sales','inventory','purchases','finance','reports'].includes(view) && <CommerceView view={view} refreshRevision={transferRevision} onDataChanged={reloadAll} role={user.role}/>}
           {view==='settings' && <SystemSettings/>}
           {activeSchema && <>
             <div className="page-heading"><div><div className="eyebrow">CADASTROS</div><h1>{activeSchema.label}</h1><p>{activeSchema.description}</p></div>{view==='products'&&allowed(user.role,'catalogExport')&&<div className="catalog-export-actions">
@@ -658,7 +665,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
               </label>}
               {allowed(user.role,"save",[view])&&<button className="primary" onClick={() => startForm()}><Plus size={18}/> Adicionar {activeSchema.singular.toLowerCase()}</button>}</div>
             <div className={"panel data-panel"+(view==='products'?" data-panel-products":"")}>
-              <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{entityPage.total} cadastros</span></div>
+              <div className="data-toolbar"><label className="search-field narrow"><Search size={18}/><input placeholder={'Pesquisar '+activeSchema.label.toLowerCase()} aria-label="Pesquisar cadastros" value={search} onChange={ev => {setSearch(ev.target.value);setPage(0);}}/></label><span className="count-chip">{entityPage.total} cadastros</span>{['products','categories','customers','suppliers'].includes(view)&&allowed(user.role,'previewDataTransfer')&&<DataTransfer key={view} kind={view} onChanged={async()=>{await reload(view);}}/>}</div>
               <div className="table-wrap"><table><thead><tr>{view==='products'&&<th className="photo-column">Foto</th>}{listFields.map((field:any) => <th key={field.key}>{field.label}</th>)}<th className="actions-col">Ações</th></tr></thead>
               <tbody>{pageRows.map(row => <tr key={row.id}>{view==='products'&&<td className="photo-column">{row.image_data?<img className="product-thumbnail" alt={'Foto de '+row.name} src={row.image_data}/>:<span className="product-thumbnail product-thumbnail-empty" aria-label="Produto sem foto"><Package size={19}/></span>}</td>}{listFields.map((field:any) => <td key={field.key}>{field.type === 'money' ? money(row[field.key] || 0) : field.type === 'quantity' ? String(Number(row[field.key] || 0)/1000) : field.type === 'reference' ? ((records[field.entity] || []).find(r=>r.id === row[field.key])?.name || '—') : String(row[field.key] || '—')}</td>)}<td className="actions-col">{view==='operators'&&<button className="secondary" type="button" onClick={()=>{setPasswordTarget(row);setOperatorPassword('');setRepeatPassword('');}}>Definir senha</button>}{view==='products'&&<button title="Imprimir etiqueta" className="icon-btn" onClick={()=>setLabelTarget(row)}><Tags size={16}/></button>}{allowed(user.role,"save",[view])&&<button title="Editar cadastro" className="icon-btn" onClick={() => startForm(row)}><Pencil size={16}/></button>}{allowed(user.role,"archive",[view])&&<button title="Desativar cadastro" className="icon-btn danger-icon" onClick={() => void archiveRecord(row)}><Archive size={16}/></button>}</td></tr>)}</tbody></table>
                 {!filteredRows.length && <div className="empty-state"><Package size={26}/><strong>{search ? 'Nenhum resultado para a pesquisa' : 'Ainda não há cadastros'}</strong><p>{search ? 'Experimente outro termo.' : 'Use o botão Adicionar para começar.'}</p></div>}

@@ -42,7 +42,7 @@ test('integração visual preserva ponte canônica e confirmação humana',()=>{
   const styles=source('src/cashier.css');
   assert.match(app,/resolveCashierShortcut/);
   assert.match(app,/<Cashier/);
-  assert.match(app,/sessionCurrent\(/);
+  assert.match(app,/sessionPage\(\{summaryOnly:true\}\)/);
   assert.match(cashier,/cashier-mode/);
   assert.match(cashier,/Pesquisar ou ler código de barras/);
   assert.match(cashier,/onOpenPayment/);

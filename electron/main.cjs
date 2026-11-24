@@ -72,6 +72,67 @@ async function start() {
     return xlsxToCatalogCsv(bytes);
   });
 
+  // Arquivos são lidos e gravados na máquina do usuário; banco remoto nunca recebe caminhos locais.
+  const {runTransferWorker}=await import('./data-transfer-worker-client.mjs');
+  const {transferColumns,suggestTransferMapping,remapTransferTable,MAX_TRANSFER_BYTES}=await import('../shared/data-transfer.mjs');
+  function ensureTransferLocal(method){
+    runtime.authorize(method);
+    if(runtime.isRemote())throw new Error('Importação e exportação em lote: execute no computador servidor do PDV.');
+  }
+  // Um único arquivo em cache, por conteúdo e formato, com validade curta.
+  // A confirmação sempre recalcula a prévia no SQLite, independentemente do cache.
+  let transferCache=null;
+  async function transferTable(format,bytes){
+    if(!['csv','xlsx'].includes(format)||!(bytes instanceof Uint8Array)||!bytes.byteLength||bytes.byteLength>MAX_TRANSFER_BYTES)throw new Error('Arquivo inválido ou maior que 10 MB.');
+    const digest=require('node:crypto').createHash('sha256').update(bytes).digest('hex');
+    if(transferCache&&transferCache.digest===digest&&transferCache.format===format&&Date.now()<transferCache.expires)return transferCache.table;
+    const table=await runTransferWorker({operation:'read',format,bytes});
+    transferCache={digest,format,table,expires:Date.now()+10*60*1000};
+    return table;
+  }
+  ipcMain.handle(apiChannels.dataTransferInspect,async(_evt,input)=>{
+    ensureTransferLocal('previewDataTransfer');
+    const {kind,format,bytes}=input||{};transferColumns(kind);
+    const table=await transferTable(format,bytes);
+    if(!table[0]?.length)throw new Error('Arquivo sem cabeçalho.');
+    return {headers:table[0],mapping:suggestTransferMapping(kind,table[0]),count:table.length-1};
+  });
+  ipcMain.handle(apiChannels.dataTransferHistory,(_evt,input)=>{
+    ensureTransferLocal('dataTransferHistory');
+    return domain('dataTransferHistory',input);
+  });
+  ipcMain.handle(apiChannels.dataTransferPreview,async(_evt,input)=>{
+    ensureTransferLocal('previewDataTransfer');
+    const {kind,format,bytes,reason,mapping}=input||{};
+    transferColumns(kind);
+    const table=remapTransferTable(kind,await transferTable(format,bytes),mapping);
+    const preview=await domain('previewDataTransfer',{kind,table,reason});
+    return preview;
+  });
+  ipcMain.handle(apiChannels.dataTransferImport,async(_evt,input)=>{
+    ensureTransferLocal('importDataTransfer');
+    const {kind,format,bytes,reason,token,mapping}=input||{};
+    transferColumns(kind);
+    const table=remapTransferTable(kind,await transferTable(format,bytes),mapping);
+    transferCache=null;
+    return domain('importDataTransfer',{kind,table,reason,token});
+  });
+  ipcMain.handle(apiChannels.dataTransferExport,async(_evt,input)=>{
+    ensureTransferLocal('exportDataTransfer');
+    const {kind,format,template}=input||{};
+    const cols=transferColumns(kind);
+    if(!['csv','xlsx'].includes(format))throw new Error('Use XLSX ou CSV.');
+    const selected=await dialog.showSaveDialog(window,{title:template?'Salvar modelo de importação':'Exportar cadastros',defaultPath:'PDV-Plus-'+kind+(template?'-modelo':'')+'.'+format,filters:[{name:format.toUpperCase(),extensions:[format]}]});
+    if(selected.canceled||!selected.filePath)return {cancelled:true};
+    ensureTransferLocal('exportDataTransfer');
+    if(template){
+      await runTransferWorker({operation:'write',format,kind,table:[cols.map(c=>c.label)],filename:selected.filePath});
+      return {cancelled:false,count:0};
+    }
+    const count=await runTransferWorker({operation:'export',format,kind,databaseFile,filename:selected.filePath});
+    return {cancelled:false,count};
+  });
+
   ipcMain.handle(apiChannels.catalogExport,async(_event,format)=>{
     runtime.authorize('catalogExport');
     if(!['pdf','csv','xlsx'].includes(format))throw new Error('Formato de exportação de produtos inválido.');
@@ -142,6 +203,7 @@ async function start() {
   ipcMain.handle(apiChannels.overview, () => domain('overview'));
   ipcMain.handle(apiChannels.storeProfileGet, () => domain('getStoreProfile'));
   ipcMain.handle(apiChannels.storeProfileSet, (_evt,input) => domain('saveStoreProfile',input));
+  ipcMain.handle(apiChannels.sessionPage,(_event,options)=>domain('getCurrentSessionPage',options));
   ipcMain.handle(apiChannels.sessionCurrent, (_event) => domain('getCurrentSession'));
   ipcMain.handle(apiChannels.sessionOpen, (_event, input) => domain('openSession',input));
   ipcMain.handle(apiChannels.sessionClose, (_event, input) => domain('closeSession',input));

@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {assertLabel,assertMilli,assertCents,assertDate} from '../shared/commerce.mjs';
+import {lineTotalCents,roundRatio,checkedSum} from '../shared/domain.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
 const now=()=>new Date().toISOString();
 function atomic(db,fn){
@@ -23,8 +24,15 @@ export function createCommercialPurchases(db){
      !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
     throw new Error('Paginação de compras inválida.');
   const total=get('SELECT COUNT(*) AS n FROM commercial_purchases').n;
-  const rows=all('SELECT id FROM commercial_purchases ORDER BY created_at DESC,rowid DESC LIMIT ? OFFSET ?',
-    pageSize,page*pageSize).map(x=>details(x.id));
+  const purchases=all('SELECT p.*,s.name AS supplier_name FROM commercial_purchases p JOIN suppliers s ON s.id=p.supplier_id ORDER BY p.created_at DESC,p.rowid DESC LIMIT ? OFFSET ?',pageSize,page*pageSize);
+  const grouped=new Map();
+  if(purchases.length){
+   const ids=purchases.map(p=>p.id),marks=ids.map(()=>'?').join(',');
+   for(const line of all('SELECT * FROM commercial_purchase_lines WHERE purchase_id IN ('+marks+') ORDER BY purchase_id,rowid',...ids)){
+    const rows=grouped.get(line.purchase_id)||[];rows.push(line);grouped.set(line.purchase_id,rows);
+   }
+  }
+  const rows=purchases.map(p=>({...p,lines:grouped.get(p.id)||[]}));
   return {rows,total,page,pageSize};
  }
  function createPurchase(input,ctx={}){
@@ -40,12 +48,12 @@ export function createCommercialPurchases(db){
     const quantity=assertMilli(line.quantityMilli);
     if(product.unit==='UN'&&quantity%1000!==0)throw new Error('Quantidade de produto UN deve ser inteira.');
     const cost=assertCents(line.unitCostCents,'Custo unitário');
-    const total=Math.round(quantity*cost/1000);
+    const total=lineTotalCents(cost,quantity);
     if(!Number.isSafeInteger(total))throw new Error('Valor do item de compra excede o limite.');
     return {productId,quantity,cost,total};
    });
    if(new Set(normalized.map(x=>x.productId)).size!==normalized.length)throw new Error('Produto duplicado na mesma compra.');
-   const total=normalized.reduce((sum,x)=>sum+x.total,0);
+   const total=checkedSum(normalized.map(x=>x.total));
    if(!Number.isSafeInteger(total)||total<=0)throw new Error('Total da compra deve ser positivo.');
    const due=assertDate(input?.dueOn);
    const reference=input?.documentRef==null||input.documentRef===''?null:assertLabel(input.documentRef,'Documento',100);
@@ -67,7 +75,7 @@ export function createCommercialPurchases(db){
     if(!product)throw new Error('Produto de compra inativo; recebimento não aplicado.');
     if(!Number.isSafeInteger(product.stock_milli+line.quantity_milli))throw new Error('Estoque excede limite.');
     const nextStock=product.stock_milli+line.quantity_milli;
-    const newCost=Math.round((product.stock_milli*product.cost_price_cents+line.quantity_milli*line.unit_cost_cents)/nextStock);
+    const newCost=roundRatio(BigInt(product.stock_milli)*BigInt(product.cost_price_cents)+BigInt(line.quantity_milli)*BigInt(line.unit_cost_cents),BigInt(nextStock));
     if(!Number.isSafeInteger(newCost)||newCost<0)throw new Error('Custo médio fora de limite.');
     run('UPDATE products SET stock_milli=?,cost_price_cents=?,updated_at=? WHERE id=?',
      nextStock,newCost,now(),product.id);

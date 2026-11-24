@@ -17,6 +17,7 @@ import {createCommercialPurchases} from './commercial-purchases.mjs';
 import {parseCatalogCsv} from '../shared/catalog-import.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
 import {createStoreProfile} from './store-profile.mjs';
+import {createDataTransfer} from './data-transfer.mjs';
 const sqlType = f => f.type === 'money' || f.type === 'quantity' ? 'INTEGER' : 'TEXT';
 export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}) {
   const timeout=Number.isSafeInteger(busyTimeoutMs)&&busyTimeoutMs>=0&&busyTimeoutMs<=30000?busyTimeoutMs:5000;
@@ -66,6 +67,19 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
       '"(name COLLATE NOCASE,id) WHERE active=1');
   }
   const indexStatements=[
+    'CREATE INDEX IF NOT EXISTS idx_products_active_category_name ON products(category_id,name COLLATE NOCASE,id) WHERE active=1',
+    'CREATE INDEX IF NOT EXISTS idx_sales_session_recent ON sales(session_id,created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_stock_movements_recent ON stock_movements(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_stock_movements_product_time ON stock_movements(product_id,created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_cash_movements_session_time ON cash_movements(session_id,created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_entries_recent ON financial_entries(created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_settlements_entry_time ON finance_settlements(entry_id,created_at,id)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_settlements_recent ON finance_settlements(created_at,entry_id)',
+    'CREATE INDEX IF NOT EXISTS idx_purchase_lines_product ON commercial_purchase_lines(product_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_payments_sale ON sale_payments(sale_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_item_payments_sale ON sale_item_payments(sale_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_batch_allocations_sale ON sale_batch_allocations(sale_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_items_product_sale ON sale_items(product_id,sale_id)',
     'CREATE INDEX IF NOT EXISTS idx_sales_recent ON sales(created_at DESC,id DESC)',
     'CREATE INDEX IF NOT EXISTS idx_cash_sessions_terminal_id ON cash_sessions(terminal_id,id)',
     'CREATE INDEX IF NOT EXISTS idx_sales_active_recent ON sales(status,is_training,created_at DESC,id DESC)',
@@ -82,7 +96,12 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   ];
   for(const sql of indexStatements){
     const table=sql.match(/ON ([a-z_]+)\(/i)?.[1];
-    if(table&&existingTables.has(table))db.exec(sql+';');
+    if(table&&existingTables.has(table)){
+      // Bancos Glass v2 podem não conter todas as colunas dos cadastros atuais.
+      const columns=new Set(db.prepare('PRAGMA table_info("'+table+'")').all().map(c=>c.name));
+      const indexed=sql.match(/ON [a-z_]+\(([^)]+)\)/i)?.[1].split(',').map(c=>c.trim().split(/\s+/)[0])||[];
+      if(indexed.every(c=>columns.has(c)))db.exec(sql+';');
+    }
   }
   db.exec('PRAGMA optimize');
   const financeP2=createFinanceP2(db);
@@ -143,8 +162,12 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     const columns = schema.fields.map(f => f.key);
     let started=false;
     try {
-      if(kind==='products'){db.exec('BEGIN IMMEDIATE');started=true;}
+      if(kind==='products'&&!context.bulkTransaction){db.exec('BEGIN IMMEDIATE');started=true;}
       const existing = db.prepare('SELECT * FROM "' + kind + '" WHERE id = ?').get(id);
+      if(kind==='products'&&existing&&existing.unit!==values.unit){
+        if(existing.stock_milli!==0||db.prepare('SELECT 1 FROM stock_movements WHERE product_id=? LIMIT 1').get(id)||db.prepare('SELECT 1 FROM sale_items WHERE product_id=? LIMIT 1').get(id)||db.prepare('SELECT 1 FROM commercial_purchase_lines WHERE product_id=? LIMIT 1').get(id)||db.prepare('SELECT 1 FROM product_batches WHERE product_id=? LIMIT 1').get(id))throw new Error('Não é possível alterar a unidade de produto com estoque ou histórico. Cadastre outro SKU.');
+      }
+      if(kind==='products'&&values.unit==='UN'&&values.stock_milli%1000!==0)throw new Error('Produto por unidade exige quantidade inteira.');
       let movement=null;
       if(kind==='products' && input.stockEdit!==undefined){
         if(!existing||!existing.active)throw new Error('Produto não encontrado ou desativado. Reabra o cadastro.');
@@ -267,8 +290,9 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
       outOfStock:summary.out_of_stock||0,lowStock:summary.low_stock||0,expired,expiring,examples
     }};
   }
-  const operations={list,save,archive,overview,...storeProfile,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
-  const sessionAware=new Set(['getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
+  const transfers=createDataTransfer(db,save);
+  const operations={list,save,archive,overview,...transfers,...storeProfile,previewCatalogCsv,importCatalogCsv,...commerce,...commercialPurchases,...financeP2};
+  const sessionAware=new Set(['getCurrentSessionPage','getCurrentSession','openSession','closeSession','moveCash','checkout','cancelSale','settleFinance','listSales','createPurchase','receivePurchase','createFinanceSchedule']);
   const noArgs=new Set(['getCurrentSession','listOpenSessions','report','overview','getStoreProfile']);
   function secureCall(method,args=[],ctx={}){
     if(typeof method!=='string'||typeof operations[method]!=='function') {
@@ -283,13 +307,20 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     if(noArgs.has(method)&&args.length)throw new Error('Argumentos de sessão não permitidos.');
     access.ensureLastAdmin(method,args);
     if(method==='getSale'&&user.role==='Caixa'){
-      const sale=commerce.getSale(args[0]);
-      const own=commerce.listSales({terminalId:ctx.terminalId,role:'Caixa'});
-      if(!own.some(x=>x.id===sale.id))throw new Error('Permissão insuficiente: venda de outro terminal.');
+      const own=db.prepare('SELECT 1 FROM sales s JOIN cash_sessions c ON c.id=s.session_id WHERE s.id=? AND c.terminal_id=?').get(args[0],ctx.terminalId);
+      if(!own)throw new Error('Permissão insuficiente: venda de outro terminal.');
     }
     if(method==='listStockMovements'&&user.role==='Caixa')throw new Error('Permissão insuficiente.');
     const approvedBy=method==='closeSession'?access.verifyManagerApproval(args[0]?.managerApproval,ctx.terminalId).id:null;
     const context={terminalId:ctx.terminalId,operatorId:user.id,role:user.role,approvedBy};
+    if(method==='getCurrentSessionPage'){
+      if(args.length!==1||!args[0]||typeof args[0]!=='object'||Array.isArray(args[0]))throw new Error('Argumentos inválidos para consulta de caixa.');
+      return commerce.getCurrentSessionPage(args[0],context);
+    }
+    if(method==='importDataTransfer'){
+      if(args.length!==1)throw new Error('Argumentos inválidos para importação.');
+      return transfers.importDataTransfer(args[0],context);
+    }
     if(method==='save'){
       if(args.length!==2)throw new Error('Argumentos inválidos para cadastro.');
       return save(args[0],args[1],context);
