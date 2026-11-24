@@ -184,9 +184,36 @@ async function start() {
   // A versão anterior permanece funcional se não houver rede ou se o backup falhar.
   const updaterManager=createUpdateManager({
     app,updater:autoUpdater,
-    notify:status=>{if(!window.isDestroyed()&&!window.webContents.isDestroyed())
-      window.webContents.send(apiChannels.updateEvent,status);},
-    listOpenSessions:()=>runtime.call('listOpenSessions'),
+    notify:status=>{
+      if(window.isDestroyed()||window.webContents.isDestroyed())return;
+      window.webContents.send(apiChannels.updateEvent,status);
+      window.setProgressBar(status.phase==='downloading'?Math.max(0,Math.min(1,status.progress/100)):-1);
+    },
+    confirmUpdate:async status=>{
+      if(window.isDestroyed())return false;
+      const remote=runtime.isRemote();
+      // A atualização local do binário é uma ação do dispositivo, inclusive antes do login.
+      // Em terminal LAN, o servidor continua exigindo um gerente autenticado.
+      const needsManager=remote&&!allowed(runtime.currentUser()?.role,'updateInstall');
+      const answer=await dialog.showMessageBox(window,{
+        type:'info',title:'Atualização do PDV Plus',
+        message:'Nova versão '+status.version+' disponível',
+        detail:needsManager?'Entre como gerente ou administrador e acesse Configurações > Atualizações para instalar neste terminal.':
+          'Versão instalada: '+status.currentVersion+'. '+(status.phase==='downloaded'?'A atualização já foi baixada. Deseja instalar e reiniciar?':'Deseja baixar, instalar e reiniciar o PDV Plus?')+
+          '\n\nSe houver caixas abertos, será necessário fechá-los antes de instalar. Seus dados serão preservados.',
+        buttons:needsManager?['Entendi']:[status.phase==='downloaded'?'Instalar e reiniciar':'Baixar e instalar','Agora não'],
+        defaultId:needsManager?0:1,cancelId:needsManager?0:1,noLink:true
+      });
+      return !needsManager&&answer.response===0&&!window.isDestroyed();
+    },
+    reportError:async message=>{
+      if(!window.isDestroyed())await dialog.showMessageBox(window,{
+        type:'warning',title:'Atualização do PDV Plus',message:'Não foi possível concluir a atualização.',
+        detail:message+'\n\nO PDV permanece disponível. Tente novamente em Configurações > Atualizações.',
+        buttons:['OK'],noLink:true
+      });
+    },
+    listOpenSessions:()=>runtime.isRemote()?runtime.call('listOpenSessions'):store.listOpenSessions(),
     backup:async()=>{
       if(runtime.isRemote())return; // O SQLite canônico fica no servidor LAN.
       const backupPath=path.join(folder,'pre-update-'+app.getVersion()+'-'+Date.now()+'.sqlite');
@@ -206,7 +233,6 @@ async function start() {
     runtime.authorize('updateInstall');
     return updaterManager.install();
   });
-  updaterManager.start();
   window.once('closed',()=>updaterManager.stop());
   ipcMain.handle(apiChannels.reportExport, async (_evt,format) => {
     runtime.authorize('reportExport');
@@ -484,7 +510,10 @@ async function start() {
     setImmediate(()=>{app.relaunch();app.quit();});
     return {...result,restarting:true};
   });
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => {
+    window.show();
+    if(process.env.PDV_TEST_SMOKE!=='1')updaterManager.start();
+  });
   const builtPage=path.join(__dirname,'../dist/index.html');
   const devUrl = process.env.PDV_DEV_URL || (app.isPackaged || fs.existsSync(builtPage) ? null : 'http://127.0.0.1:5173');
   if (devUrl) window.loadURL(devUrl);

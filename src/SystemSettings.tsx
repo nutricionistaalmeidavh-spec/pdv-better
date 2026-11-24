@@ -212,7 +212,7 @@ export function SystemSettings(){
         <div className="settings-info" role="status">
           {updateInfo?.phase==='disabled'?'Atualizador disponível somente no aplicativo Windows instalado.':
            updateInfo?.phase==='checking'?'Procurando uma nova versão...':
-           updateInfo?.phase==='available'?'Nova versão '+updateInfo.version+' encontrada; iniciando download...':
+           updateInfo?.phase==='available'?'Nova versão '+updateInfo.version+' encontrada. Autorize o download para atualizar.':
            updateInfo?.phase==='downloading'?'Baixando versão '+updateInfo.version+': '+updateInfo.progress+'%':
            updateInfo?.phase==='downloaded'?'Versão '+updateInfo.version+' pronta para instalação.':
            updateInfo?.phase==='installing'?'Fechando o aplicativo para concluir a atualização...':
@@ -223,14 +223,14 @@ export function SystemSettings(){
         {updateInfo?.phase==='downloading'&&
           <progress style={{width:'100%'}} max={100} value={Number(updateInfo.progress)||0}/>}
         <button className="secondary" disabled={updateBusy||!updateInfo?.enabled||['checking','downloading','installing','downloaded'].includes(updateInfo?.phase)}
-          onClick={()=>void updateAction('check')}><RefreshCcw size={16}/> Buscar atualização agora</button>
+          onClick={()=>void updateAction('check')}><RefreshCcw size={16}/> {updateInfo?.phase==='available'?'Baixar e instalar':'Buscar atualização agora'}</button>
         <button className="primary" disabled={updateBusy||updateInfo?.phase!=='downloaded'||!updateInfo?.canInstall}
           onClick={()=>void updateAction('install')}><RotateCw size={16}/> Instalar e reiniciar</button>
         {updateInfo?.phase==='downloaded'&&!updateInfo.canInstall&&
           <p className="settings-tip">Um gerente ou administrador deve autorizar a instalação.</p>}
       </div>
       <div className="settings-note"><ShieldAlert size={19}/>
-        <p>A atualização é baixada em segundo plano, mas <strong>nunca reinicia durante uma venda</strong>. Antes da instalação, todos os caixas abertos devem ser fechados. No computador servidor, é gerado um backup SQLite validado. Sem internet, o PDV continua operando normalmente. As instalações anteriores à versão 0.6.0 precisam de uma última atualização manual.</p>
+        <p>A atualização só é baixada após sua autorização e <strong>nunca reinicia durante uma venda</strong>. Antes da instalação, todos os caixas abertos devem ser fechados. No computador servidor, é gerado um backup SQLite validado. Sem internet, o PDV continua operando normalmente. As instalações anteriores à versão 0.6.0 precisam de uma última atualização manual.</p>
       </div>
     </div>}
     {tab==='backup'&&<div className="settings-grid">

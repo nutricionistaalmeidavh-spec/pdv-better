@@ -4,7 +4,7 @@ export function createUpdateManager({
   app, platform=process.platform, updater, notify=()=>{},
   listOpenSessions=async()=>[], backup=async()=>{},
   schedule=setTimeout, repeat=setInterval, clear=clearInterval,
-  logger=console
+  confirmUpdate=async()=>false, reportError=async()=>{}, logger=console
 }){
   const enabled=Boolean(app?.isPackaged&&platform==='win32'&&updater);
   let state={
@@ -20,6 +20,10 @@ export function createUpdateManager({
   };
   const errorMessage=error=>String(error?.message||error||'Falha desconhecida').slice(0,240);
   if(enabled){
+    updater.autoDownload=false;
+    updater.autoInstallOnAppQuit=false;
+    updater.allowPrerelease=false;
+    updater.allowDowngrade=false;
     updater.on('checking-for-update',()=>publish({phase:'checking',error:null}));
     updater.on('update-available',info=>publish({phase:'available',version:String(info?.version||''),progress:0,error:null}));
     updater.on('download-progress',progress=>publish({phase:'downloading',progress:Math.max(0,Math.min(100,Math.round(Number(progress?.percent)||0)))}));
@@ -27,13 +31,36 @@ export function createUpdateManager({
     updater.on('update-not-available',()=>publish({phase:'up-to-date',version:null,progress:0,error:null}));
     updater.on('error',error=>publish({phase:'error',error:errorMessage(error)}));
   }
-  async function check(){
+  async function offerUpdate(){
+    if(!['available','downloaded'].includes(state.phase))return;
+    const version=state.version;
+    if(!await confirmUpdate(status()))return;
+    if(state.phase==='available'){
+      publish({phase:'downloading',progress:0,error:null});
+      try{
+        await updater.downloadUpdate();
+        if(state.phase!=='downloaded')throw new Error('Download não confirmado pelo atualizador.');
+      }catch(error){
+        publish({phase:'error',error:errorMessage(error)});
+        await reportError(errorMessage(error));
+        return;
+      }
+    }
+    if(state.phase!=='downloaded'||state.version!==version)return;
+    try{await install();}catch(error){await reportError(errorMessage(error));}
+  }
+  async function check({offer=true}={}){
     if(!enabled)throw new Error('Atualização disponível somente no aplicativo instalado no Windows.');
-    if(checking||installing||state.phase==='downloaded'||state.phase==='downloading')return status();
+    if(checking||installing||state.phase==='downloading'||state.phase==='installing')return status();
     checking=true;
-    publish({phase:'checking',error:null});
-    try{await updater.checkForUpdates();}
-    catch(error){publish({phase:'error',error:errorMessage(error)});}
+    try{
+      if(state.phase!=='downloaded'){
+        publish({phase:'checking',error:null});
+        await updater.checkForUpdates();
+      }
+      if(offer)await offerUpdate();
+    }
+    catch(error){publish({phase:'error',error:errorMessage(error)});logger?.warn?.('Falha ao verificar atualização:',errorMessage(error));}
     finally{checking=false;}
     return status();
   }
@@ -46,6 +73,8 @@ export function createUpdateManager({
       if(sessions.length)throw new Error('Feche todos os caixas abertos antes de instalar a atualização.');
       // O backup ocorre enquanto a versão antiga ainda está funcionando.
       await backup();
+      const remaining=await listOpenSessions();
+      if(!Array.isArray(remaining)||remaining.length)throw new Error('Feche todos os caixas antes de instalar a atualização.');
       publish({phase:'installing',error:null});
       updater.quitAndInstall(false,true);
       return status();
@@ -57,12 +86,8 @@ export function createUpdateManager({
   function start(){
     if(!enabled||started)return;
     started=true;
-    updater.autoDownload=true;
-    updater.autoInstallOnAppQuit=false;
-    updater.allowPrerelease=false;
-    updater.allowDowngrade=false;
-    timers.push({handle:schedule(()=>{void check();},15000),kind:'schedule'});
-    timers.push({handle:repeat(()=>{void check();},6*60*60*1000),kind:'repeat'});
+    timers.push({handle:schedule(()=>check(),1000),kind:'schedule'});
+    timers.push({handle:repeat(()=>check({offer:false}),6*60*60*1000),kind:'repeat'});
   }
   function stop(){
     for(const timer of timers)try{clear(timer.handle);}catch{}
