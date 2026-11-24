@@ -7,7 +7,8 @@ import {bestPromotionPrice,localBusinessDate,strictDate} from './nexus-features.
 import {optimizeCrossSkuDiscounts} from './cross-sku.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
 import {allocateDiscounts} from '../shared/item-allocation.mjs';
-import {localDateKey} from '../shared/report-analytics.mjs';
+import {roundRatio,checkedSum} from '../shared/domain.mjs';
+import {localDateKey,localDateRange} from '../shared/report-analytics.mjs';
 const now=()=>new Date().toISOString();
 function atomic(db,fn) {
   try{db.exec('BEGIN IMMEDIATE');}catch(error){throw normalizeSqliteError(error);}
@@ -381,7 +382,7 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
           let remaining=net;
           for(let i=0;i<allocations.length;i++){
             const allocation=allocations[i];
-            const expected=i===allocations.length-1?remaining:Math.round(net*allocation.quantityMilli/snapshot.quantityMilli);
+            const expected=i===allocations.length-1?remaining:roundRatio(BigInt(net)*BigInt(allocation.quantityMilli),BigInt(snapshot.quantityMilli));
             if(expected<=0||allocation.amountCents!==expected)
               throw new Error('Valor por quantidade não é proporcional ao líquido do produto.');
             remaining-=expected;
@@ -499,14 +500,14 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     const clause=restricted?' WHERE product_id=?':'';
     const params=restricted?[assertLabel(productId,'Produto',64)]:[];
     if(options===null||options===undefined)
-      return all('SELECT * FROM stock_movements'+clause+' ORDER BY created_at DESC,rowid DESC',...params);
+      return all('SELECT * FROM stock_movements'+clause+' ORDER BY created_at DESC,id DESC',...params);
     const {page=0,pageSize=75}=options;
     if(!Number.isSafeInteger(page)||page<0||page>10000000||
        !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250)
       throw new Error('Paginação de estoque inválida.');
     const total=row('SELECT COUNT(*) AS n FROM stock_movements'+clause,...params).n;
     const rows=all('SELECT * FROM stock_movements'+clause+
-      ' ORDER BY created_at DESC,rowid DESC LIMIT ? OFFSET ?',...params,pageSize,page*pageSize);
+      ' ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?',...params,pageSize,page*pageSize);
     return {rows,total,page,pageSize};
   }
   function financeWithBalance(entry){
@@ -623,16 +624,9 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     if(status!=='all'){predicates.push('s.status=?');bindings.push(status);}
     if(training==='exclude')predicates.push('s.is_training=0');
     if(training==='only')predicates.push('s.is_training=1');
-    if(from){
-      const [year,month,day]=from.split('-').map(Number);
-      predicates.push('s.created_at>=?');
-      bindings.push(new Date(year,month-1,day).toISOString());
-    }
-    if(to){
-      const [year,month,day]=to.split('-').map(Number);
-      predicates.push('s.created_at<?');
-      bindings.push(new Date(year,month-1,day+1).toISOString());
-    }
+    const {start,end}=localDateRange(from,to);
+    if(start){predicates.push('s.created_at>=?');bindings.push(start);}
+    if(end){predicates.push('s.created_at<?');bindings.push(end);}
     if(operatorId){predicates.push('s.operator_id=?');bindings.push(operatorId);}
     const matchingItem=[];
     if(productId){matchingItem.push('i.product_id=?');bindings.push(productId);}
@@ -642,25 +636,38 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     if(matchingItem.length)
       predicates.push('EXISTS (SELECT 1 FROM sale_items i WHERE i.sale_id=s.id AND '+matchingItem.join(' AND ')+')');
     const where=predicates.length?' WHERE '+predicates.join(' AND '):'';
-    const sales=all('SELECT s.*,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id'+
-      where+' ORDER BY s.created_at,s.id',...bindings);
-    const rows=[];
-    for(const s of sales){
+    const paged=filters.page!==undefined||filters.pageSize!==undefined;
+    const page=filters.page??0,pageSize=filters.pageSize??250;
+    if(paged&&(!Number.isSafeInteger(page)||page<0||page>10000000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>250))throw new Error('Paginação de relatório inválida.');
+    const sales=db.prepare('SELECT s.id,s.discount_cents,s.status,s.is_training,s.customer_id,s.operator_id,s.created_at,c.terminal_id FROM sales s JOIN cash_sessions c ON c.id=s.session_id'+
+      where+' ORDER BY s.created_at,s.id').iterate(...bindings);
+    const rows=[];let itemCount=0,netTotal=0n;
+    const group=(values,key)=>{const result=new Map();for(const item of values){const id=item[key],list=result.get(id)||[];list.push(item);result.set(id,list);}return result;};
+    function processChunk(chunk){
+      if(!chunk.length)return;
+      const ids=chunk.map(s=>s.id),marks=ids.map(()=>'?').join(',');
+      const itemsBySale=group(all('SELECT * FROM sale_items WHERE sale_id IN ('+marks+') ORDER BY sale_id,rowid',...ids),'sale_id');
+      const methodsBySale=group(all('SELECT sale_id,method FROM sale_payments WHERE sale_id IN ('+marks+')',...ids),'sale_id');
+      const attributesByItem=group(all('SELECT x.sale_item_id,p.method,x.amount_cents FROM sale_item_payments x JOIN sale_payments p ON p.id=x.sale_payment_id WHERE x.sale_id IN ('+marks+')',...ids),'sale_item_id');
+      for(const s of chunk){
       if(status!=='all'&&s.status!==status)continue;
       if((training==='exclude'&&s.is_training)||(training==='only'&&!s.is_training))continue;
       const day=localDateKey(s.created_at);
       if((from&&day<from)||(to&&day>to)||(operatorId&&s.operator_id!==operatorId))continue;
-      const items=all('SELECT * FROM sale_items WHERE sale_id=? ORDER BY rowid',s.id);
+      const items=itemsBySale.get(s.id)||[];
+      if(!items.length)continue;
       const discounts=allocateDiscounts(items.map(x=>x.line_total_cents),s.discount_cents);
-      const methods=all('SELECT method FROM sale_payments WHERE sale_id=?',s.id);
+      const methods=methodsBySale.get(s.id)||[];
       const defaultMethod=methods.length===1?methods[0].method:'mixed_unallocated';
-      const attributes=all("SELECT x.sale_item_id,p.method,x.amount_cents FROM sale_item_payments x JOIN sale_payments p ON p.id=x.sale_payment_id WHERE x.sale_id=?",s.id);
       items.forEach((item,i)=>{
         if(productId&&item.product_id!==productId)return;
         if(brand&&item.brand!==brand)return;
         if(producer&&item.producer!==producer)return;
         if(variantGroup&&item.variant_group!==variantGroup)return;
-        const assigned=attributes.filter(a=>a.sale_item_id===item.id);
+        const index=itemCount++;
+        if(s.status==='completed'&&!s.is_training)netTotal+=BigInt(item.line_total_cents-discounts[i]);
+        if(paged&&(index<page*pageSize||index>=(page+1)*pageSize))return;
+        const assigned=attributesByItem.get(item.id)||[];
         const method=assigned.length?(new Set(assigned.map(a=>a.method)).size===1?assigned[0].method:'mixed_allocated'):defaultMethod;
         rows.push({sale_id:s.id,product_id:item.product_id,product_name:item.name,code:item.code,
           brand:item.brand,producer:item.producer,variant_group:item.variant_group,variant_label:item.variant_label,
@@ -671,8 +678,12 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
           customer_id:s.customer_id,operator_id:s.operator_id,terminal_id:s.terminal_id,created_at:s.created_at});
       });
     }
-    return {rows,summary:{items_count:rows.length,
-      net_total_cents:rows.filter(x=>x.status==='completed'&&!x.is_training).reduce((sum,x)=>sum+x.net_cents,0)}};
+    }
+    let chunk=[];
+    for(const sale of sales){chunk.push(sale);if(chunk.length===200){processChunk(chunk);chunk=[];}}
+    processChunk(chunk);
+    if(netTotal>BigInt(Number.MAX_SAFE_INTEGER)||netTotal<0n)throw new Error('Total do relatório excede limite.');
+    return {rows,summary:{items_count:itemCount,net_total_cents:Number(netTotal)},...(paged?{page,pageSize,total:itemCount}:{})};
   }
 
   function compareReportPeriods(input){
@@ -682,13 +693,15 @@ export function createCommerce(db,{defaultTerminalId='legacy'}={}){
     const comparisonTo=strictDate(input?.comparisonTo,'Fim do segundo período');
     if(from>to||comparisonFrom>comparisonTo)throw new Error('Período de comparação inválido.');
     const aggregate=(start,end)=>{
-      const rows=reportItems({from:start,to:end}).rows;
-      return {from:start,to:end,total_cents:rows.reduce((sum,x)=>sum+x.net_cents,0),
-        sales_count:new Set(rows.map(x=>x.sale_id)).size,items_count:rows.length};
+      const bounds=localDateRange(start,end);
+      const aggregate=row("SELECT COUNT(*) AS sales_count,COALESCE(SUM(total_cents),0) AS total_cents FROM sales WHERE status='completed' AND is_training=0 AND created_at>=? AND created_at<?",bounds.start,bounds.end);
+      const items=row("SELECT COUNT(*) AS n FROM sale_items i JOIN sales s ON s.id=i.sale_id WHERE s.status='completed' AND s.is_training=0 AND s.created_at>=? AND s.created_at<?",bounds.start,bounds.end);
+      if(!Number.isSafeInteger(aggregate.total_cents))throw new Error('Total do período excede limite.');
+      return {from:start,to:end,...aggregate,items_count:items.n};
     };
     const previous=aggregate(from,to),current=aggregate(comparisonFrom,comparisonTo);
     const delta=current.total_cents-previous.total_cents;
-    const basis=previous.total_cents>0?Math.round(delta*10000/previous.total_cents):null;
+    const basis=previous.total_cents>0?roundRatio(BigInt(delta)*10000n,BigInt(previous.total_cents)):null;
     if(!Number.isSafeInteger(delta)||(basis!==null&&!Number.isSafeInteger(basis)))
       throw new Error('Comparativo excedeu o limite de cálculo.');
     return {previous,current,delta_cents:delta,delta_basis_points:basis};
