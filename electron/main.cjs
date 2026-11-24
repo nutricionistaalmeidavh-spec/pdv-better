@@ -124,9 +124,13 @@ async function start() {
     if(!['csv','xlsx'].includes(format))throw new Error('Use XLSX ou CSV.');
     const selected=await dialog.showSaveDialog(window,{title:template?'Salvar modelo de importação':'Exportar cadastros',defaultPath:'PDV-Plus-'+kind+(template?'-modelo':'')+'.'+format,filters:[{name:format.toUpperCase(),extensions:[format]}]});
     if(selected.canceled||!selected.filePath)return {cancelled:true};
-    const report=template?{count:0,table:[cols.map(c=>c.label)]}:await domain('exportDataTransfer',kind);
-    await runTransferWorker({operation:'write',format,kind,table:report.table,filename:selected.filePath});
-    return {cancelled:false,count:report.count};
+    ensureTransferLocal('exportDataTransfer');
+    if(template){
+      await runTransferWorker({operation:'write',format,kind,table:[cols.map(c=>c.label)],filename:selected.filePath});
+      return {cancelled:false,count:0};
+    }
+    const count=await runTransferWorker({operation:'export',format,kind,databaseFile,filename:selected.filePath});
+    return {cancelled:false,count};
   });
 
   ipcMain.handle(apiChannels.catalogExport,async(_event,format)=>{
