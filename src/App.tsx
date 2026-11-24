@@ -78,6 +78,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   const [editingEntity,setEditingEntity] = useState<string|null>(null);
   const [form,setForm] = useState<Row>({});
   const [saving,setSaving] = useState(false);
+  const [stockReason,setStockReason] = useState('');
   const [photoBusy,setPhotoBusy] = useState(false);
   const [importingCatalog,setImportingCatalog] = useState(false);
   const [catalogImportError,setCatalogImportError] = useState('');
@@ -335,6 +336,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     setCart(undoCart.before);setUndoCart(null);setCartError('');
   }
   function startForm(row?:Row) {
+    setStockReason('');
     setEditingEntity(view);
     const base = row ? Object.fromEntries(definitions[view].fields.map((field:any) => [field.key,formatValue(field,row[field.key])])) : newForm(view);
     setForm({...base,...(row ? {id:row.id} : {})});
@@ -362,7 +364,10 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     setSaving(true); setError('');
     try {
       const kind = editingEntity || view;
-      const saved = await bridge.save(kind, form);
+      const input = kind==='products' && editing?.id
+        ? {...form,stockEdit:{expectedMilli:editing.stock_milli,reason:stockReason}}
+        : form;
+      const saved = await bridge.save(kind, input);
       await reload(kind);
       if (kind === 'products') setCart(prev => prev.map(item => item.id === saved.id ? {...item, name:saved.name, code:saved.code || '', priceCents:saved.sale_price_cents, unit:saved.unit, quantityMilli:saved.unit === 'UN' && item.quantityMilli % 1000 !== 0 ? 1000 : item.quantityMilli} : item));
       setEditing(null);setEditingEntity(null);setNotice(definitions[kind].singular + ' salvo: ' + saved.name);
@@ -507,6 +512,11 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   }
   const productCoreKeys=['image_data','name','code','category_id','sale_price_cents','cost_price_cents','stock_milli','unit'];
   const isProductDialog=editingEntity==='products';
+  let editedStock:number|null=null;
+  if(isProductDialog&&editing?.id){
+    try{editedStock=parseFixed(form.stock_milli,3,'Saldo em estoque');}catch{}
+  }
+  const stockChanged=editedStock!==null&&editedStock!==editing?.stock_milli;
   const mainEditorFields=isProductDialog
     ? productCoreKeys.map(key=>dialogSchema?.fields.find((field:any)=>field.key===key)).filter(Boolean)
     : (dialogSchema?.fields||[]);
@@ -531,7 +541,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
              field.type === 'reference' ? <select value={form[field.key]??''} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}><option value="">Sem categoria</option>{(records[field.entity] || []).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select> :
              <input required={field.required} type={field.type === 'money' || field.type === 'quantity' ? 'text' : 'text'} autoComplete="off"
              inputMode={field.type === 'money' || field.type === 'quantity' ? 'decimal' : 'text'}
-             value={form[field.key]??''} readOnly={Boolean(field.readOnlyOnEdit && editing.id)} onChange={ev => setForm(old => ({...old,[field.key]:ev.target.value}))}
+             value={form[field.key]??''} readOnly={Boolean(field.readOnlyOnEdit && editing.id)} onChange={ev => {setForm(old => ({...old,[field.key]:ev.target.value}));if(field.key==='stock_milli')setStockReason('');}}
              placeholder={field.type === 'money' ? '0,00' : field.type === 'quantity' ? '0,000' : field.label}/>}
           </label>;
   return <div className={'shell super-shell'+(view==='checkout'?' cashier-shell mode-light':'')}>
@@ -704,6 +714,16 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
         <header className="dialog-head"><div><div className="eyebrow">{editing.id ? 'EDIÇÃO' : 'NOVO CADASTRO'}</div><h2>{isProductDialog?(editing.id?'Editar Produto':'Cadastro de Produto'):(editing.id ? 'Editar ' : 'Adicionar ')+dialogSchema.singular.toLowerCase()}</h2></div><button aria-label="Fechar formulário" className="icon-btn" disabled={saving} onClick={() => setEditing(null)}><X size={20}/></button></header>
         <form onSubmit={saveRecord} className="dialog-form">
           <div className="form-grid product-core-form">{mainEditorFields.map(renderEditorField)}</div>
+          {stockChanged&&<div className="form-grid" role="group" aria-label="Confirmar alteração de estoque">
+            <p>Saldo anterior: {Number(editing?.stock_milli)/1000} · Novo saldo: {Number(editedStock)/1000} {form.unit}. A diferença será registrada no histórico.</p>
+            <label className="form-field">Motivo da alteração de estoque
+              <select required value={stockReason} onChange={e=>setStockReason(e.target.value)}>
+                <option value="">Selecione o motivo</option>
+                <option>Recebimento</option><option>Devolução</option><option>Perda / avaria</option>
+                <option>Inventário / correção de saldo</option><option>Outro</option>
+              </select>
+            </label>
+          </div>}
           {isProductDialog&&extraEditorFields.length>0&&<details className="product-advanced-fields"><summary>Informações adicionais: marca, produtor e variantes</summary><div className="form-grid product-additional-grid">{extraEditorFields.map(renderEditorField)}</div></details>}
           {error && <div className="form-error" role="alert"><AlertTriangle size={16}/>{error}</div>}
           <footer className="dialog-footer"><button type="button" className="secondary" disabled={saving} onClick={() => setEditing(null)}>Cancelar</button><button type="submit" className="primary" disabled={saving||photoBusy}>{saving ? 'Salvando…' : 'Salvar cadastro'}<Check size={17}/></button></footer>

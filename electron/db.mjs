@@ -130,7 +130,7 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
       ' ORDER BY name COLLATE NOCASE,id LIMIT ? OFFSET ?').all(...params,pageSize,offset);
     return {rows,total,page,pageSize};
   }
-  function save(kind, input) {
+  function save(kind, input, context={}) {
     const schema = assertEntity(kind);
     const values = normalizeRecord(kind, input);
     if (kind === 'products' && values.category_id) {
@@ -141,19 +141,41 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     const id = typeof input.id === 'string' && /^[0-9a-f-]{36}$/i.test(input.id) ? input.id : randomUUID();
     const now = new Date().toISOString();
     const columns = schema.fields.map(f => f.key);
-    const existing = db.prepare('SELECT * FROM "' + kind + '" WHERE id = ?').get(id);
-    if(kind==='products' && existing && values.stock_milli!==existing.stock_milli)
-      throw new Error('Estoque só pode ser alterado pelo módulo de movimentações; o saldo do cadastro é somente leitura.');
+    let started=false;
+    try {
+      if(kind==='products'){db.exec('BEGIN IMMEDIATE');started=true;}
+      const existing = db.prepare('SELECT * FROM "' + kind + '" WHERE id = ?').get(id);
+      let movement=null;
+      if(kind==='products' && input.stockEdit!==undefined){
+        if(!existing||!existing.active)throw new Error('Produto não encontrado ou desativado. Reabra o cadastro.');
+        const edit=input.stockEdit;
+        if(!edit||!Number.isSafeInteger(edit.expectedMilli)||edit.expectedMilli<0)throw new Error('Saldo anterior inválido. Reabra o cadastro.');
+        if(values.stock_milli===edit.expectedMilli){
+          values.stock_milli=existing.stock_milli;
+        }else{
+          if(existing.stock_milli!==edit.expectedMilli)throw new Error('O saldo de estoque mudou desde a abertura do cadastro. Reabra o produto e confira a quantidade.');
+          const reason=typeof edit.reason==='string'?edit.reason.trim():'';
+          if(!reason||reason.length>200)throw new Error('Informe o motivo da alteração de estoque (até 200 caracteres).');
+          const tracked=db.prepare('SELECT COALESCE(SUM(remaining_milli),0) AS total FROM product_batches WHERE product_id=?').get(id).total;
+          if(values.stock_milli<tracked)throw new Error('Ajuste de estoque reduziria saldo abaixo dos lotes fisicamente rastreados.');
+          const delta=values.stock_milli-existing.stock_milli;
+          const operator=context.operatorId?' | Operador: '+context.operatorId:'';
+          movement={delta,kind:delta>0&&reason==='Recebimento'?'receipt':'adjustment',
+            reason:'Cadastro: '+reason+' | Saldo: '+(existing.stock_milli/1000)+' → '+(values.stock_milli/1000)+operator};
+        }
+        if(values.unit==='UN'&&values.stock_milli%1000!==0)throw new Error('Produto por unidade exige quantidade inteira.');
+      }else if(kind==='products' && existing && values.stock_milli!==existing.stock_milli){
+        throw new Error('Estoque só pode ser alterado pelo módulo de movimentações; informe o motivo no cadastro.');
+      }
     const insertColumns = ['id', 'created_at', 'updated_at', 'active', ...columns];
     const args = [id, existing?.created_at || now, now, 1, ...columns.map(key => values[key] === '' && key === 'code' ? null : values[key])];
     const query = 'INSERT INTO "' + kind + '" (' + insertColumns.map(k => '"' + k + '"').join(',') + ') VALUES (' +
       insertColumns.map(() => '?').join(',') + ') ON CONFLICT(id) DO UPDATE SET ' +
       [...columns, 'updated_at', 'active'].map(k => '"' + k + '"=excluded."' + k + '"').join(',');
-    let started=false;
-    try {
-      if(kind==='products'){db.exec('BEGIN IMMEDIATE');started=true;}
       db.prepare(query).run(...args);
       if(kind==='products' && !existing && values.stock_milli>0) commerce.recordInitialStock(id,values.stock_milli);
+      if(movement)db.prepare('INSERT INTO stock_movements(id,product_id,delta_milli,kind,reason,created_at) VALUES(?,?,?,?,?,?)')
+        .run(randomUUID(),id,movement.delta,movement.kind,movement.reason,now);
       if(started){db.exec('COMMIT');started=false;}
     } catch (error) {
       if(started){try{db.exec('ROLLBACK');}catch{}}
@@ -268,6 +290,10 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     if(method==='listStockMovements'&&user.role==='Caixa')throw new Error('Permissão insuficiente.');
     const approvedBy=method==='closeSession'?access.verifyManagerApproval(args[0]?.managerApproval,ctx.terminalId).id:null;
     const context={terminalId:ctx.terminalId,operatorId:user.id,role:user.role,approvedBy};
+    if(method==='save'){
+      if(args.length!==2)throw new Error('Argumentos inválidos para cadastro.');
+      return save(args[0],args[1],context);
+    }
     return sessionAware.has(method)?operations[method](...args,context):operations[method](...args);
   }
   return { ...operations,secureCall,

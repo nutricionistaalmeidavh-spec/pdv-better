@@ -558,7 +558,7 @@ export function CommerceView({view,onDataChanged,role}:{view:string;onDataChange
           <button className="secondary" type="button" onClick={()=>{setStockKind('adjustment');setStockDirection('positive');document.getElementById('inventory-move-form')?.scrollIntoView({block:'center',behavior:'smooth'});}}><RotateCcw size={16}/> Ajuste de estoque</button>
         </div>
       </div>
-      <div className="panel commerce-section" id="inventory-move-form"><h2>Movimentar estoque</h2><p>Entradas e ajustes registrados no histórico. O saldo do cadastro não pode ser alterado diretamente.</p>
+      <div className="panel commerce-section" id="inventory-move-form"><h2>Movimentar estoque</h2><p>Entradas e ajustes registrados no histórico. O saldo também pode ser alterado no cadastro do produto, com motivo e histórico.</p>
       <form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(async()=>{
         const q=parseFixed(stockQuantity,3,'Quantidade');
         const delta=stockDirection==='negative'?-q:q;
