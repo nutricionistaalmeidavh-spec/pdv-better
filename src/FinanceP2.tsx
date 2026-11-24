@@ -1,5 +1,6 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {money,parseFixed} from '../shared/domain.mjs';
+import {localDateKey} from '../shared/report-analytics.mjs';
 import {financeBuckets} from '../shared/finance-board.mjs';
 
 type R=Record<string,any>;
@@ -8,7 +9,7 @@ const groupNames:Record<string,string>={overdue:'Vencidas',upcoming:'A vencer',p
 const ptType=(type:string)=>type==='payable'?'A pagar':'A receber';
 const defaultFavoriteKey='pdv-better:p2:finance-filter:v1';
 
-export function FinanceP2Panel({entries,onChanged,pageLabel}:{entries:R[];onChanged:()=>Promise<void>;pageLabel?:string}){
+export function FinanceP2Panel({entries,onChanged,pageLabel,revision=0}:{entries:R[];onChanged:()=>Promise<void>;pageLabel?:string;revision?:number}){
  const api=window.pdv;
  const [type,setType]=useState('payable');
  const [description,setDescription]=useState('');
@@ -21,7 +22,8 @@ export function FinanceP2Panel({entries,onChanged,pageLabel}:{entries:R[];onChan
  const [message,setMessage]=useState('');
  const [error,setError]=useState('');
  const [selection,setSelection]=useState('');
- const [timelineVisible,setTimelineVisible]=useState(150);
+ const [timelinePage,setTimelinePage]=useState(0);
+ const [timelineRevision,setTimelineRevision]=useState(0);
  const [search,setSearch]=useState('');
  const [filterType,setFilterType]=useState('all');
  const [from,setFrom]=useState('');
@@ -41,11 +43,11 @@ export function FinanceP2Panel({entries,onChanged,pageLabel}:{entries:R[];onChan
   if(!api)return;
   let live=true;
   setError('');
-  void api.financeOverview({from:from||undefined,to:to||undefined})
+  void api.financeOverview({from:from||undefined,to:to||undefined,page:timelinePage,pageSize:150})
     .then(data=>{if(live)setOverview(data);})
     .catch(err=>{if(live)setError(textError(err));});
   return()=>{live=false;};
- },[from,to,entries]);
+ },[from,to,timelinePage,revision,timelineRevision]);
  const saveFavorite=()=>{
   const preference={from,to,filterType,search};
   try{localStorage.setItem(defaultFavoriteKey,JSON.stringify(preference));setFavorite(preference);setMessage('Filtro salvo neste computador.');}
@@ -53,7 +55,7 @@ export function FinanceP2Panel({entries,onChanged,pageLabel}:{entries:R[];onChan
  };
  const useFavorite=()=>{
   if(!favorite)return;
-  setFrom(String(favorite.from||''));setTo(String(favorite.to||''));
+  setTimelinePage(0);setFrom(String(favorite.from||''));setTo(String(favorite.to||''));
   setFilterType(String(favorite.filterType||'all'));setSearch(String(favorite.search||''));
  };
  const createSchedule=async(ev:React.FormEvent)=>{
@@ -64,7 +66,7 @@ export function FinanceP2Panel({entries,onChanged,pageLabel}:{entries:R[];onChan
     key:operationKey,type,description,amountCents:parseFixed(amount,2,'Valor'),
     dueOn:due,category,months
    });
-   await onChanged();
+   await onChanged();setTimelineRevision(n=>n+1);
    setOperationKey(crypto.randomUUID());
    setDescription('');setAmount('0,00');setDue('');
    setMessage(result.entries.length+' obrigação(ões) registrada(s), sem pagamento automático.');
@@ -90,8 +92,8 @@ export function FinanceP2Panel({entries,onChanged,pageLabel}:{entries:R[];onChan
        </div>
      </div>
      <div className="commerce-inline-form">
-       <label>Início<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
-       <label>Fim<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>
+       <label>Início<input type="date" value={from} onChange={e=>{setTimelinePage(0);setFrom(e.target.value);}}/></label>
+       <label>Fim<input type="date" value={to} onChange={e=>{setTimelinePage(0);setTo(e.target.value);}}/></label>
        <button className="secondary" type="button" onClick={saveFavorite}>Salvar filtro favorito</button>
        <button className="secondary" type="button" disabled={!favorite} onClick={useFavorite}>Aplicar favorito</button>
      </div>
@@ -109,16 +111,14 @@ export function FinanceP2Panel({entries,onChanged,pageLabel}:{entries:R[];onChan
      </p>}
      <details><summary>Ver lançamentos do fluxo no período</summary>
        <div className="commerce-table"><table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Meio</th><th>Valor</th></tr></thead><tbody>
-         {[...(overview?.timeline||[]),...(overview?.forecasts||[])].slice(0,timelineVisible).map((r:R)=>
+         {[...(overview?.timeline||[]),...(overview?.forecasts||[])].map((r:R)=>
            <tr key={r.id}><td>{r.date}</td><td>{r.source==='forecast'?'Previsto '+r.kind:r.kind}</td>
              <td>{r.description}</td><td>{r.method}</td><td>{money(r.amount_cents)}</td></tr>)}
        </tbody></table></div>
-       {(overview?.timeline?.length||0)+(overview?.forecasts?.length||0)>timelineVisible&&
-          <div className="pagination">
-            <span>Exibindo {timelineVisible.toLocaleString('pt-BR')} de {((overview?.timeline?.length||0)+(overview?.forecasts?.length||0)).toLocaleString('pt-BR')} movimentos</span>
-            <button type="button" className="secondary" onClick={()=>setTimelineVisible(n=>n+150)}>Mostrar mais 150</button>
-            <button type="button" className="secondary"
-              onClick={()=>setTimelineVisible((overview?.timeline?.length||0)+(overview?.forecasts?.length||0))}>Exibir todos</button>
+       {overview?.total>150&&<div className="pagination">
+            <span>Página {timelinePage+1} de {Math.ceil(overview.total/150)} · {overview.total} movimentos</span>
+            <button type="button" className="secondary" disabled={timelinePage===0} onClick={()=>setTimelinePage(n=>Math.max(0,n-1))}>Anterior</button>
+            <button type="button" className="secondary" disabled={(timelinePage+1)*150>=overview.total} onClick={()=>setTimelinePage(n=>n+1)}>Próxima</button>
           </div>}
      </details>
    </div>
@@ -150,7 +150,7 @@ export function FinanceP2Panel({entries,onChanged,pageLabel}:{entries:R[];onChan
        <p>Vencimento: {selected.due_on||'Não informado'} · Categoria: {selected.category||'Sem categoria'} · Referência: {selected.id}</p>
        {!!selected.purchase_id&&<p>Origem da compra: {selected.purchase_id}</p>}
        {!!selected.sale_id&&<p>Origem da venda: {selected.sale_id}</p>}
-       {(selected.settlements||[]).map((x:R)=><p key={x.id}>Baixa de {money(x.amount_cents)} em {x.created_at?.slice(0,10)} por {x.method}</p>)}
+       {(selected.settlements||[]).map((x:R)=><p key={x.id}>Baixa de {money(x.amount_cents)} em {localDateKey(x.created_at)} por {x.method}</p>)}
      </div>}
    </div>
    <div className="panel commerce-section">
