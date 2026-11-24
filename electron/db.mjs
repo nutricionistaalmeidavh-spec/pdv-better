@@ -96,7 +96,12 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
   ];
   for(const sql of indexStatements){
     const table=sql.match(/ON ([a-z_]+)\(/i)?.[1];
-    if(table&&existingTables.has(table))db.exec(sql+';');
+    if(table&&existingTables.has(table)){
+      // Bancos Glass v2 podem não conter todas as colunas dos cadastros atuais.
+      const columns=new Set(db.prepare('PRAGMA table_info("'+table+'")').all().map(c=>c.name));
+      const indexed=sql.match(/ON [a-z_]+\(([^)]+)\)/i)?.[1].split(',').map(c=>c.trim().split(/\s+/)[0])||[];
+      if(indexed.every(c=>columns.has(c)))db.exec(sql+';');
+    }
   }
   db.exec('PRAGMA optimize');
   const financeP2=createFinanceP2(db);
