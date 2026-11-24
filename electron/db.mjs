@@ -67,6 +67,13 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
       '"(name COLLATE NOCASE,id) WHERE active=1');
   }
   const indexStatements=[
+    'CREATE INDEX IF NOT EXISTS idx_products_active_category_name ON products(category_id,name COLLATE NOCASE,id) WHERE active=1',
+    'CREATE INDEX IF NOT EXISTS idx_sales_session_recent ON sales(session_id,created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_stock_movements_recent ON stock_movements(created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_entries_recent ON financial_entries(created_at DESC,id DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_settlements_entry_time ON finance_settlements(entry_id,created_at,id)',
+    'CREATE INDEX IF NOT EXISTS idx_finance_settlements_recent ON finance_settlements(created_at,entry_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sale_items_product_sale ON sale_items(product_id,sale_id)',
     'CREATE INDEX IF NOT EXISTS idx_sales_recent ON sales(created_at DESC,id DESC)',
     'CREATE INDEX IF NOT EXISTS idx_cash_sessions_terminal_id ON cash_sessions(terminal_id,id)',
     'CREATE INDEX IF NOT EXISTS idx_sales_active_recent ON sales(status,is_training,created_at DESC,id DESC)',
@@ -146,6 +153,10 @@ export function openCatalog(filename,{terminalId='legacy',busyTimeoutMs=5000}={}
     try {
       if(kind==='products'&&!context.bulkTransaction){db.exec('BEGIN IMMEDIATE');started=true;}
       const existing = db.prepare('SELECT * FROM "' + kind + '" WHERE id = ?').get(id);
+      if(kind==='products'&&existing&&existing.unit!==values.unit){
+        if(existing.stock_milli!==0||db.prepare('SELECT 1 FROM stock_movements WHERE product_id=? LIMIT 1').get(id)||db.prepare('SELECT 1 FROM sale_items WHERE product_id=? LIMIT 1').get(id)||db.prepare('SELECT 1 FROM commercial_purchase_lines WHERE product_id=? LIMIT 1').get(id)||db.prepare('SELECT 1 FROM product_batches WHERE product_id=? LIMIT 1').get(id))throw new Error('Não é possível alterar a unidade de produto com estoque ou histórico. Cadastre outro SKU.');
+      }
+      if(kind==='products'&&values.unit==='UN'&&values.stock_milli%1000!==0)throw new Error('Produto por unidade exige quantidade inteira.');
       let movement=null;
       if(kind==='products' && input.stockEdit!==undefined){
         if(!existing||!existing.active)throw new Error('Produto não encontrado ou desativado. Reabra o cadastro.');
