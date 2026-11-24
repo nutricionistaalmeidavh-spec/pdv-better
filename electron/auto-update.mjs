@@ -76,7 +76,7 @@ export function createUpdateManager({
       const remaining=await listOpenSessions();
       if(!Array.isArray(remaining)||remaining.length)throw new Error('Feche todos os caixas antes de instalar a atualização.');
       publish({phase:'installing',error:null});
-      updater.quitAndInstall(false,true);
+      updater.quitAndInstall(true,true);
       return status();
     }catch(error){
       if(state.phase==='installing')publish({phase:'downloaded',error:errorMessage(error)});
