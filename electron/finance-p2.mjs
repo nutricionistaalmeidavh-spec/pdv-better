@@ -1,5 +1,7 @@
 import {randomUUID,createHash} from 'node:crypto';
 import {assertCents,assertDate,assertChoice,assertLabel} from '../shared/commerce.mjs';
+import {localDateKey,localDateRange} from '../shared/report-analytics.mjs';
+import {lineTotalCents,checkedSum} from '../shared/domain.mjs';
 import {normalizeSqliteError} from './sqlite-errors.mjs';
 const now=()=>new Date().toISOString();
 const typeChoices=['payable','receivable'];
@@ -62,22 +64,26 @@ export function createFinanceP2(db){
   const to=filters?.to?assertDate(filters.to):null;
   if(from&&to&&from>to)throw new Error('Período inválido.');
   const within=date=>(!from||date>=from)&&(!to||date<=to);
-  const entries=many("SELECT * FROM financial_entries WHERE status<>'cancelled' ORDER BY due_on,id");
+  const {start,end}=localDateRange(from,to);
+  const range=(alias)=>({sql:(start?' AND '+alias+'.created_at>=?':'')+(end?' AND '+alias+'.created_at<?':''),params:[...(start?[start]:[]),...(end?[end]:[])]});
+  const salesRange=range('s'),paidRange=range('fs');
+  const entries=many("SELECT * FROM financial_entries WHERE status='open'"+(from?' AND due_on>=?':'')+(to?' AND due_on<=?':'')+" ORDER BY due_on,id",...([...(from?[from]:[]),...(to?[to]:[])]));
+  const balanceRows=many("SELECT fs.entry_id,SUM(fs.amount_cents) AS amount_cents FROM finance_settlements fs JOIN financial_entries e ON e.id=fs.entry_id WHERE e.status='open' GROUP BY fs.entry_id");
   const paid=many(`SELECT fs.entry_id,fs.amount_cents,fs.method,fs.created_at,
     e.type,e.description,COALESCE(e.category,CASE WHEN e.type='payable' THEN 'Despesas' ELSE 'Recebimentos' END) category
-    FROM finance_settlements fs JOIN financial_entries e ON e.id=fs.entry_id WHERE e.status<>'cancelled'`);
+    FROM finance_settlements fs JOIN financial_entries e ON e.id=fs.entry_id WHERE e.status<>'cancelled' `+paidRange.sql,...paidRange.params);
   const direct=many(`SELECT s.created_at,p.amount_cents,p.method,s.id
     FROM sales s JOIN sale_payments p ON p.sale_id=s.id
-    WHERE s.status='completed' AND s.is_training=0 AND p.method<>'credit'`);
+    WHERE s.status='completed' AND s.is_training=0 AND p.method<>'credit'`+salesRange.sql,...salesRange.params);
   const timeline=[];
-  for(const item of direct)if(within(item.created_at.slice(0,10))){
-    timeline.push({id:'sale:'+item.id+':'+item.method,date:item.created_at.slice(0,10),
+  for(const item of direct)if(within(localDateKey(item.created_at))){
+    timeline.push({id:'sale:'+item.id+':'+item.method,date:localDateKey(item.created_at),
       kind:'entrada',category:'Vendas',description:'Venda '+item.id.slice(0,8),
       method:item.method,amount_cents:item.amount_cents,source:'sale'});
   }
-  for(const entry of paid)if(within(entry.created_at.slice(0,10))){
+  for(const entry of paid)if(within(localDateKey(entry.created_at))){
     timeline.push({id:'settlement:'+entry.entry_id+':'+entry.created_at,
-      date:entry.created_at.slice(0,10),kind:entry.type==='payable'?'saida':'entrada',
+      date:localDateKey(entry.created_at),kind:entry.type==='payable'?'saida':'entrada',
       category:entry.category,description:entry.description,method:entry.method,
       amount_cents:entry.amount_cents,source:'financial_settlement'});
   }
@@ -85,7 +91,7 @@ export function createFinanceP2(db){
   const realizedIn=timeline.filter(x=>x.kind==='entrada').reduce((sum,x)=>sum+x.amount_cents,0);
   const realizedOut=timeline.filter(x=>x.kind==='saida').reduce((sum,x)=>sum+x.amount_cents,0);
   const balances=new Map();
-  for(const x of paid)balances.set(x.entry_id,(balances.get(x.entry_id)||0)+x.amount_cents);
+  for(const x of balanceRows)balances.set(x.entry_id,x.amount_cents);
   const forecasts=[];
   for(const e of entries){
    const remaining=e.amount_cents-(balances.get(e.id)||0);
@@ -99,12 +105,12 @@ export function createFinanceP2(db){
   const marginRows=many(`SELECT s.id,s.total_cents,s.created_at,
     i.unit_cost_cents,i.quantity_milli
     FROM sales s JOIN sale_items i ON i.sale_id=s.id
-    WHERE s.status='completed' AND s.is_training=0`);
+    WHERE s.status='completed' AND s.is_training=0`+salesRange.sql,...salesRange.params);
   const marginSaleIds=new Set(),saleRevenue=new Map();
   let cost=0,missing=0;
-  for(const item of marginRows)if(within(item.created_at.slice(0,10))){
+  for(const item of marginRows)if(within(localDateKey(item.created_at))){
    marginSaleIds.add(item.id);saleRevenue.set(item.id,item.total_cents);
-   cost+=Math.round(item.unit_cost_cents*item.quantity_milli/1000);
+   cost=checkedSum([cost,lineTotalCents(item.unit_cost_cents,item.quantity_milli)]);
    if(item.unit_cost_cents===0)missing++;
   }
   const revenue=[...saleRevenue.values()].reduce((sum,n)=>sum+n,0);
