@@ -12,7 +12,7 @@ test('CSV aceita vírgula, ponto e vírgula, aspas e BOM; XLSX preserva zeros e 
   const cells=[cols.map(c=>c.label),cols.map(c=>c.key==='name'?'Ana':c.key==='document'?'00123':'')];
   const bytes=await makeTransferXlsx('customers',cells);
   assert.deepEqual(await readTransferFile('xlsx',bytes),cells);
-  assert.match(writeCsv([['=1+1']]),/'=1\+1/);
+  assert.ok(writeCsv([['=1+1']]).includes("'=1+1"));
 });
 test('prévia não grava; confirmação cria e atualiza clientes pelo documento, sem sobrescrever campos ausentes',()=>{
   const db=openCatalog(':memory:');
