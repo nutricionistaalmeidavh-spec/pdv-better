@@ -2,7 +2,7 @@ import test from 'node:test';
 import ExcelJS from 'exceljs';
 import assert from 'node:assert/strict';
 import {openCatalog} from '../electron/db.mjs';
-import {parseCsv, writeCsv, transferColumns} from '../shared/data-transfer.mjs';
+import {parseCsv, writeCsv, transferColumns, suggestTransferMapping, remapTransferTable} from '../shared/data-transfer.mjs';
 import {readTransferFile, makeTransferXlsx} from '../electron/data-transfer-file.mjs';
 import {allowed} from '../shared/access.mjs';
 
@@ -75,4 +75,29 @@ test('importa mais de 500 produtos, preserva saldo, exporta cadastro reimportáv
   assert.equal(db.list('products')[0].sale_price_cents,949);
   assert.equal(db.list('products')[0].stock_milli,2000);
  }finally{db.close();}
+});
+
+test('mapeia cabeçalhos externos, ignora coluna escolhida e consulta histórico paginado',()=>{
+ const headers=['Razão social','Documento','Observações internas'];
+ const table=[headers,['Fornecedor A','00123','ignorar']];
+ assert.deepEqual(suggestTransferMapping('suppliers',headers),['name','document','']);
+ assert.deepEqual(remapTransferTable('suppliers',table,['name','document','']),[['name','document'],['Fornecedor A','00123']]);
+ assert.throws(()=>remapTransferTable('suppliers',table,['name','name','']),/repetir/i);
+ const store=openCatalog(':memory:');
+ try{
+  const input={kind:'suppliers',table:remapTransferTable('suppliers',table,['name','document',''])};
+  store.importDataTransfer({...input,token:store.previewDataTransfer(input).token});
+  assert.equal(store.dataTransferHistory({kind:'suppliers',page:0,pageSize:1}).rows[0].created_count,1);
+  assert.equal(store.dataTransferHistory({kind:'suppliers',page:1,pageSize:1}).rows.length,0);
+  assert.equal(store.dataTransferHistory({kind:'customers',page:0,pageSize:1}).total,0);
+ }finally{store.close();}
+});
+test('XLSX utiliza células numéricas para preço/quantidade e texto para identificadores',async()=>{
+ const columns=transferColumns('inventory');
+ const bytes=await makeTransferXlsx('inventory',[columns.map(c=>c.label),['','000123','1.250']]);
+ const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(bytes));
+ const sheet=workbook.worksheets[0];
+ assert.equal(sheet.getCell('B2').value,'000123');
+ assert.equal(sheet.getCell('C2').value,1.25);
+ assert.equal(sheet.getCell('C2').numFmt,'0.000');
 });
