@@ -90,5 +90,9 @@ export function cartTotalCents(cart) {
   return checkedSum(cart.map(item=>lineTotalCents(item.priceCents,item.quantityMilli)));
 }
 export function money(cents) {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  if(!Number.isSafeInteger(cents))throw new Error('Valor monetário inválido.');
+  const n=BigInt(cents),absolute=n<0n?-n:n;
+  const integer=Number(absolute/100n),fraction=String(absolute%100n).padStart(2,'0');
+  const signed=n<0n?-integer:integer;
+  return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).formatToParts(signed).map(p=>p.type==='fraction'?fraction:p.value).join('');
 }
