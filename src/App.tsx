@@ -153,9 +153,11 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     }
     try{
       // Uma consulta COUNT(*) por entidade: nunca transferir tabelas completas no login.
-      const counts=await bridge.overview();
-      setOverviewCounts(counts);
-      if(counts.stockAlerts){setStockAlertsSummary(counts.stockAlerts);setStockAlertsLoaded(true);}
+      if(view==='dashboard'){
+        const counts=await bridge.overview();
+        setOverviewCounts(counts);
+        if(counts.stockAlerts){setStockAlertsSummary(counts.stockAlerts);setStockAlertsLoaded(true);}
+      }
       if(view==='checkout'){
         const kinds=['products','categories','customers'].filter(kind=>allowed(user.role,'list',[kind]));
         const entries=await Promise.all(kinds.map(kind=>kind==='products'
@@ -187,9 +189,11 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
       const current=await bridge.list(kind);
       setRecords(prev=>({...prev,[kind]:current}));
     }
-    const updated=await bridge.overview();
-    setOverviewCounts(updated);
-    if(updated.stockAlerts){setStockAlertsSummary(updated.stockAlerts);setStockAlertsLoaded(true);}
+    if(view==='dashboard'){
+      const updated=await bridge.overview();
+      setOverviewCounts(updated);
+      if(updated.stockAlerts){setStockAlertsSummary(updated.stockAlerts);setStockAlertsLoaded(true);}
+    }
   }
   useEffect(()=>{void reloadAll();},[view]);
   useEffect(()=>{
@@ -228,7 +232,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
     catch{/* A ausência de armazenamento temporário não impede uma venda */ }
   },[cart]);
   useEffect(() => { setSearch(''); setPage(0); setNotice(''); setError(''); }, [view]);
-  useEffect(() => { if((view==='checkout'||view==='dashboard') && bridge) void bridge.sessionCurrent().then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
+  useEffect(() => { if((view==='checkout'||view==='dashboard') && bridge) void bridge.sessionPage({summaryOnly:true}).then(setSession).catch(err=>setCartError(friendlyError(err))); }, [view]);
   useEffect(() => {
     if (view === 'checkout' && !paymentOpen && !receipt) searchInput.current?.focus();
   }, [view,paymentOpen,receipt]);
@@ -491,7 +495,7 @@ export function App({user,onLogout}:{user:{id:string;name:string;role:string};on
   }
   async function completeSale(sale:Row) {
     setPaymentOpen(false);setCart([]);setUndoCart(null);setReceipt(sale);
-    try {await reload('products');if(bridge)setSession(await bridge.sessionCurrent());}catch(err){setCartError(friendlyError(err));}
+    try {await reload('products');if(bridge)setSession(await bridge.sessionPage({summaryOnly:true}));}catch(err){setCartError(friendlyError(err));}
     setNotice(sale.is_training?'Simulação de treinamento '+sale.id.slice(0,8)+' registrada: sem faturamento, caixa ou baixa de estoque.':
       'Venda '+sale.id.slice(0,8)+' concluída, total '+money(sale.total_cents)+'. Troco: '+money(sale.change_cents)+'. Comprovante não fiscal.');
   }
