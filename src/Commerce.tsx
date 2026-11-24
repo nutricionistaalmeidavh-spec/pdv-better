@@ -310,6 +310,7 @@ export function CommerceView({view,onDataChanged,role,refreshRevision=0}:{view:s
   const api=window.pdv;
   const [session,setSession]=useState<R|null>(null);
   const [cashPage,setCashPage]=useState(0);
+  const [financeRevision,setFinanceRevision]=useState(0);
   const requestGeneration=useRef(0);
   const [otherSessions,setOtherSessions]=useState<R[]>([]);
   const [sales,setSales]=useState<R[]>([]);
@@ -449,7 +450,7 @@ export function CommerceView({view,onDataChanged,role,refreshRevision=0}:{view:s
   async function action(fn:()=>Promise<any>,message:string,updateProducts=false) {
     if(busy)return;
     setBusy(true);setError('');setSuccess('');
-    try{await fn();if(updateProducts)await onDataChanged();await load();setSuccess(message);}
+    try{await fn();if(updateProducts)await onDataChanged();await load();if(view==='finance')setFinanceRevision(n=>n+1);setSuccess(message);}
     catch(err){setError(errorMessage(err));}
     finally{setBusy(false);}
   }
@@ -698,7 +699,7 @@ export function CommerceView({view,onDataChanged,role,refreshRevision=0}:{view:s
       <QueryPager page={purchasePage} total={purchaseTotal} pageSize={40} label="compras" onChange={setPurchasePage}/>
       </div>
     </>}
-    {view==='finance'&&<FinanceP2Panel entries={finance} onChanged={load}
+    {view==='finance'&&<FinanceP2Panel entries={finance} revision={financeRevision} onChanged={load}
       pageLabel={'Contas no quadro: página '+(financePage+1)+' de '+Math.max(1,Math.ceil(financeTotal/50))}/>} 
     {view==='finance'&&<><div className="panel commerce-section finance-entry-card"><h2>Novo lançamento</h2><form className="commerce-inline-form" onSubmit={e=>{e.preventDefault();void action(()=>api!.financeCreate({type:financeType,description,amountCents:amount,dueOn,category:financeCategory}), 'Lançamento registrado.');}}>
       <label>Tipo<select value={financeType} onChange={e=>setFinanceType(e.target.value)}>{financeTypes.map(t=><option value={t} key={t}>{commerceLabels.finance[t]}</option>)}</select></label>
